@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Java ArrayList — Memory Visualizer</title>
+  <!-- Your provided shared stylesheet -->
+  <link rel="stylesheet" href="shared/styles.css" />
+
+  <!-- Page-specific styles -->
+  <style>
+    :root{
+      /* Baseline grid: 10 x 5 squares */
+      --baseline-cols: 10;
+      --baseline-rows: 5;
+      --gap: 6px;
+
+      /* Grid sizing — kept small by default but scalable */
+      --grid-max-width: 420px;
+      --cell-font-scale: 0.38; /* font size ~ 38% of the cell width */
+    }
+
+    .memory-grid {
+      --cols: var(--baseline-cols);
+      display: grid;
+      grid-template-columns: repeat(var(--cols), 1fr);
+      gap: var(--gap);
+      max-width: var(--grid-max-width);
+      margin: 0 auto;
+      padding: 0.35rem;
+      border-radius: 8px;
+      background: #fff;
+      position: relative;
+      transition: box-shadow 0.2s ease;
+      /* Allow large demonstrations (many rows) with scroll */
+      max-height: 70vh;
+      overflow: auto;
+    }
+
+    .memory-grid.flash {
+      animation: gridflash 0.8s ease-in-out 2;
+    }
+    @keyframes gridflash {
+      0%   { box-shadow: 0 0 0 0 #F0B800; }
+      50%  { box-shadow: 0 0 0 6px #F0B800; }
+      100% { box-shadow: 0 0 0 0 #F0B800; }
+    }
+
+    .cell {
+      position: relative;
+      background: #e0e0e0;   /* unused memory */
+      border-radius: 4px;
+      /* Make each cell a true square */
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      color: #000;
+      user-select: none;
+      border: 1px solid #d0d0d0;
+      transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    /* Allocated internal array (ArrayList backing array) */
+    .cell.allocated {
+      background: #ffebeb;               /* light red */
+      border-color: #E60000;
+    }
+
+    /* Filled slots (have user data) */
+    .cell.filled {
+      background: #ffd6d6;               /* deeper red tint */
+      border-color: #cc0000;
+    }
+
+    /* The current targeted memory cell for the animation step */
+    .cell.current {
+      box-shadow: 0 0 0 3px #F0B800 inset, 0 0 12px rgba(240,184,0,0.7);
+      animation: pulse 0.8s ease-in-out infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to   { transform: scale(0.98); }
+    }
+
+    /* Content wrapper inside a cell to scale text nicely */
+    .content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      text-align: center;
+      line-break: anywhere;
+      word-break: break-word;
+      /* Font size will be set dynamically based on cell width */
+      font-size: 12px; /* fallback if JS is disabled */
+    }
+
+    /* Slim helper styles */
+    .inline-inputs {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .inline-inputs input[type="text"],
+    .inline-inputs input[type="number"] {
+      padding: 0.35rem 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      min-width: 120px;
+      font-size: 0.9rem;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 0.75rem 1rem;
+      font-size: 0.92rem;
+      margin-top: 0.25rem;
+    }
+
+    .status {
+      margin-top: 0.4rem;
+      min-height: 1.4rem;
+      font-size: 0.92rem;
+    }
+
+    .legend .row { display:flex; align-items:center; gap:0.5rem; }
+    .legend .key { display:flex; align-items:center; gap:0.4rem; }
+    .legend .box {
+      width: 14px; height: 14px; border-radius:3px; border:1px solid #999;
+    }
+    .legend .box.unused { background:#e0e0e0; border-color:#d0d0d0; }
+    .legend .box.alloc  { background:#ffebeb; border-color:#E60000; }
+    .legend .box.filled { background:#ffd6d6; border-color:#cc0000; }
+    .legend .focus { border: 2px solid #F0B800; width: 14px; height: 14px; border-radius:3px; }
+
+    .output {
+      margin-top: 0.5rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: #f8f9fa;
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid #eee;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .thin-note {
+      font-size: 0.82rem;
+      color: #333;
+      margin-top: -0.3rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Java <code>ArrayList</code> — Memory Visualizer</h1>
+
+    <div class="controls-container">
+      <!-- Left/top controls -->
+      <aside class="sidebar">
+        <div class="controls">
+
+          <div class="control inline">
+            <button id="createBtn" class="widget-action-button">Create new array list</button>
+          </div>
+
+          <div class="control">
+            <div class="inline-inputs">
+              <label for="initialCapacity"><strong>Initial capacity</strong></label>
+              <input id="initialCapacity" type="number" min="1" step="1" value="10" />
+              <span class="thin-note">Default: 10 (Java <code>ArrayList</code> often starts at 10)</span>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="inline-inputs">
+              <label for="addValue"><strong>Value</strong></label>
+              <input id="addValue" type="text" placeholder="e.g. 42 or 'cat'" />
+              <button id="addBtn" class="widget-action-button">add()</button>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="inline-inputs">
+              <label for="removeIndex"><strong>Index</strong></label>
+              <input id="removeIndex" type="number" min="0" step="1" placeholder="index to remove" />
+              <button id="removeBtn" class="widget-action-button">remove()</button>
+            </div>
+            <span class="thin-note">This demo uses <code>remove(int index)</code> (shifts elements left).</span>
+          </div>
+
+          <div class="control">
+            <div class="inline-inputs">
+              <label for="containsValue"><strong>Value</strong></label>
+              <input id="containsValue" type="text" placeholder="value to search" />
+              <button id="containsBtn" class="widget-action-button">contains()</button>
+            </div>
+          </div>
+
+          <div class="control inline">
+            <button id="toStringBtn" class="widget-action-button">toString()</button>
+          </div>
+
+          <div class="control">
+            <label for="speedSlider">Animation speed (steps per second): <span id="speedLabel">2</span></label>
+            <input id="speedSlider" type="range" min="0.25" max="5" step="0.25" value="2" />
+          </div>
+
+          <div class="legend">
+            <h3>Legend</h3>
+            <div class="row">
+              <div class="key"><span class="box unused"></span> Unused memory</div>
+            </div>
+            <div class="row">
+              <div class="key"><span class="box alloc"></span> Allocated capacity (backing array)</div>
+            </div>
+            <div class="row">
+              <div class="key"><span class="box filled"></span> Filled slot (has element)</div>
+            </div>
+            <div class="row">
+              <div class="key"><span class="focus"></span> Current targeted cell</div>
+            </div>
+          </div>
+
+          <div class="info">
+            <h3>ArrayList facts</h3>
+            <p><strong>Dynamic size</strong>: grows when needed (this demo doubles capacity).</p>
+            <p><strong>Indexed</strong>: fast random access, linear search for <code>contains</code>.</p>
+            <div class="metrics">
+              <div><strong>Size</strong>: <span id="sizeMetric">0</span></div>
+              <div><strong>Capacity</strong>: <span id="capacityMetric">0</span></div>
+              <div><strong>Growth</strong>: ×<span id="growthMetric">2</span></div>
+            </div>
+            <div class="status" id="status" aria-live="polite"></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right area: grid + output -->
+      <main class="chartarea">
+        <div id="grid" class="memory-grid" aria-label="Program memory grid"
+             style="--cols: var(--baseline-cols);"></div>
+
+        <div class="output" id="output" aria-live="polite"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      // ---------- STATE ----------
+      const state = {
+        // The "logical" ArrayList content
+        values: [],     // filled elements (0..size-1)
+        size: 0,
+        capacity: 0,    // allocated slots (backing array length)
+        growthFactor: 2,
+        stepsPerSecond: 2,
+        busy: false,
+
+        // Baseline memory grid (10x5)
+        baselineCols: 10,
+        baselineRows: 5
+      };
+
+      // ---------- DOM ----------
+      const grid = document.getElementById('grid');
+      const output = document.getElementById('output');
+      const statusEl = document.getElementById('status');
+
+      const createBtn   = document.getElementById('createBtn');
+      const addBtn      = document.getElementById('addBtn');
+      const removeBtn   = document.getElementById('removeBtn');
+      const containsBtn = document.getElementById('containsBtn');
+      const toStringBtn = document.getElementById('toStringBtn');
+
+      const initialCapacityInput = document.getElementById('initialCapacity');
+      const addValueInput        = document.getElementById('addValue');
+      const removeIndexInput     = document.getElementById('removeIndex');
+      const containsValueInput   = document.getElementById('containsValue');
+
+      const speedSlider = document.getElementById('speedSlider');
+      const speedLabel  = document.getElementById('speedLabel');
+
+      const sizeMetric     = document.getElementById('sizeMetric');
+      const capacityMetric = document.getElementById('capacityMetric');
+      const growthMetric   = document.getElementById('growthMetric');
+
+      growthMetric.textContent = state.growthFactor;
+
+      // ---------- UTILITIES ----------
+      const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+      const stepPause = () => sleep(Math.max(5, 1000 / state.stepsPerSecond));
+
+      const setBusy = (on) => {
+        state.busy = on;
+        [
+          createBtn, addBtn, removeBtn, containsBtn, toStringBtn,
+          initialCapacityInput, addValueInput, removeIndexInput, containsValueInput, speedSlider
+        ].forEach(el => el.disabled = on);
+      };
+
+      const setStatus = (msg) => { statusEl.textContent = msg || ''; };
+
+      function totalCellsNeeded() {
+        const baseline = state.baselineCols * state.baselineRows; // 50 by default
+        return Math.max(baseline, state.capacity);
+      }
+
+      function getCells() {
+        return Array.from(grid.querySelectorAll('.cell'));
+      }
+
+      function clearCurrent() {
+        getCells().forEach(c => c.classList.remove('current'));
+      }
+
+      function highlightIndex(i) {
+        clearCurrent();
+        const cells = getCells();
+        if (i >= 0 && i < cells.length) {
+          cells[i].classList.add('current');
+          // Make sure it’s visible when the grid is scrollable
+          cells[i].scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+        }
+      }
+
+      function updateMetrics() {
+        sizeMetric.textContent = state.size;
+        capacityMetric.textContent = state.capacity;
+      }
+
+      // Scale text to fit cell width (keeps squares nice with lots of data)
+      function updateCellFontSize() {
+        const firstCell = grid.querySelector('.cell');
+        if (!firstCell) return;
+        const w = firstCell.getBoundingClientRect().width || 28;
+        // Font-size proportionate to width, but clamp it reasonably
+        const px = Math.max(9, Math.min(24, Math.floor(w * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-font-scale')))));
+        getCells().forEach(cell => {
+          const content = cell.querySelector('.content');
+          if (content) content.style.fontSize = px + 'px';
+        });
+      }
+
+      // Render the entire grid based on current state
+      function renderGrid() {
+        grid.innerHTML = '';
+        // Keep 10 columns always, rows expand as needed.
+        grid.style.setProperty('--cols', state.baselineCols);
+
+        const total = totalCellsNeeded();
+        for (let i = 0; i < total; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          // Unused by default
+          if (i < state.capacity) cell.classList.add('allocated');
+          if (i < state.size) cell.classList.add('filled');
+
+          const content = document.createElement('div');
+          content.className = 'content';
+          content.textContent = (i < state.size) ? String(state.values[i]) : '';
+          cell.appendChild(content);
+
+          grid.appendChild(cell);
+        }
+        updateCellFontSize();
+        updateMetrics();
+      }
+
+      function refreshFillOnly() {
+        // Faster update when only fills changed (no structure change)
+        const cells = getCells();
+        for (let i = 0; i < cells.length; i++) {
+          const content = cells[i].querySelector('.content');
+          cells[i].classList.toggle('allocated', i < state.capacity);
+          if (i < state.size) {
+            cells[i].classList.add('filled');
+            content.textContent = String(state.values[i]);
+          } else {
+            cells[i].classList.remove('filled');
+            content.textContent = '';
+          }
+        }
+        updateCellFontSize();
+        updateMetrics();
+      }
+
+      // Flash the grid to emphasize a resize
+      function flashGrid() {
+        grid.classList.remove('flash');
+        // Force reflow so the class re-add triggers animation each time
+        void grid.offsetWidth;
+        grid.classList.add('flash');
+        setTimeout(() => grid.classList.remove('flash'), 1600);
+      }
+
+      // ---------- OPERATIONS / ANIMATIONS ----------
+      async function opCreate() {
+        if (state.busy) return;
+        setBusy(true);
+
+        try {
+          // Reset everything
+          state.values = [];
+          state.size = 0;
+          const cap = Math.max(1, parseInt(initialCapacityInput.value || '10', 10));
+          state.capacity = 0;  // animate allocation to the target cap
+
+          renderGrid();
+          setStatus(`Allocating backing array with capacity ${cap}...`);
+
+          // Animate allocating each slot
+          for (let i = 0; i < cap; i++) {
+            state.capacity = i + 1;
+            renderGrid();
+            highlightIndex(i);
+            await stepPause();
+          }
+          clearCurrent();
+          setStatus('ArrayList created.');
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function ensureCapacityForAdd(targetSize) {
+        if (targetSize <= state.capacity) return;
+
+        // Grow until capacity >= targetSize
+        let newCap = (state.capacity === 0) ? 1 : state.capacity;
+        while (newCap < targetSize) newCap = Math.max(newCap * state.growthFactor, newCap + 1);
+
+        setStatus(`Capacity ${state.capacity} insufficient → resizing to ${newCap} (copying elements)...`);
+        flashGrid();
+
+        // Conceptual copy animation (walk existing elements)
+        for (let i = 0; i < state.size; i++) {
+          highlightIndex(i);
+          await stepPause();
+        }
+
+        // Apply new capacity and re-render
+        state.capacity = newCap;
+        renderGrid();
+
+        // Briefly sweep across allocated range to show new space
+        for (let i = 0; i < state.capacity; i++) {
+          highlightIndex(i);
+          await stepPause();
+        }
+        clearCurrent();
+        setStatus(`Resize complete. New capacity: ${state.capacity}.`);
+      }
+
+      async function opAdd() {
+        if (state.busy) return;
+        setBusy(true);
+
+        try {
+          if (state.capacity === 0) {
+            setStatus('Create the ArrayList first.');
+            setBusy(false);
+            return;
+          }
+
+          // Decide what to add: use input or auto-number
+          let val = addValueInput.value;
+          if (val.trim() === '') {
+            val = String(state.size); // auto-fill with an increasing number
+          }
+
+          // Ensure capacity (grow if needed)
+          await ensureCapacityForAdd(state.size + 1);
+
+          // Animate writing the new value
+          setStatus(`add(${JSON.stringify(val)}) at index ${state.size}`);
+          highlightIndex(state.size);
+          await stepPause();
+
+          state.values[state.size] = val;
+          state.size += 1;
+          refreshFillOnly();
+
+          await stepPause();
+          clearCurrent();
+          setStatus('add() complete.');
+          addValueInput.value = '';
+          removeIndexInput.value = '';
+          containsValueInput.value = '';
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function opRemove() {
+        if (state.busy) return;
+        setBusy(true);
+
+        try {
+          if (state.size === 0) {
+            setStatus('List is empty. Nothing to remove.');
+            setBusy(false);
+            return;
+          }
+
+          const idx = parseInt(removeIndexInput.value ?? '', 10);
+          if (isNaN(idx) || idx < 0 || idx >= state.size) {
+            setStatus(`Invalid index. Must be between 0 and ${state.size - 1}.`);
+            setBusy(false);
+            return;
+          }
+
+          setStatus(`remove(${idx}) — shift elements left`);
+          // Highlight the target index
+          highlightIndex(idx);
+          await stepPause();
+
+          // Shift left (visual: highlight source then destination)
+          for (let j = idx; j < state.size - 1; j++) {
+            // highlight source
+            highlightIndex(j + 1);
+            await stepPause();
+            // perform shift
+            state.values[j] = state.values[j + 1];
+            refreshFillOnly();
+            // highlight destination
+            highlightIndex(j);
+            await stepPause();
+          }
+
+          // Clear last slot
+          state.size -= 1;
+          state.values.length = state.size; // drop trailing
+          refreshFillOnly();
+
+          await stepPause();
+          clearCurrent();
+          setStatus('remove() complete.');
+          removeIndexInput.value = '';
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function opContains() {
+        if (state.busy) return;
+        setBusy(true);
+
+        try {
+          const needle = containsValueInput.value;
+          if (needle.trim() === '') {
+            setStatus('Enter a value to search for.');
+            setBusy(false);
+            return;
+          }
+
+          setStatus(`contains(${JSON.stringify(needle)}) — linear scan...`);
+          for (let i = 0; i < state.size; i++) {
+            highlightIndex(i);
+            await stepPause();
+            if (String(state.values[i]) === needle) {
+              setStatus(`Found at index ${i}. contains() → true`);
+              await stepPause();
+              clearCurrent();
+              return;
+            }
+          }
+          setStatus('Not found. contains() → false');
+          await stepPause();
+          clearCurrent();
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function opToString() {
+        if (state.busy) return;
+        setBusy(true);
+
+        try {
+          setStatus('Building string representation: [e0, e1, ...]');
+          output.textContent = ''; // clear
+          // Walk through to emphasize iteration
+          for (let i = 0; i < state.size; i++) {
+            highlightIndex(i);
+            await stepPause();
+          }
+          clearCurrent();
+
+          const s = `[${state.values.slice(0, state.size).map(v => String(v)).join(', ')}]`;
+          output.textContent = s;
+          setStatus('toString() complete.');
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      // ---------- EVENT WIRING ----------
+      createBtn.addEventListener('click', opCreate);
+      addBtn.addEventListener('click', opAdd);
+      removeBtn.addEventListener('click', opRemove);
+      containsBtn.addEventListener('click', opContains);
+      toStringBtn.addEventListener('click', opToString);
+
+      speedSlider.addEventListener('input', () => {
+        state.stepsPerSecond = parseFloat(speedSlider.value);
+        speedLabel.textContent = speedSlider.value;
+      });
+
+      // Keep text size responsive when window resizes
+      window.addEventListener('resize', updateCellFontSize);
+
+      // ---------- INITIALIZE ----------
+      // Build the baseline 10x5 grey grid (no ArrayList yet)
+      (function initBaseline() {
+        state.capacity = 0;
+        state.size = 0;
+        renderGrid();
+        setStatus('Click “Create new array list” to allocate capacity (cells turn red).');
+        speedLabel.textContent = speedSlider.value;
+        state.stepsPerSecond = parseFloat(speedSlider.value); // default 2 steps/sec
+      })();
+    })();
+  </script>
+</body>
+</html>

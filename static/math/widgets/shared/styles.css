@@ -1,0 +1,256 @@
+/* Common styles for all widgets */
+body {
+  font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  color: #E60000;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.back-link:hover {
+  color: #cc0000;
+  text-decoration: underline;
+}
+
+h1 {
+  color: #000000;
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.controls-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+}
+
+.control.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control label {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+  color: #000000;
+  font-size: 0.9rem;
+}
+
+.control input[type="range"] {
+  width: 100%;
+  margin: 0.15rem 0;
+  -webkit-appearance: none;
+  background: #f8f9fa;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.control input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="checkbox"] {
+  margin: 0;
+}
+
+.legend,
+.info {
+  font-size: 0.9rem;
+  background: #f8f9fa;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.legend {
+  margin-bottom: 0;
+  display: inline-block;
+}
+
+.legend h3,
+.info h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #000000;
+  font-weight: 600;
+}
+
+.legend p,
+.info p {
+  margin: 0.1rem 0;
+  color: #000000;
+}
+
+.swatch {
+  display: inline-block;
+  width: 24px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.swatch.parent { background: #666; }
+.swatch.trans { background: #E60000; }
+.swatch.axis { background: #F0B800; }
+.swatch.asymptote { background: #F0B800; }
+
+.chartarea {
+  flex: 1 1 400px;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+canvas {
+  max-width: 100%;
+  height: 300px;
+}
+
+/* Common styles for action buttons within widgets */
+.widget-action-button {
+  display: inline-block; /* More versatile */
+  padding: 0.65rem 1rem; 
+  background: #E60000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem; 
+  min-width: 120px; /* Ensure a decent minimum size */
+  line-height: 1.2; /* Ensure text vertical align is good */
+}
+
+.widget-action-button:hover {
+  background: #cc0000;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.widget-action-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* If a .widget-action-button is a direct child of a display:flex container, 
+   and we want it to take full width or grow: */
+.flex-container > .widget-action-button {
+    /* flex-grow: 1; /* Uncomment if buttons in flex should always grow */
+    /* width: 100%; /* Uncomment if buttons in flex should take full width of flex item */
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  body {
+    padding: 0.25rem;
+  }
+  .container {
+    padding: 0.5rem;
+  }
+  .controls-container {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex: 1 1 100%;
+    align-items: center;
+    order: 1;
+  }
+  .chartarea {
+    order: 2;
+    padding: 0.5rem;
+    width: calc(100% - 1rem);
+    margin: 0 auto;
+  }
+  .controls {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+  }
+  .info {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+    margin-bottom: 0.5rem;
+  }
+  .legend {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+    margin-top: 0.5rem;
+    order: 3;
+    text-align: left;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+  canvas {
+    height: 250px;
+  }
+} 

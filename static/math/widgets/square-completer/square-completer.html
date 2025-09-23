@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Geometric Square Completer</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Shared styles -->
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    /* .geometric-view specific styles removed, covered by .chartarea in shared/styles.css */
+    
+    /* Default local style for .expression */
+    .expression {
+      font-family: 'Times New Roman', serif;
+      font-style: italic;
+      font-size: 1.2rem;
+      margin: 0.5rem 0;
+      text-align: center; /* Center the equations */
+    }
+    .equation-line {
+      margin: 0.2em 0; /* Space between equation lines */
+      padding: 0;
+      /* text-align: center; will be inherited */
+    }
+    
+    /* Styles for step controls buttons */
+    .step-controls {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem; 
+    }
+    .step-controls .widget-action-button { /* NEW: Target shared buttons within step-controls */
+      flex-grow: 1;
+      flex-basis: 0; /* Distribute space equally */
+    }
+
+    /* Remove desktop styles for individual .step-info, .controls, .step-controls */
+    /* Their container, .sidebar, will get fixed width from shared styles */
+
+    @media (max-width: 768px) {
+      .controls-container .chartarea { /* Specificity to override shared if needed */
+        order: 1; 
+      }
+      .controls-container .sidebar {
+        order: 2;
+        /* Shared styles already make sidebar width 100% and align-items center */
+      }
+
+      /* Order for items now INSIDE .sidebar on mobile */
+      .sidebar .step-controls { /* Buttons */
+        order: 1; /* Buttons first within sidebar */
+        width: 100%;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+        justify-content: center;
+      }
+      .sidebar .info { /* Step Info */
+        order: 2; /* Step Info second within sidebar */
+        width: 100%; 
+        max-width: 500px; 
+        margin-left: auto; 
+        margin-right: auto;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+      }
+      .sidebar .controls { /* Sliders */
+        order: 3; /* Sliders last within sidebar */
+        width: 100%;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <a href="../../index.html" class="back-link">← Back to Home</a>
+    <h1>Geometric Square Completer</h1>
+    <div class="controls-container">
+      <main class="chartarea">
+        <canvas id="geometricCanvas"></canvas>
+      </main>
+      <aside class="sidebar">
+        <div class="step-controls">
+          <button id="prevStep" class="widget-action-button" disabled>Previous Step</button>
+          <button id="nextStep" class="widget-action-button">Next Step</button>
+        </div>
+        <div class="info" id="stepInfoBox">
+          <h3>Step <span id="currentStepDisplay">1</span> of <span id="totalStepsDisplay">5</span></h3>
+          <p id="stepDescription">Start with the quadratic expression in standard form.</p>
+          <div class="expression" id="currentExpression">x² + 4x + 3</div>
+        </div>
+        <div class="controls">
+          <div class="control">
+            <label>a (coefficient of x²): 1</label>
+          </div>
+          <div class="control">
+            <label for="bRange">b (coefficient of x): <span id="bVal">4</span></label>
+            <input id="bRange" type="range" min="-10" max="10" step="1" value="4" />
+          </div>
+          <div class="control">
+            <label for="cRange">c (constant term): <span id="cVal">3</span></label>
+            <input id="cRange" type="range" min="-10" max="10" step="1" value="3" />
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- JS -->
+  <script type="module" src="square-completer.js"></script>
+</body>
+
+</html> 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rectangle Symmetries (D2)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    .canvas-area svg {
+      width: 100%;
+      max-width: 600px;
+      height: 300px;
+      display: block;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: visible;
+    }
+    .canvas-area { perspective: 800px; }
+    .grid-line { stroke: #eee; stroke-width: 1; }
+    .rect-shape { fill: #f8f9fa; stroke: #000; stroke-width: 2; }
+    .corner-label { font-size: 14px; font-weight: 700; fill: #000; pointer-events: none; }
+    #labelA { fill: #E60000; }
+    #labelB { fill: #007bff; }
+    #labelC { fill: #00B800; }
+    #labelD { fill: #F0B800; }
+    #rectOuter, #rectInner { 
+      transform-box: fill-box; 
+      transform-origin: center;
+    }
+    #rectInner { transform-style: preserve-3d; }
+
+    .sidebar .button-group { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+    .sidebar .button-group > .widget-action-button { flex: 1 1 46%; }
+
+    .cayley { width: 100%; max-width: 600px; margin: 1rem auto 0; border-collapse: collapse; }
+    .cayley th, .cayley td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    .cayley th { background: #f1f3f5; }
+    .cayley .ok { background: #d4edda; }
+    .cayley .bad { background: #f8d7da; }
+    .legend { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 600px; margin: 0.5rem auto 0; color: #666; }
+    .table-feedback { max-width: 600px; margin: 0.5rem auto 0; text-align: center; color: #666; }
+    #btnShow.inactive { background: #6c757d; color: #ffffff; }
+    #btnShow.inactive:hover { background: #6c757d; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="../../index.html" class="back-link">← Back to Home</a>
+    <h1>Rectangle Symmetries (D2)</h1>
+
+    <div class="controls-container">
+      <aside class="sidebar">
+        <div class="info">
+          <h3>What is this group?</h3>
+          <p>The symmetries of a non-square rectangle form a group with four elements: identity e, a 180° rotation r, a vertical flip v (left↔right), and a horizontal flip h (top↔bottom). Each non-identity has order 2, and combining any two different non-identities gives the third one.</p>
+        </div>
+        <div class="controls">
+          <div class="control">
+            <label>Current symmetry: <span id="currentOp" class="info-readout">e</span></label>
+          </div>
+        </div>
+        <div class="control button-group">
+          <button id="btnIdentity" class="widget-action-button">Identity (e)</button>
+          <button id="btnRotate" class="widget-action-button">Rotate 180° (r)</button>
+          <button id="btnFlipV" class="widget-action-button">Flip Vertical (v)</button>
+          <button id="btnFlipH" class="widget-action-button">Flip Horizontal (h)</button>
+        </div>
+
+        <div class="info">
+          <h3>Build the Cayley Table</h3>
+          <p>Fill the table for composition of symmetries. Headers show the elements in order [e, r, v, h]. Each cell represents row ∘ column (apply row, then column). Click a cell to cycle its value through e, r, v, h; then check your work.</p>
+        </div>
+      </aside>
+
+      <main class="chartarea canvas-area">
+        <svg id="gtSvg" viewBox="0 0 600 300">
+          <g id="grid"></g>
+          <g id="rectOuter" class="animRotate">
+            <g id="rectInner">
+              <rect id="rect" class="rect-shape" x="180" y="80" width="240" height="140" rx="6" ry="6"></rect>
+              <text id="labelA" class="corner-label" x="192" y="98">A</text>
+              <text id="labelB" class="corner-label" x="408" y="98" text-anchor="end">B</text>
+              <text id="labelC" class="corner-label" x="408" y="202" text-anchor="end">C</text>
+              <text id="labelD" class="corner-label" x="192" y="202">D</text>
+            </g>
+          </g>
+        </svg>
+
+        <table id="cayley" class="cayley"></table>
+        <div class="legend">
+          <button id="btnCheck" class="widget-action-button">Check Table</button>
+          <button id="btnClear" class="widget-action-button">Clear Table</button>
+          <button id="btnShow" class="widget-action-button">Show Answer</button>
+        </div>
+        <div id="checkMsg" class="table-feedback"></div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="rectangle-rotator.js"></script>
+</body>
+</html>
+
+

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nonogram</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    .nonogram-area canvas {
+      width: 100%;
+      max-width: 600px;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    .controls .control label { font-size: 0.95rem; }
+    .sidebar .button-group { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .sidebar .button-group > .widget-action-button { flex-grow: 1; flex-basis: 0; }
+    #nonogramWarning { display:none; position:absolute; top:10px; left:50%; transform:translateX(-50%); background: rgba(255,0,0,0.85); color:#fff; padding:4px 10px; border-radius:4px; font-size:0.9rem; z-index:10; }
+    .nonogram-win {
+      display: none;
+      max-width: 600px;
+      margin: 0.75rem auto 0;
+      padding: 0.75rem 1rem;
+      background: #28a745;
+      color: #fff;
+      border: 1px solid #155724;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="../../index.html" class="back-link">← Back to Home</a>
+    <h1>Nonogram</h1>
+
+    <div class="controls-container">
+      <aside class="sidebar">
+        <div class="controls">
+          <div class="control">
+            <label for="sizeSelect">Grid Size:</label>
+            <select id="sizeSelect">
+              <option value="5">5×5 (Easy)</option>
+              <option value="10" selected>10×10 (Medium)</option>
+              <option value="15">15×15 (Hard)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="seedInput">Seed (shareable):</label>
+            <input id="seedInput" type="text" placeholder="random" />
+          </div>
+          <div class="control">
+            <label>Time: <span id="timeDisplay" class="info-readout">00:00</span></label>
+          </div>
+          <div class="control">
+            <label>Hints Used: <span id="hintsDisplay" class="info-readout">0</span></label>
+          </div>
+        </div>
+
+        <div class="control button-group">
+          <button id="hintButton" class="widget-action-button">Hint</button>
+          <button id="resetButton" class="widget-action-button">Reset</button>
+        </div>
+
+        <div class="info">
+          <h3>How to Play</h3>
+          <p>Fill cells to reveal a hidden picture using the numbers beside each row and column. Each number tells you the size of a contiguous group of filled cells in that order, with at least one empty cell between groups.</p>
+          <p>Left-click to fill a cell, right-click to place an X. Click-and-drag to paint quickly. Dragging over an already filled/X cell will clear those marks when you start on that type.</p>
+        </div>
+      </aside>
+
+      <main class="chartarea nonogram-area">
+        <div id="nonogramWarning">Invalid Move!</div>
+        <canvas id="nonogramCanvas"></canvas>
+        <div id="nonogramWin" class="nonogram-win"></div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="nonogram.js"></script>
+</body>
+</html>

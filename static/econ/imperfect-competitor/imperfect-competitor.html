@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Imperfect Competition Explorer — Cost & Revenue</title>
+
+<style>
+/* ========== User-provided core theme (kept intact) ========== */
+/* Common styles for all widgets */
+body {
+  font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  color: #E60000;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.back-link:hover {
+  color: #cc0000;
+  text-decoration: underline;
+}
+
+h1 {
+  color: #000000;
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.controls-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+}
+
+.control.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control label {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+  color: #000000;
+  font-size: 0.9rem;
+}
+
+.control input[type="range"] {
+  width: 100%;
+  margin: 0.15rem 0;
+  -webkit-appearance: none;
+  background: #f8f9fa;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.control input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="checkbox"] {
+  margin: 0;
+}
+
+.legend,
+.info {
+  font-size: 0.9rem;
+  background: #f8f9fa;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.legend {
+  margin-bottom: 0;
+  display: inline-block;
+}
+
+.legend h3,
+.info h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #000000;
+  font-weight: 600;
+}
+
+.legend p,
+.info p {
+  margin: 0.1rem 0;
+  color: #000000;
+}
+
+.swatch {
+  display: inline-block;
+  width: 24px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.swatch.parent { background: #666; }
+.swatch.trans { background: #E60000; }
+.swatch.axis { background: #F0B800; }
+.swatch.asymptote { background: #F0B800; }
+
+.chartarea {
+  flex: 1 1 400px;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+canvas {
+  max-width: 100%;
+  height: 300px;
+}
+
+/* Common styles for action buttons within widgets */
+.widget-action-button {
+  display: inline-block;
+  padding: 0.65rem 1rem; 
+  background: #E60000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem; 
+  min-width: 120px;
+  line-height: 1.2;
+}
+
+.widget-action-button:hover {
+  background: #cc0000;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.widget-action-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  body { padding: 0.25rem; }
+  .container { padding: 0.5rem; }
+  .controls-container { flex-direction: column; }
+  .sidebar { width: 100%; flex: 1 1 100%; align-items: center; order: 1; }
+  .chartarea { order: 2; padding: 0.5rem; width: calc(100% - 1rem); margin: 0 auto; }
+  .controls { width: calc(100% - 1rem); max-width: 500px; }
+  .info { width: calc(100% - 1rem); max-width: 500px; margin-bottom: 0.5rem; }
+  .legend { width: calc(100% - 1rem); max-width: 500px; margin-top: 0.5rem; order: 3; text-align: left; margin-left: auto; margin-right: auto; display: block; }
+  canvas { height: 250px; }
+}
+
+/* ========== Small additions for layout & modes ========== */
+.topbar {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.topbar .widget-action-button[aria-pressed="true"] {
+  background: #000; /* active mode is black for contrast */
+}
+
+.subtle {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.divider {
+  height: 1px; background: #eee; margin: 0.5rem 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f1f3f5;
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+}
+
+.kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.kpi .card {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 0.5rem;
+  text-align: center;
+}
+.kpi .card h4 { margin: 0; font-size: 0.9rem; }
+.kpi .card p { margin: 0.3rem 0 0; font-weight: 600; }
+
+.small {
+  font-size: 0.85rem;
+}
+
+/* Curve colors (legend swatches reflect these roughly) */
+:root{
+  --c-demand:#333333;
+  --c-mr:#E60000;
+  --c-mc:#0B84A5;
+  --c-atc:#6F2DBD;
+  --c-avc:#2A9D8F;
+  --c-axis:#F0B800;
+  --c-profit:#13a1581a; /* translucent */
+  --c-loss:#e6000014;
+  --c-dwl:#f0b8001a;
+}
+
+.mode-less .technical,
+.mode-behavioral .technical { display: none; }
+
+.mode-default .plain,
+.mode-behavioral .plain { display: none; }
+
+.behavior-row {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem;
+}
+.behavior-row .widget-action-button { min-width: auto; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+
+.toggle-row { display:flex; flex-wrap:wrap; gap:0.5rem; }
+
+.label-row {
+  display:flex; align-items:center; justify-content:space-between; gap:0.5rem;
+}
+.label-row input[type="number"] {
+  width: 90px; padding: 0.3rem 0.4rem; border:1px solid #ddd; border-radius:4px; font-size:0.9rem;
+}
+
+/* dashed guides for P* and Q* */
+.guide-label {
+  background: #000;
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* make checkboxes inline and tidy */
+.inline-check { display:flex; align-items:center; gap:0.35rem; font-size:0.88rem; }
+.inline-check input { transform: translateY(1px); }
+</style>
+</head>
+
+<body>
+  <div class="container" id="app">
+    <a class="back-link" href="#" onclick="return false">Imperfect Competition Explorer</a>
+    <h1>Cost & Revenue Curves for an Imperfect Competitor</h1>
+
+    <div class="topbar" role="tablist" aria-label="Mode selector">
+      <button class="widget-action-button" id="btnDefault" role="tab" aria-selected="true" aria-pressed="true">Default</button>
+      <button class="widget-action-button" id="btnLess" role="tab" aria-selected="false" aria-pressed="false">Less Technical</button>
+      <button class="widget-action-button" id="btnBehavioral" role="tab" aria-selected="false" aria-pressed="false">Behavioral</button>
+    </div>
+
+    <div class="controls-container">
+      <aside class="sidebar">
+        <!-- Controls -->
+        <div class="controls" id="controlsPanel" aria-label="Model controls">
+          <!-- Demand intercept a -->
+          <div class="control">
+            <div class="label-row">
+              <label for="aRange">
+                <span class="technical">Demand intercept <strong>a</strong> (P when Q=0)</span>
+                <span class="plain">Max price when no one buys</span>
+              </label>
+              <input type="number" id="aNum" step="1" min="10" max="500" />
+            </div>
+            <input type="range" id="aRange" min="10" max="500" step="1" />
+          </div>
+
+          <!-- Demand slope b -->
+          <div class="control">
+            <div class="label-row">
+              <label for="bRange">
+                <span class="technical">Demand slope <strong>b</strong> (price drop per unit)</span>
+                <span class="plain">How fast price must fall to sell more</span>
+              </label>
+              <input type="number" id="bNum" step="0.05" min="0.05" max="8" />
+            </div>
+            <input type="range" id="bRange" min="0.05" max="8" step="0.05" />
+          </div>
+
+          <!-- MC intercept alpha -->
+          <div class="control">
+            <div class="label-row">
+              <label for="alphaRange">
+                <span class="technical">MC intercept <strong>α</strong></span>
+                <span class="plain">Starting extra cost per unit</span>
+              </label>
+              <input type="number" id="alphaNum" step="1" min="0" max="300" />
+            </div>
+            <input type="range" id="alphaRange" min="0" max="300" step="1" />
+          </div>
+
+          <!-- MC slope beta -->
+          <div class="control">
+            <div class="label-row">
+              <label for="betaRange">
+                <span class="technical">MC slope <strong>β</strong></span>
+                <span class="plain">How quickly extra cost rises</span>
+              </label>
+              <input type="number" id="betaNum" step="0.05" min="0.05" max="6" />
+            </div>
+            <input type="range" id="betaRange" min="0.05" max="6" step="0.05" />
+          </div>
+
+          <!-- Fixed cost F -->
+          <div class="control">
+            <div class="label-row">
+              <label for="fRange">
+                <span class="technical">Fixed cost <strong>F</strong></span>
+                <span class="plain">Up‑front cost of being in business</span>
+              </label>
+              <input type="number" id="fNum" step="10" min="0" max="5000" />
+            </div>
+            <input type="range" id="fRange" min="0" max="5000" step="10" />
+          </div>
+
+          <!-- per-unit tax t (kept subtle; used in Behavioral mode too) -->
+          <div class="control technical">
+            <div class="label-row">
+              <label for="tRange">Per‑unit tax/subsidy <strong>t</strong> (tax>0, subsidy&lt;0)</label>
+              <input type="number" id="tNum" step="1" min="-100" max="100" />
+            </div>
+            <input type="range" id="tRange" min="-100" max="100" step="1" />
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Show/Hide toggles -->
+          <div class="toggle-row" role="group" aria-label="Toggle curves">
+            <label class="inline-check"><input type="checkbox" id="showDemand" checked /> <span class="technical">Demand / AR</span><span class="plain">Buyers’ willingness to pay</span></label>
+            <label class="inline-check"><input type="checkbox" id="showMR" checked /> <span class="technical">MR</span><span class="plain">Extra money from next unit</span></label>
+            <label class="inline-check"><input type="checkbox" id="showMC" checked /> <span>MC</span></label>
+            <label class="inline-check"><input type="checkbox" id="showATC" checked /> <span>ATC</span></label>
+            <label class="inline-check"><input type="checkbox" id="showAVC" /> <span>AVC</span></label>
+          </div>
+
+          <div class="toggle-row" role="group" aria-label="Toggle areas">
+            <label class="inline-check"><input type="checkbox" id="showProfit" checked /> Profit / Loss shading</label>
+            <label class="inline-check"><input type="checkbox" id="showDWL" checked /> Deadweight loss</label>
+            <label class="inline-check technical"><input type="checkbox" id="showGuides" checked /> Guides at Q*, P*</label>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="control">
+            <button class="widget-action-button" id="resetBtn">Reset to sensible defaults</button>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend" aria-label="Legend">
+          <h3>Legend</h3>
+          <p><span class="swatch parent" style="background:var(--c-demand)"></span> Demand / AR</p>
+          <p><span class="swatch trans"  style="background:var(--c-mr)"></span> MR</p>
+          <p><span class="swatch" style="background:var(--c-mc)"></span> MC</p>
+          <p><span class="swatch" style="background:var(--c-atc)"></span> ATC</p>
+          <p><span class="swatch" style="background:var(--c-avc)"></span> AVC</p>
+          <p><span class="swatch axis"></span> Axes & DWL guides</p>
+        </div>
+
+        <!-- Info box (changes with mode) -->
+        <div class="info" id="infoBox" aria-live="polite"></div>
+      </aside>
+
+      <!-- Chart -->
+      <section class="chartarea">
+        <canvas id="chart" width="900" height="420" aria-label="Cost and revenue chart"></canvas>
+
+        <!-- KPIs -->
+        <div class="kpi" id="kpiRow">
+          <div class="card"><h4>Q* (where MR=MC)</h4><p id="kpiQ">–</p></div>
+          <div class="card"><h4>P* (price from demand)</h4><p id="kpiP">–</p></div>
+          <div class="card technical"><h4>|ε| at Q*</h4><p id="kpiEps">–</p></div>
+          <div class="card technical"><h4>Lerner ( (P−MC)/P )</h4><p id="kpiLerner">–</p></div>
+          <div class="card"><h4>Profit π</h4><p id="kpiPi">–</p></div>
+          <div class="card technical"><h4>DWL</h4><p id="kpiDWL">–</p></div>
+        </div>
+
+        <!-- Behavioral mode buttons -->
+        <div id="behaviorPanel" class="behavior-row" style="display:none">
+          <button class="widget-action-button" id="bhDemandUp"    title="Shift demand up">Demand ↑</button>
+          <button class="widget-action-button" id="bhDemandDown"  title="Shift demand down">Demand ↓</button>
+          <button class="widget-action-button" id="bhElasticMore" title="More elastic (flatter)">More Elastic</button>
+          <button class="widget-action-button" id="bhElasticLess" title="Less elastic (steeper)">Less Elastic</button>
+          <button class="widget-action-button" id="bhCostUp"      title="Raise MC (intercept & slope)">Costs ↑</button>
+          <button class="widget-action-button" id="bhCostDown"    title="Lower MC">Costs ↓</button>
+          <button class="widget-action-button" id="bhEntry"       title="Monopolistic competition long-run entry">Entry → Zero Profit</button>
+          <button class="widget-action-button" id="bhShutdown"    title="Push below shutdown threshold">Shutdown Scenario</button>
+          <button class="widget-action-button" id="bhTax"         title="Add a per-unit tax">Tax +</button>
+          <button class="widget-action-button" id="bhClearTax"    title="Remove per-unit tax">Tax 0</button>
+        </div>
+
+        <p class="subtle small" id="statusMsg" aria-live="polite"></p>
+      </section>
+    </div>
+  </div>
+
+<script>
+/* =============================== Utilities =============================== */
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+const fmt  = (x, d=2) => (isFinite(x) ? (+x).toFixed(d) : "–");
+const lerp = (a,b,t) => a + (b-a)*t;
+const easeInOutCubic = t => t<0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+
+/* ============================== Model State ============================== */
+const state = {
+  // Economic parameters
+  a: 120,      // demand intercept
+  b: 0.9,      // demand slope (>0)
+  alpha: 30,   // MC intercept
+  beta: 0.9,   // MC slope (>0)
+  F: 500,      // fixed cost
+  t: 0,        // per-unit tax/subsidy (tax>0)
+  // UI toggles
+  show: { demand:true, mr:true, mc:true, atc:true, avc:false, profit:true, dwl:true, guides:true },
+  // Mode
+  mode: 'default',
+  // Animation flag
+  animating: false
+};
+
+const defaultState = JSON.parse(JSON.stringify(state));
+
+/* ============================= DOM References ============================ */
+const chart = document.getElementById('chart');
+const ctx   = chart.getContext('2d');
+
+const infoBox = document.getElementById('infoBox');
+const statusMsg = document.getElementById('statusMsg');
+
+const ids = id => document.getElementById(id);
+const aRange=ids('aRange'), aNum=ids('aNum');
+const bRange=ids('bRange'), bNum=ids('bNum');
+const alphaRange=ids('alphaRange'), alphaNum=ids('alphaNum');
+const betaRange=ids('betaRange'), betaNum=ids('betaNum');
+const fRange=ids('fRange'), fNum=ids('fNum');
+const tRange=ids('tRange'), tNum=ids('tNum');
+
+const showDemand=ids('showDemand'), showMR=ids('showMR'), showMC=ids('showMC'),
+      showATC=ids('showATC'), showAVC=ids('showAVC'), showProfit=ids('showProfit'),
+      showDWL=ids('showDWL'), showGuides=ids('showGuides');
+
+const kpiQ=ids('kpiQ'), kpiP=ids('kpiP'), kpiEps=ids('kpiEps'), kpiLerner=ids('kpiLerner'),
+      kpiPi=ids('kpiPi'), kpiDWL=ids('kpiDWL');
+
+const btnDefault=ids('btnDefault'), btnLess=ids('btnLess'), btnBehavioral=ids('btnBehavioral');
+const behaviorPanel = ids('behaviorPanel');
+const resetBtn = ids('resetBtn');
+
+/* Behavioral buttons */
+const bhDemandUp=ids('bhDemandUp'), bhDemandDown=ids('bhDemandDown'),
+      bhElasticMore=ids('bhElasticMore'), bhElasticLess=ids('bhElasticLess'),
+      bhCostUp=ids('bhCostUp'), bhCostDown=ids('bhCostDown'),
+      bhEntry=ids('bhEntry'), bhShutdown=ids('bhShutdown'),
+      bhTax=ids('bhTax'), bhClearTax=ids('bhClearTax');
+
+/* ======================== Parameter <-> Inputs Sync ====================== */
+function attachPair(rangeEl, numEl, key, onChange=render) {
+  // initialize
+  rangeEl.value = state[key];
+  numEl.value   = state[key];
+
+  const handler = (v) => {
+    const val = parseFloat(v);
+    if (!isFinite(val)) return;
+    state[key] = val;
+    rangeEl.value = val;
+    numEl.value   = val;
+    onChange();
+  };
+  rangeEl.addEventListener('input', e => handler(e.target.value));
+  numEl.addEventListener('change', e => handler(e.target.value));
+}
+attachPair(aRange, aNum, 'a');
+attachPair(bRange, bNum, 'b');
+attachPair(alphaRange, alphaNum, 'alpha');
+attachPair(betaRange, betaNum, 'beta');
+attachPair(fRange, fNum, 'F');
+attachPair(tRange, tNum, 't');
+
+function attachToggle(checkbox, key){
+  checkbox.checked = state.show[key];
+  checkbox.addEventListener('change', () => { state.show[key]=checkbox.checked; render(); });
+}
+attachToggle(showDemand,'demand');
+attachToggle(showMR,'mr');
+attachToggle(showMC,'mc');
+attachToggle(showATC,'atc');
+attachToggle(showAVC,'avc');
+attachToggle(showProfit,'profit');
+attachToggle(showDWL,'dwl');
+if (showGuides) attachToggle(showGuides,'guides'); // not present in Less mode
+
+/* =============================== Economics =============================== */
+// Core functions
+const P = (Q, s=state) => Math.max(0, s.a - s.b * Q);                     // Demand / AR
+const MR = (Q, s=state) => s.a - 2*s.b*Q;                                  // Marginal revenue
+const MC = (Q, s=state) => s.alpha + s.beta*Q + s.t;                       // Marginal cost (with tax)
+const AVC = (Q, s=state) => s.alpha + (s.beta/2)*Q + s.t;                  // Average variable cost (with tax)
+const ATC = (Q, s=state) => (Q<=0? Infinity : (s.F/Q) + AVC(Q, s));        // Average total cost
+
+function compute(s=state){
+  // Choke quantity & efficient quantity (P=MC)
+  const qChoke = s.a / s.b;
+  const qEff = (s.a - s.alpha - s.t) / (s.b + s.beta); // where P = MC
+
+  // Profit-max quantity from MR=MC
+  const denom = 2*s.b + s.beta;
+  const numer = s.a - s.alpha - s.t;
+  let qStar = numer/denom;
+  if (!isFinite(qStar) || qStar < 0) qStar = 0;
+
+  const pStar = P(qStar,s);
+  const mcStar = MC(qStar,s);
+  const avcStar= AVC(qStar,s);
+  const atcStar= ATC(qStar,s);
+
+  // Shutdown logic: only produce if price >= AVC at chosen Q* AND a >= min AVC
+  const shutdownFloor = s.alpha + s.t; // min AVC occurs as Q→0
+  const feasible = (s.a >= shutdownFloor) && (pStar >= avcStar) && (qStar > 0);
+  const produce = feasible;
+
+  const qActual = produce ? qStar : 0;
+  const pActual = produce ? pStar : 0;
+
+  const profit = produce ? (pStar - atcStar) * qStar : -s.F; // if shutdown in SR, loss=F
+
+  // Elasticity at Q*: |ε| = P / (b Q)
+  const absEps = (qStar>0) ? Math.abs(pStar / (s.b*qStar)) : Infinity;
+  const lerner = (produce && pStar>0) ? (pStar - mcStar)/pStar : 0;
+
+  // DWL relative to efficient Q (P=MC triangle area approximation for linear demand/MC)
+  let dwl = 0;
+  if (produce && isFinite(qEff) && qEff>qStar) {
+    const wedge = P(qStar,s) - MC(qStar,s);
+    dwl = 0.5 * (qEff - qStar) * wedge;
+    if (dwl < 0) dwl = 0;
+  }
+
+  // Useful geometric points for scaling
+  const qAtcMin = (s.beta>0) ? Math.sqrt(2*s.F / s.beta) : qStar;
+  const pCandidates = [
+    s.a, P(0.25*qChoke,s), P(0.5*qChoke,s), MC(qEff,s), MC(qChoke*0.9,s),
+    ATC(Math.max(0.1, qStar),s), AVC(Math.max(0.1, qStar),s)
+  ];
+  const qCandidates = [ qChoke, Math.max(0,qEff), qStar, qAtcMin, qChoke*0.6+5 ];
+
+  // Axis ranges (auto)
+  const Qmax = Math.max(10, ...qCandidates) * 1.15;
+  let Pmax = Math.max(10, ...pCandidates.filter(isFinite)) * 1.15;
+  Pmax = Math.min(Pmax, s.a*3 + 500); // avoid blow-ups
+
+  return {
+    qChoke, qEff, qStar, pStar, mcStar, avcStar, atcStar,
+    produce, qActual, pActual, profit, absEps, lerner, dwl, Qmax, Pmax
+  };
+}
+
+/* ================================ Drawing ================================ */
+function toCanvasScaler(width, height, pad, Pmax, Qmax) {
+  // Coordinate mapping: left pad, bottom pad
+  const left=pad, right=pad, top=pad, bottom=pad+12;
+  const W = width - left - right, H = height - top - bottom;
+  const x = q => left + (q/Qmax)*W;
+  const y = p => top + (1 - p/Pmax)*H;
+  return { x, y, left, right, top, bottom, W, H };
+}
+
+function drawAxes(sc, width, height) {
+  ctx.save();
+  ctx.strokeStyle = '#999';
+  ctx.lineWidth = 1;
+
+  // Axes
+  ctx.beginPath();
+  ctx.moveTo(sc.left, sc.top);
+  ctx.lineTo(sc.left, height - sc.bottom); // P-axis
+  ctx.lineTo(width - sc.right, height - sc.bottom); // Q-axis
+  ctx.stroke();
+
+  // Ticks & labels (simple)
+  ctx.fillStyle = '#000';
+  ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  const qTicks = 5, pTicks = 5;
+  for (let i=1;i<=qTicks;i++){
+    const q = i/qTicks;
+    const x = sc.left + q*sc.W;
+    ctx.beginPath();
+    ctx.moveTo(x, height - sc.bottom);
+    ctx.lineTo(x, height - sc.bottom + 4);
+    ctx.stroke();
+  }
+  for (let i=1;i<=pTicks;i++){
+    const p = i/pTicks;
+    const y = sc.top + (1-p)*sc.H;
+    ctx.beginPath();
+    ctx.moveTo(sc.left-4, y);
+    ctx.lineTo(sc.left, y);
+    ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillText('Q', width - sc.right - 8, height - sc.bottom + 12);
+  ctx.fillText('P', sc.left - 12, sc.top + 8);
+  ctx.restore();
+}
+
+function drawCurve(fnQtoP, sc, color, Qmax, samples=200, dash=null){
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  if (dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  let started = false;
+  const eps = 0.0001;
+  for (let i=0;i<=samples;i++){
+    const q = (i/samples) * Qmax;
+    const p = fnQtoP(q);
+    if (!isFinite(p)) continue;
+    const X = sc.x(q), Y = sc.y(p);
+    if (!started){ ctx.moveTo(X,Y); started=true; }
+    else ctx.lineTo(X,Y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function shadeProfitRect(sc, qStar, pStar, atcStar, color){
+  if (!isFinite(qStar) || qStar<=0) return;
+  ctx.save();
+  ctx.fillStyle = color;
+  const x0 = sc.x(0), x1 = sc.x(qStar);
+  const yP = sc.y(pStar), yATC = sc.y(atcStar);
+  const top = Math.min(yP, yATC), bottom = Math.max(yP, yATC);
+  ctx.fillRect(x0, top, (x1-x0), (bottom-top));
+  ctx.restore();
+}
+
+function shadeDWL(sc, s, c, color){
+  // Fill area between demand P(Q) and MC(Q) from Q=Q* to Q=Qeff
+  if (!(c.qEff>c.qStar)) return;
+  const N=60;
+  const q0=c.qStar, q1=c.qEff;
+  const demandPts=[], mcPts=[];
+  for (let i=0;i<=N;i++){
+    const q = q0 + (q1-q0)*(i/N);
+    demandPts.push([sc.x(q), sc.y(P(q,s))]);
+  }
+  for (let i=0;i<=N;i++){
+    const q = q1 - (q1-q0)*(i/N);
+    mcPts.push([sc.x(q), sc.y(MC(q,s))]);
+  }
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  const start = demandPts[0];
+  ctx.moveTo(start[0], start[1]);
+  demandPts.slice(1).forEach(([x,y])=>ctx.lineTo(x,y));
+  mcPts.forEach(([x,y])=>ctx.lineTo(x,y));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGuides(sc, c){
+  if (!state.show.guides || !c.produce) return;
+  ctx.save();
+  ctx.strokeStyle = '#444';
+  ctx.setLineDash([5,5]);
+  ctx.lineWidth = 1;
+  // vertical at Q*
+  ctx.beginPath();
+  ctx.moveTo(sc.x(c.qStar), sc.y(0));
+  ctx.lineTo(sc.x(c.qStar), sc.y(c.pStar));
+  ctx.stroke();
+  // horizontal at P*
+  ctx.beginPath();
+  ctx.moveTo(sc.x(0), sc.y(c.pStar));
+  ctx.lineTo(sc.x(c.qStar), sc.y(c.pStar));
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ============================== Render Pipeline ========================== */
+function render(){
+  // compute
+  const c = compute(state);
+  // sync toggles (in case mode hid some)
+  state.show.demand = showDemand.checked;
+  state.show.mr     = showMR.checked;
+  state.show.mc     = showMC.checked;
+  state.show.atc    = showATC.checked;
+  state.show.avc    = showAVC.checked;
+  state.show.profit = showProfit.checked;
+  state.show.dwl    = showDWL.checked;
+  if (showGuides) state.show.guides= showGuides.checked;
+
+  // hi-DPI sizing
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const cssW = chart.clientWidth || 900;
+  const cssH = chart.clientHeight || 420;
+  chart.width  = Math.round(cssW * dpr);
+  chart.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const sc = toCanvasScaler(cssW, cssH, 28, c.Pmax, c.Qmax);
+
+  // axes
+  drawAxes(sc, cssW, cssH);
+
+  // DWL first (under curves)
+  if (state.show.dwl && c.produce) shadeDWL(sc, state, c, getComputedStyle(document.documentElement).getPropertyValue('--c-dwl') || '#f0b80022');
+
+  // curves
+  if (state.show.demand) drawCurve(q=>P(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-demand') || '#333', c.Qmax);
+  if (state.show.mr)     drawCurve(q=>MR(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-mr') || '#E60000', c.Qmax, 200, [6,4]);
+  if (state.show.mc)     drawCurve(q=>MC(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-mc') || '#0B84A5', c.Qmax);
+  if (state.show.atc)    drawCurve(q=>ATC(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-atc') || '#6F2DBD', c.Qmax);
+  if (state.show.avc)    drawCurve(q=>AVC(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-avc') || '#2A9D8F', c.Qmax);
+
+  // Profit/Loss shading
+  if (state.show.profit){
+    if (c.produce && (c.pStar >= c.atcStar))   shadeProfitRect(sc, c.qStar, c.pStar, c.atcStar, getComputedStyle(document.documentElement).getPropertyValue('--c-profit') || '#00aa0018');
+    else if (c.produce && (c.pStar < c.atcStar)) shadeProfitRect(sc, c.qStar, c.pStar, c.atcStar, getComputedStyle(document.documentElement).getPropertyValue('--c-loss') || '#e6000014');
+  }
+
+  // Guides & marker
+  drawGuides(sc, c);
+  if (c.produce){
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(sc.x(c.qStar), sc.y(c.pStar), 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // KPIs
+  kpiQ.textContent = c.produce ? fmt(c.qStar) : '0 (shutdown)';
+  kpiP.textContent = c.produce ? fmt(c.pStar) : '–';
+  kpiPi.textContent= fmt(c.produce ? c.profit : -state.F);
+  kpiDWL.textContent= fmt(c.dwl);
+  kpiEps.textContent= (c.absEps===Infinity? '∞' : fmt(c.absEps));
+  kpiLerner.textContent = fmt(c.lerner);
+
+  // Info panel
+  renderInfo(c);
+}
+
+function renderInfo(c){
+  const mode = state.mode;
+  if (mode==='default'){
+    infoBox.parentElement.classList.add('mode-default');
+    infoBox.parentElement.classList.remove('mode-less','mode-behavioral');
+    infoBox.innerHTML = `
+      <h3 class="technical">Technical snapshot</h3>
+      <p class="technical"><strong>Demand:</strong> P(Q)=a−bQ &nbsp;&nbsp; <strong>MR:</strong> a−2bQ &nbsp;&nbsp; <strong>MC:</strong> α+βQ+t</p>
+      <p class="technical"><strong>AVC:</strong> α+½βQ+t &nbsp;&nbsp; <strong>ATC:</strong> F/Q + AVC</p>
+      <p class="technical"><strong>Rule:</strong> choose Q* where MR=MC, then price P*=P(Q*). Produce only if P* ≥ AVC(Q*) (and a ≥ α+t).</p>
+      <p class="technical"><strong>Elasticity link:</strong> MR = P(1 − 1/|ε|), so the firm produces on the elastic part (|ε|&gt;1).</p>
+      <p class="technical"><strong>Lerner index:</strong> (P−MC)/P = 1/|ε| at Q*.</p>
+      <div class="divider"></div>
+      <p class="small"><strong>Status:</strong> ${c.produce ? 'Producing' : 'Shutdown'} • 
+        Q*=${fmt(c.qStar)}, P*=${fmt(c.pStar)}, MC*=${fmt(c.mcStar)}, ATC*=${fmt(c.atcStar)}, π=${fmt(c.profit)}, DWL=${fmt(c.dwl)}, |ε|=${c.absEps===Infinity?'∞':fmt(c.absEps)}</p>
+    `;
+  } else if (mode==='less'){
+    infoBox.parentElement.classList.add('mode-less');
+    infoBox.parentElement.classList.remove('mode-default','mode-behavioral');
+    infoBox.innerHTML = `
+      <h3>Plain‑English snapshot</h3>
+      <p><strong>Goal:</strong> Make the amount where the <em>extra money from one more unit</em> equals the <em>extra cost of that unit</em>.</p>
+      <p><strong>Then set the price</strong> from the buyers’ willingness to pay at that amount.</p>
+      <p><strong>Operate only if</strong> the price covers the typical cost of making that unit (your per‑unit running cost).</p>
+      <div class="divider"></div>
+      <p class="small"><strong>Now:</strong> ${c.produce ? 'Producing' : 'Not producing (better to shut down short‑run)'}.
+         Quantity ≈ <strong>${fmt(c.qStar)}</strong>, Price ≈ <strong>${fmt(c.pStar)}</strong>.
+         Profit ≈ <strong>${fmt(c.profit)}</strong>. ${c.dwl>0 ? 'There is some lost surplus due to pricing power.' : 'No deadweight loss.'}
+      </p>
+    `;
+  } else {
+    infoBox.parentElement.classList.add('mode-behavioral');
+    infoBox.parentElement.classList.remove('mode-default','mode-less');
+    infoBox.innerHTML = `
+      <h3>Behavioral mode</h3>
+      <p>Click a scenario button to <em>animate</em> a typical classroom behavior: demand shifts, cost shocks, entry to zero profit, shutdown, or a per‑unit tax.</p>
+      <p class="small subtle">You can still tweak sliders while animations run.</p>
+    `;
+  }
+}
+
+/* =============================== Mode Switch ============================= */
+function setMode(next){
+  state.mode = next;
+  // update pressed state
+  const m = { default: btnDefault, less: btnLess, behavioral: btnBehavioral };
+  [btnDefault,btnLess,btnBehavioral].forEach(b=>{ b.setAttribute('aria-pressed','false'); b.setAttribute('aria-selected','false'); });
+  if (next==='default') { m.default.setAttribute('aria-pressed','true'); m.default.setAttribute('aria-selected','true'); behaviorPanel.style.display='none'; }
+  if (next==='less')    { m.less.setAttribute('aria-pressed','true'); m.less.setAttribute('aria-selected','true'); behaviorPanel.style.display='none'; }
+  if (next==='behavioral'){ m.behavioral.setAttribute('aria-pressed','true'); m.behavioral.setAttribute('aria-selected','true'); behaviorPanel.style.display='flex'; }
+
+  // Show/hide technical UI bits
+  document.body.classList.toggle('mode-less', next==='less');
+  document.body.classList.toggle('mode-default', next==='default');
+  document.body.classList.toggle('mode-behavioral', next==='behavioral');
+
+  // In Less mode, simplify by hiding MR by default (but don't force if user re-enables)
+  if (next==='less') {
+    showMR.checked = false; state.show.mr=false;
+    if (showGuides) { showGuides.checked = true; state.show.guides = true; }
+  }
+  render();
+}
+btnDefault.addEventListener('click', ()=>setMode('default'));
+btnLess.addEventListener('click', ()=>setMode('less'));
+btnBehavioral.addEventListener('click', ()=>setMode('behavioral'));
+
+/* ============================== Animations =============================== */
+function animateTo(target, ms=900){
+  if (state.animating) return; // simple guard
+  state.animating = true;
+  statusMsg.textContent = 'Animating…';
+  const start = { a:state.a, b:state.b, alpha:state.alpha, beta:state.beta, F:state.F, t:state.t };
+  const startTime = performance.now();
+  function frame(now){
+    const t = clamp((now - startTime)/ms, 0, 1);
+    const e = easeInOutCubic(t);
+    for (const k of Object.keys(start)){
+      state[k] = lerp(start[k], target[k] ?? start[k], e);
+    }
+    // Keep inputs in sync visually
+    aRange.value=state.a; aNum.value=state.a;
+    bRange.value=state.b; bNum.value=state.b;
+    alphaRange.value=state.alpha; alphaNum.value=state.alpha;
+    betaRange.value=state.beta; betaNum.value=state.beta;
+    fRange.value=state.F; fNum.value=state.F;
+    tRange.value=state.t; tNum.value=state.t;
+
+    render();
+    if (t < 1) requestAnimationFrame(frame);
+    else { state.animating=false; statusMsg.textContent=''; }
+  }
+  requestAnimationFrame(frame);
+}
+
+function targetForEntryZeroProfit(s=state){
+  // Solve t*Q + (b + β/2) Q^2 = F  for Q>0, then a = α + t + (2b + β)Q
+  const A = (s.b + s.beta/2);
+  const B = s.t;
+  const C = -s.F;
+  const disc = B*B - 4*A*C;
+  const Q = ( -B + Math.sqrt(Math.max(0,disc)) ) / (2*A);
+  const aTarget = s.alpha + s.t + (2*s.b + s.beta) * Q;
+  return {Q, aTarget};
+}
+
+/* ============================ Behavioral Hooks =========================== */
+bhDemandUp.addEventListener('click', ()=>{
+  animateTo({ a: state.a*1.25 });
+});
+bhDemandDown.addEventListener('click', ()=>{
+  animateTo({ a: state.a*0.8 });
+});
+bhElasticMore.addEventListener('click', ()=>{
+  animateTo({ b: Math.max(0.05, state.b*0.7) }); // flatter demand
+});
+bhElasticLess.addEventListener('click', ()=>{
+  animateTo({ b: Math.min(8, state.b*1.5) }); // steeper demand
+});
+bhCostUp.addEventListener('click', ()=>{
+  animateTo({ alpha: Math.min(300, state.alpha + 10), beta: Math.min(6, state.beta*1.15) });
+});
+bhCostDown.addEventListener('click', ()=>{
+  animateTo({ alpha: Math.max(0, state.alpha - 10), beta: Math.max(0.05, state.beta*0.9) });
+});
+bhEntry.addEventListener('click', ()=>{
+  const {aTarget} = targetForEntryZeroProfit();
+  animateTo({ a: aTarget }, 1100);
+});
+bhShutdown.addEventListener('click', ()=>{
+  // push below shutdown: a < α + t
+  const targetA = (state.alpha + state.t) * 0.9;
+  animateTo({ a: Math.max(0, targetA) });
+});
+bhTax.addEventListener('click', ()=>{
+  animateTo({ t: Math.min(100, state.t + 10) });
+});
+bhClearTax.addEventListener('click', ()=>{
+  animateTo({ t: 0 });
+});
+
+/* ================================ Reset ================================= */
+resetBtn.addEventListener('click', ()=>{
+  animateTo({ ...defaultState }, 600);
+});
+
+/* ============================== Resize Hook ============================= */
+window.addEventListener('resize', render);
+
+/* =============================== Boot Up =================================*/
+setMode('default'); // also calls render()
+</script>
+</body>
+</html>

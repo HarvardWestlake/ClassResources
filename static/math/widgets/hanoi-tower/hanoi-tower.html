@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tower of Hanoi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    .hanoi-game-area svg {
+      width: 100%;
+      /* height: 100%; Will be controlled by .chartarea height - Changed */
+      max-width: 600px; /* Cap at viewbox width */
+      height: 300px;    /* Default height like canvas */
+      display: block;
+      margin: 0 auto;
+    }
+    .hanoi-tower {
+      fill: #666; /* Tower color */
+    }
+    .hanoi-disk {
+      stroke: #333;
+      stroke-width: 1;
+      filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
+    }
+    /* Disk colors - can add more for more disks */
+    .disk-color-0 { fill: #E60000; } /* Red */
+    .disk-color-1 { fill: #F0B800; } /* Yellow */
+    .disk-color-2 { fill: #00B800; } /* Green */
+    .disk-color-3 { fill: #007bff; } /* Blue */
+    .disk-color-4 { fill: #6f42c1; } /* Purple */
+    .disk-color-5 { fill: #fd7e14; } /* Orange */
+    .disk-color-6 { fill: #20c997; } /* Teal */
+    .disk-color-7 { fill: #e83e8c; } /* Pink */
+
+    .hanoi-disk.selected {
+      opacity: 0.7;
+      stroke: #000;
+      stroke-width: 2;
+    }
+    .info-readout {
+      font-weight: normal;
+    }
+    .sidebar .control label, .sidebar .info p { /* Make labels and info text a bit more distinct */
+        font-size: 0.95rem;
+    }
+     .sidebar .info h3 { /* Match other info boxes */
+        margin-bottom: 0.75rem;
+    }
+
+    /* Make standalone widget action buttons in sidebar controls full width, 
+       EXCEPT if they are in a .button-group */
+    .sidebar .control:not(.button-group) > .widget-action-button {
+        width: 100%;
+    }
+
+    /* Styles for a group of buttons */
+    .sidebar .button-group {
+        display: flex;
+        flex-direction: row; /* Ensure side-by-side */
+        gap: 0.5rem;
+        margin-top: 1rem; 
+    }
+    .sidebar .button-group > .widget-action-button {
+        flex-grow: 1;
+        flex-basis: 0; /* Distribute space equally */
+    }
+
+    /* Specific button styling */
+    #undoButton {
+        background-color: #F0B800; /* Default Yellow */
+        color: #000000; /* Black text on yellow */
+    }
+    #undoButton:hover {
+        background-color: #F0B800; /* Hover Yellow (can be slightly different if desired) */
+        color: #000000; 
+        /* filter: brightness(90%); */ /* Example for a subtle hover change */
+    }
+    #undoButton:disabled {
+        background-color: #ccc !important; /* Ensure disabled style overrides default yellow */
+        color: #666 !important;
+    }
+
+    #resetButton {
+        background-color: #6c757d; /* Default Gray */
+        color: white;
+    }
+    #resetButton:hover {
+        background-color: #E60000; /* Hover Red (from original .widget-action-button hover) */
+        color: white;
+    }
+
+    .hanoi-win {
+      display: none;
+      max-width: 600px;
+      margin: 0.75rem auto 0;
+      padding: 0.75rem 1rem;
+      background: #28a745;
+      color: #fff;
+      border: 1px solid #155724;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .hanoi-disk.invalid-move-shake {
+      animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+      transform: translate3d(0, 0, 0);
+    }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+
+    /* Slider control group and styling for better affordance */
+    .slider-control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+    .slider-control-group input[type="range"] {
+      flex: 1 1 auto;
+    }
+    .step-button {
+      min-width: 2.25rem;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+      font-weight: 700;
+    }
+    .slider-hint {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    /* Make the range slider look draggable (WebKit/Blink) */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: #ddd;
+      border-radius: 6px;
+      outline: none;
+    }
+    input[type="range"]:hover {
+      background: #ccc;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #007bff;
+      border: 2px solid white;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      cursor: grab;
+    }
+    input[type="range"]:active::-webkit-slider-thumb {
+      cursor: grabbing;
+      background: #0062cc;
+    }
+    /* Firefox */
+    input[type="range"]::-moz-range-track {
+      height: 6px;
+      background: #ddd;
+      border-radius: 6px;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #007bff;
+      border: 2px solid white;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      cursor: grab;
+    }
+    input[type="range"]:active::-moz-range-thumb {
+      cursor: grabbing;
+      background: #0062cc;
+    }
+
+    #hanoiWarning {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(255, 0, 0, 0.8);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      display: none; /* Hidden by default */
+      z-index: 10;
+    }
+
+    @media (max-width: 768px) {
+      .controls-container .chartarea { order: 1; }
+      .controls-container .sidebar { order: 2; }
+
+      .sidebar > div { 
+        box-sizing: border-box;
+        width: 100%; 
+        max-width: 500px; 
+        margin-left: auto; 
+        margin-right: auto;
+        margin-bottom: 0.75rem; 
+      }
+      .sidebar > div:last-child {
+        margin-bottom: 0; 
+      }
+
+      .sidebar .info { 
+        order: 1; 
+        padding-top: 0.25rem; 
+        padding-bottom: 0.25rem; 
+        padding-left: 0.75rem; 
+        padding-right: 0.75rem; 
+      }
+      .sidebar .info h3 {
+        text-align: center;
+      }
+      .sidebar .controls { order: 2; } 
+      .sidebar .control.button-group { order: 3; }
+
+      .hanoi-game-area svg {
+        height: 250px; /* Mobile height like canvas */
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="../../index.html" class="back-link">← Back to Home</a>
+    <h1>Tower of Hanoi</h1>
+
+    <div class="controls-container">
+      <aside class="sidebar">
+        <div class="controls">
+          <div class="control">
+            <label for="numDisksSlider">Number of Disks: <span id="numDisksDisplay">1</span></label>
+            <div class="slider-control-group">
+              <button id="decreaseDisksButton" class="widget-action-button step-button" aria-label="Decrease number of disks" title="Decrease">−</button>
+              <input id="numDisksSlider" type="range" min="1" max="8" step="1" value="1" />
+              <button id="increaseDisksButton" class="widget-action-button step-button" aria-label="Increase number of disks" title="Increase">+</button>
+            </div>
+            <div class="slider-hint" id="numDisksHint">Drag the knob or use − / +</div>
+          </div>
+        </div>
+
+        <div class="info">
+          <h3>Game Information</h3>
+          <p>Moves Taken: <span id="movesTakenDisplay" class="info-readout">0</span></p>
+          <p>Undos Used: <span id="undoCountDisplay" class="info-readout">0</span></p>
+        </div>
+
+        <div class="info">
+          <h3>How to Play</h3>
+          <p>Objective: Move the full stack of disks from the first peg onto any one other peg.</p>
+          <p>Rules: You can move only one disk at a time; you may only move the top disk from a peg; and you may never place a larger disk on top of a smaller disk.</p>
+        </div>
+        
+        <!-- Buttons Grouped -->
+        <div class="control button-group">
+            <button id="undoButton" class="widget-action-button" disabled>Undo Move</button>
+            <button id="resetButton" class="widget-action-button">Reset Game</button>
+        </div>
+
+      </aside>
+      
+      <main class="chartarea hanoi-game-area">
+        <div id="hanoiWarning">Invalid Move!</div>
+        <svg id="hanoiSvg" viewbox="0 0 600 300"></svg>
+        <div id="hanoiWin" class="hanoi-win"></div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="hanoi-tower.js"></script>
+</body>
+</html> 

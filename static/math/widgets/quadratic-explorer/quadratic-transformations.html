@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Quadratic Transformations Explorer</title>
+        <!-- Chart.js CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <!-- Shared styles -->
+        <link rel="stylesheet" href="../shared/styles.css">
+    </head>
+
+    <body>
+        <div class="container">
+            <a href="../../index.html" class="back-link">← Back to Home</a>
+            <h1>Explore Transformations of <em>f(x)=ax² + bx + c</em></h1>
+
+            <div class="controls-container">
+                <!-- ===== Sidebar ===== -->
+                <aside class="sidebar">
+                    <div class="controls">
+                        <div class="control">
+                            <label for="aRange">a (vertical stretch): <span id="aVal">1</span></label>
+                            <input id="aRange" type="range" min="0.1" max="5" step="0.1" value="1" />
+                        </div>
+                        <div class="control inline">
+                            <input id="flipChk" type="checkbox" />
+                            <label for="flipChk">Flip across x‑axis</label>
+                        </div>
+
+                        <div class="control">
+                            <label for="hRange">h (horizontal shift): <span id="hVal">0</span></label>
+                            <input id="hRange" type="range" min="-5" max="5" step="0.1" value="0" />
+                        </div>
+                        <div class="control">
+                            <label for="kRange">k (vertical shift): <span id="kVal">0</span></label>
+                            <input id="kRange" type="range" min="-5" max="5" step="0.1" value="0" />
+                        </div>
+                    </div>
+
+                    <!-- Equations & Range/Domain -->
+                    <div class="info">
+                        <h3>Function Information</h3>
+                        <p><strong>Parent:</strong> f(x) = <span id="parentEq">x²</span></p>
+                        <p><strong>Transformed (Vertex Form):</strong><br>g(x) = <span id="vertexEqText">x²</span></p>
+                        <p><strong>Transformed (Standard Form):</strong><br>g(x) = <span id="standardEqText">x²</span></p>
+                        <p><strong>Vertex:</strong> (<span id="vertexX">0</span>, <span id="vertexY">0</span>)</p>
+                        <p><strong>Axis of Symmetry:</strong> x = <span id="axisEqText">0</span></p>
+                        <p><strong>Domain:</strong> <span id="domainText">( −∞ , ∞ )</span></p>
+                        <p><strong>Range:</strong> <span id="rangeText">[ 0 , ∞ )</span></p>
+                    </div>
+                </aside>
+
+                <!-- ===== Chart ===== -->
+                <main class="chartarea">
+                    <canvas id="quadChart"></canvas>
+                </main>
+
+                <!-- Legend -->
+                <div class="legend">
+                    <h3>Legend</h3>
+                    <p><span class="swatch parent"></span>Parent</p>
+                    <p><span class="swatch trans"></span>Transformed</p>
+                    <p><span class="swatch axis"></span>Axis of Symmetry</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shared functionality -->
+        <script type="module" src="../shared/transformations.js"></script>
+        <!-- Widget-specific functionality -->
+        <script type="module" src="quadratic-transformations.js"></script>
+    </body>
+
+</html>

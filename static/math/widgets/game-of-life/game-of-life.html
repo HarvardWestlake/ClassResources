@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conway's Game of Life</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    /* Removed local styles for .game-of-life-canvas-container and canvas#gameOfLifeCanvas 
+       as shared .chartarea and canvas styles should now apply correctly. 
+       The .chartarea will define the viewport, and canvas will have fixed height from shared.
+    */
+    /* .game-of-life-canvas-container { ... } */
+    /* canvas#gameOfLifeCanvas { ... } */
+
+    .sidebar .info p .info-value {
+        font-weight: normal; /* For values like generation count */
+    }
+    .pattern-select {
+        width: 100%;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.9rem;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        background-color: white;
+        margin-top: 0.2rem;
+    }
+
+    @media (max-width: 768px) {
+        /* Removed local mobile override for .game-of-life-canvas-container height */
+        /* ... rest of mobile styles ... */
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="../../index.html" class="back-link">← Back to Home</a>
+    <h1>Conway's Game of Life</h1>
+
+    <div class="controls-container">
+      <aside class="sidebar">
+        <div class="controls">
+          <div class="control button-group" style="gap: 0.5rem;">
+            <button id="startPauseButton" class="widget-action-button" style="flex-grow:1;">Start</button>
+            <button id="nextStepButton" class="widget-action-button" style="flex-grow:1;">Next Step</button>
+          </div>
+          <div class="control">
+            <button id="resetClearButton" class="widget-action-button">Clear Grid</button>
+          </div>
+          <hr>
+          <div class="control">
+            <label for="gridSizeSlider">Grid Size (Cells per side): <span id="gridSizeDisplay">30</span></label>
+            <input id="gridSizeSlider" type="range" min="10" max="60" step="5" value="30" />
+          </div>
+          <div class="control">
+            <label for="speedSlider">Speed (ms per step): <span id="speedDisplay">200</span></label>
+            <input id="speedSlider" type="range" min="50" max="1000" step="50" value="200" />
+          </div>
+          <hr>
+          <div class="control">
+            <label for="patternSelect">Load Pattern:</label>
+            <select id="patternSelect" class="pattern-select">
+              <option value="clear">Clear Grid (then click to draw)</option>
+              <option value="glider">Glider</option>
+              <option value="blinker">Blinker (period 2)</option>
+              <option value="toad">Toad (period 2)</option>
+              <option value="beacon">Beacon (period 2)</option>
+              <option value="pulsar">Pulsar (period 3)</option>
+              <option value="lwss">Lightweight Spaceship (LWSS)</option>
+              <option value="gosperglidergun">Gosper Glider Gun</option>
+              <option value="rpentomino">R-pentomino</option>
+              <option value="diehard">Diehard</option>
+              <option value="acorn">Acorn</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="info">
+          <h3>Simulation Info</h3>
+          <p>Generation: <span id="generationDisplay" class="info-value">0</span></p>
+        </div>
+
+        <!-- New Game Rules Info Box -->
+        <div class="info" id="gameRulesInfo">
+          <h3>Game Rules & Reflections</h3>
+          <p><strong>Rules:</strong></p>
+          <ul>
+            <li>Any live cell with fewer than two live neighbours dies (underpopulation).</li>
+            <li>Any live cell with two or three live neighbours lives on to the next generation.</li>
+            <li>Any live cell with more than three live neighbours dies (overpopulation).</li>
+            <li>Any dead cell with exactly three live neighbours becomes a live cell (reproduction).</li>
+          </ul>
+          <p><strong>Reflect:</strong></p>
+          <ul>
+            <li>Can you create patterns that are stable (still lifes)?</li>
+            <li>Can you find patterns that oscillate (repeat over a few generations)?</li>
+            <li>What makes some patterns disappear quickly while others thrive or travel (spaceships)?</li>
+            <li>How do simple rules lead to such complex and unpredictable behavior?</li>
+          </ul>
+        </div>
+
+      </aside>
+      
+      <main class="chartarea game-of-life-canvas-container"> 
+        <canvas id="gameOfLifeCanvas"></canvas>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="game-of-life.js"></script>
+</body>
+</html> 

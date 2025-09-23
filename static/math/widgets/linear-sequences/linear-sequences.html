@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Linear Sequences Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    .table-wrap {
+      overflow-x: auto;
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    table.difftable {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 520px;
+    }
+    .difftable th, .difftable td {
+      border: 1px solid #e9ecef;
+      padding: 6px 8px;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #000000;
+      vertical-align: middle;
+    }
+    .difftable th { background: #f8f9fa; }
+    .difftable td.muted { color: #888; background: #fcfcfc; }
+    .difftable td.offset-d1 { background: #fffef7; }
+    .difftable td.offset-d2 { background: #f7fffb; }
+    .difftable td.blank { background: #fcfcfc; color: #ccc; }
+    .t-cell, .d1-cell, .d2-cell { cursor: pointer; }
+    .hl-t { background: #ffefd6 !important; box-shadow: inset 0 0 0 2px #F0B800; }
+    .hl-d1 { background: #e6f7ff !important; box-shadow: inset 0 0 0 2px #00A3FF; }
+    .hl-d2 { background: #e8ffe8 !important; box-shadow: inset 0 0 0 2px #00B800; }
+    .hl-selected { background: #fff1a8 !important; box-shadow: inset 0 0 0 3px #000000; }
+    .summary { margin-top: 0.5rem; color: #000000; }
+    .summary strong { color: #000000; }
+
+    /* Two-panel layout like quadratic widget */
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+    @media (min-width: 900px) {
+      .panels { grid-template-columns: 1.2fr 1fr; }
+    }
+    .info-panel {
+      background: #fff;
+      border-radius: 6px;
+      padding: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-link" href="../../index.html">← Back to Home</a>
+    <h1>Linear Sequences Explorer</h1>
+
+    <div class="controls-container">
+      <aside class="sidebar">
+        <div class="controls">
+          <div class="control">
+            <label for="aRange">a (slope): <span id="aVal" class="inline-val">1</span></label>
+            <input id="aRange" type="range" min="-10" max="10" step="1" value="1" />
+          </div>
+          <div class="control">
+            <label for="bRange">b (starting value): <span id="bVal" class="inline-val">0</span></label>
+            <input id="bRange" type="range" min="-20" max="20" step="1" value="0" />
+          </div>
+          <div class="control">
+            <label for="rowsRange">Rows shown (n from 0): <span id="rowsVal" class="inline-val">8</span></label>
+            <input id="rowsRange" type="range" min="4" max="16" step="1" value="8" />
+          </div>
+          <div class="control">
+            <button id="btnRandom" class="widget-action-button">Random Sequence</button>
+          </div>
+          <div class="control">
+            <button id="btnToggleMode" class="widget-action-button">Show Numbers</button>
+          </div>
+        </div>
+        <div class="info">
+          <h3>Key Idea</h3>
+          <p>For t(n) = a n + b with n starting at 0, the first difference is constant: Δ = a and Δ² = 0.</p>
+        </div>
+      </aside>
+
+      <main class="chartarea">
+        <div class="panels">
+          <section>
+            <div class="table-wrap">
+              <table id="diffTable" class="difftable"></table>
+            </div>
+          </section>
+          <section class="info-panel">
+            <div class="info" style="margin-bottom: 0.5rem;">
+              <h3>Information</h3>
+              <div class="summary" style="margin-top: 0;">
+                <div>Formula: <strong>t(n) = a n + b</strong> with a=<span id="sa">a</span>, b=<span id="sb">b</span></div>
+                <div>Expected constant first difference: <strong>Δ = a</strong></div>
+              </div>
+            </div>
+            <div id="recursionPanel"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="linear-sequences.js"></script>
+</body>
+</html>
+
+

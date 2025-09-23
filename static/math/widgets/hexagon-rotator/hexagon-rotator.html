@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hexagon Rotator (CCW 60° Steps)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    .canvas-area svg {
+      width: 100%;
+      max-width: 600px;
+      height: 300px;
+      display: block;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: visible;
+    }
+    .canvas-area { perspective: 800px; }
+    .grid-line { stroke: #eee; stroke-width: 1; }
+    .hex-shape { fill: #f8f9fa; stroke: #000; stroke-width: 2; }
+    #hexOuter, #hexInner {
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    .hex-buttons { display: flex; gap: 8px; margin-top: 1rem; flex-wrap: wrap; justify-content: center; align-content: center; width: 100%; margin-left: auto; margin-right: auto; }
+    .hex-buttons .widget-action-button { flex: 0 0 auto; width: 140px; height: 44px; padding: 0; box-sizing: border-box; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; }
+    .hex-marker { fill: #E60000; stroke: none; pointer-events: none; }
+    .start-arrow { stroke: #E60000; stroke-width: 3; fill: none; pointer-events: none; }
+    .start-arrowhead { fill: #E60000; stroke: none; pointer-events: none; }
+    .start-label { fill: #E60000; font-weight: 700; font-size: 14px; pointer-events: none; }
+    #btnReset { background-color: #6c757d; color: white; }
+    #btnReset:hover { background-color: #E60000; color: white; }
+    .cayley { width: 100%; max-width: 600px; margin: 1rem auto 0; border-collapse: collapse; table-layout: fixed; }
+    .cayley th, .cayley td { border: 1px solid #ccc; padding: 6px; text-align: center; white-space: nowrap; }
+    .cayley td { width: 72px; }
+    .cayley th { background: #f1f3f5; }
+    .cayley .ok { background: #d4edda; }
+    .cayley .bad { background: #f8d7da; }
+    .legend { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 600px; margin: 0.5rem auto 0; color: #666; }
+    .table-feedback { max-width: 600px; margin: 0.5rem auto 0; text-align: center; color: #666; }
+    #btnShow.inactive { background: #6c757d; color: #ffffff; }
+    #btnShow.inactive:hover { background: #6c757d; }
+  </style>
+  </head>
+  <body>
+    <div class="container">
+      <a href="../../index.html" class="back-link">← Back to Home</a>
+      <h1>Hexagon Rotator</h1>
+
+      <div class="controls-container">
+        <aside class="sidebar">
+          <div class="info">
+            <h3>Rotate the hexagon counter-clockwise</h3>
+            <p>Use the buttons to rotate the hexagon in 60° increments (CCW only).</p>
+          </div>
+
+          <div class="controls">
+            <div class="control">
+              <label>Current angle: <span id="angleReadout" class="info-readout">0°</span></label>
+            </div>
+          </div>
+
+          <div class="control hex-buttons">
+            <button id="btn60" class="widget-action-button">+60°</button>
+            <button id="btn120" class="widget-action-button">+120°</button>
+            <button id="btn180" class="widget-action-button">+180°</button>
+            <button id="btn240" class="widget-action-button">+240°</button>
+            <button id="btn300" class="widget-action-button">+300°</button>
+            <button id="btnReset" class="widget-action-button">Reset</button>
+          </div>
+        </aside>
+
+        <main class="chartarea canvas-area">
+          <svg id="hexSvg" viewBox="0 0 600 300">
+            <g id="grid"></g>
+            <g id="hexOuter">
+              <g id="hexInner">
+                <!-- Regular hexagon centered near middle of viewBox -->
+                <polygon id="hex" class="hex-shape" points="380,150 340,219.28 260,219.28 220,150 260,80.72 340,80.72"></polygon>
+                <!-- Red corner marker at 0° (right-most vertex) -->
+                <polygon id="hexMarker" class="hex-marker" points="380,150 368,145 368,155"></polygon>
+              </g>
+            </g>
+            <!-- Persistent START indicator pointing to the initial red corner (380,150) -->
+            <g id="startIndicator">
+              <line class="start-arrow" x1="430" y1="150" x2="385" y2="150"></line>
+              <polygon class="start-arrowhead" points="385,150 395,145 395,155"></polygon>
+              <text class="start-label" x="440" y="154">START</text>
+            </g>
+          </svg>
+
+          <table id="c6table" class="cayley"></table>
+          <div class="legend">
+            <button id="btnCheck" class="widget-action-button">Check Table</button>
+            <button id="btnClear" class="widget-action-button">Clear Table</button>
+            <button id="btnShow" class="widget-action-button">Show Answer</button>
+          </div>
+          <div id="checkMsg" class="table-feedback"></div>
+        </main>
+      </div>
+    </div>
+
+    <script type="module" src="hexagon-rotator.js"></script>
+  </body>
+</html>
+
+

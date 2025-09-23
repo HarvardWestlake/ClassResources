@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quadratic Sequences Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    .table-wrap {
+      overflow-x: auto;
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    table.difftable {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 520px;
+    }
+    .difftable th, .difftable td {
+      border: 1px solid #e9ecef;
+      padding: 6px 8px;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #000000;
+      vertical-align: middle;
+    }
+    .difftable th { background: #f8f9fa; }
+    .difftable td.muted { color: #888; background: #fcfcfc; }
+    /* Visual offset styling for difference rows */
+    .difftable td.offset-d1 { background: #fffef7; }
+    .difftable td.offset-d2 { background: #f7fffb; }
+    .difftable td.blank { background: #fcfcfc; color: #ccc; }
+    /* Interactivity */
+    .t-cell, .d1-cell, .d2-cell { cursor: pointer; }
+    .hl-t { background: #ffefd6 !important; box-shadow: inset 0 0 0 2px #F0B800; }
+    .hl-d1 { background: #e6f7ff !important; box-shadow: inset 0 0 0 2px #00A3FF; }
+    .hl-d2 { background: #e8ffe8 !important; box-shadow: inset 0 0 0 2px #00B800; }
+    .hl-selected { background: #fff1a8 !important; box-shadow: inset 0 0 0 3px #000000; }
+    .hl-base { background: #fff1a8 !important; box-shadow: inset 0 0 0 3px #E60000; }
+    .summary { margin-top: 0.5rem; color: #000000; }
+    .summary strong { color: #000000; }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+    @media (min-width: 900px) {
+      .panels { grid-template-columns: 1.2fr 1fr; }
+    }
+
+    .stars-panel {
+      background: #fff;
+      border-radius: 6px;
+      padding: 0.5rem 0.5rem 0.25rem 0.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .stars-steps {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+    .step {
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      padding: 0.5rem;
+      background: #fdfdfd;
+    }
+    .step h4 {
+      margin: 0 0 0.25rem 0;
+      font-size: 0.95rem;
+      color: #000000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .stars {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(18px, 1fr));
+      gap: 2px 4px;
+      align-items: start;
+      min-height: 22px;
+    }
+    .star {
+      font-size: 16px;
+      line-height: 1;
+      color: #F0B800;
+      text-shadow: 0 1px 0 rgba(0,0,0,0.05);
+      user-select: none;
+    }
+    .star.dim { color: #e3e3e3; }
+    .step .value { font-weight: 700; color: #E60000; font-size: 0.95rem; }
+
+    .controls .inline-val { font-weight: 700; color: #000000; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-link" href="../../index.html">← Back to Home</a>
+    <h1>Quadratic Sequences Explorer</h1>
+
+    <div class="controls-container">
+      <aside class="sidebar">
+        <div class="controls">
+          <div class="control">
+            <label for="aRange">a (curvature): <span id="aVal" class="inline-val">1</span></label>
+            <input id="aRange" type="range" min="-5" max="5" step="1" value="1" />
+          </div>
+          <div class="control">
+            <label for="bRange">b (slope trend): <span id="bVal" class="inline-val">0</span></label>
+            <input id="bRange" type="range" min="-10" max="10" step="1" value="0" />
+          </div>
+          <div class="control">
+            <label for="cRange">c (starting value): <span id="cVal" class="inline-val">0</span></label>
+            <input id="cRange" type="range" min="-10" max="20" step="1" value="0" />
+          </div>
+          <div class="control">
+            <label for="rowsRange">Rows shown (n from 1): <span id="rowsVal" class="inline-val">8</span></label>
+            <input id="rowsRange" type="range" min="4" max="14" step="1" value="8" />
+          </div>
+          <div class="control">
+            <button id="btnRandom" class="widget-action-button">Random Sequence</button>
+          </div>
+          <div class="control">
+            <button id="btnToggleMode" class="widget-action-button">Show Numbers</button>
+          </div>
+        </div>
+        <div class="info">
+          <h3>Key Idea</h3>
+          <p>For t(n) = a n² + b n + c with n starting at 1, the second difference is constant: Δ² = 2a.</p>
+          <p><strong>Tip:</strong> Adjust a to see Δ² change instantly. b shifts the first differences; c shifts the values only.</p>
+        </div>
+      </aside>
+
+      <main class="chartarea">
+        <div class="panels">
+          <section>
+            <div class="table-wrap">
+              <table id="diffTable" class="difftable"></table>
+            </div>
+            <div class="summary">
+              <div>Formula: <strong>t(n) = a n² + b n + c</strong> with a=<span id="sa">1</span>, b=<span id="sb">0</span>, c=<span id="sc">0</span></div>
+              <div>Expected constant second difference: <strong>Δ² = 2a = <span id="sdd">2</span></strong></div>
+            </div>
+          </section>
+
+          <section class="stars-panel">
+            <div class="info" style="margin-bottom: 0.5rem;">
+              <h3>Recursive Form</h3>
+              <p>Click table cells to see recursion. Clicking t(n) shows t(n−1) + Δ; clicking a Δ shows t(n+1) = t(n) + (Δ<sub>1</sub> plus needed Δ<sup>2</sup> terms).</p>
+            </div>
+            <div id="recursionPanel" class="stars-steps"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="quadratic-differences.js"></script>
+</body>
+</html>
+
+
+
