@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Two Sample t-Test for Means</title>
+<style>
+  :root{
+    --bg: #0f1221;
+    --panel: #171a2b;
+    --card: #1d2140;
+    --ink: #e9ecf5;
+    --muted: #a9b0c7;
+    --accent: #6aa6ff;
+    --accent-2: #9c7bff;
+    --ok: #4fd1a5;
+    --warn: #ffb86b;
+    --err: #ff6b6b;
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+    --radius: 14px;
+  }
+  html,body{height:100%}
+  body{
+    margin:0;
+    background: radial-gradient(1200px 800px at 80% -10%, #283060, transparent 60%), var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  }
+  .container{max-width:1100px; margin-inline:auto; padding:28px 18px 64px;}
+  header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px;}
+  .title{font-weight:700; font-size:clamp(20px, 3.6vw, 28px); letter-spacing:.2px}
+  .sub{color:var(--muted); font-size:14px}
+  .top-cards{
+    display:grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap:16px; margin-top:10px;
+  }
+  .card{
+    background: linear-gradient(180deg, var(--card), #171a32 120%);
+    border:1px solid rgba(255,255,255,.06);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding:16px;
+  }
+  .card h3{margin:0 0 10px 0; font-size:16px; font-weight:650}
+  .row{display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap}
+  textarea{
+    width:100%; min-height:104px; resize:vertical;
+    background:#131733; color:var(--ink); border:1px solid rgba(255,255,255,.1);
+    border-radius:10px; padding:10px 12px; font:inherit;
+  }
+  .btn{
+    appearance: none; border:0; border-radius:10px; padding:10px 14px;
+    background:linear-gradient(180deg, var(--accent), #4d80f7);
+    color:#0b1022; font-weight:700; cursor:pointer; transition:.15s transform, .15s opacity;
+  }
+  .btn.secondary{background:linear-gradient(180deg, #2b305a, #252a4d); color:var(--ink); border:1px solid rgba(255,255,255,.08)}
+  .btn.ghost{background:transparent; color:var(--ink); border:1px dashed rgba(255,255,255,.18)}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+  .btn:hover{transform:translateY(-1px)}
+  .pill{
+    display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; background:#11152d; color:var(--muted); border:1px solid rgba(255,255,255,.08)
+  }
+  .stats{display:flex; gap:14px; flex-wrap:wrap; margin:8px 0 6px}
+  .stat{background:#141938; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.06)}
+  .stat .k{font-size:14px; color:var(--muted)}
+  .stat .v{font-weight:700}
+  .grid{display:grid; gap:16px; grid-template-columns: 1.2fr 1fr;}
+  .panel{
+    background: var(--panel); border:1px solid rgba(255,255,255,.06);
+    border-radius: var(--radius); padding:16px; box-shadow: var(--shadow);
+  }
+  .panel h2{margin:0 0 6px 0; font-size:18px}
+  .big{font-size: clamp(18px, 4.6vw, 28px); font-weight:800; letter-spacing:.3px;}
+  .huge{font-size: clamp(24px, 6vw, 40px); font-weight:900; letter-spacing:.3px;}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+  .muted{color:var(--muted)}
+  label{font-size:13px; color:var(--muted)}
+  input[type=number], input[type=text]{
+    width:100%; background:#131733; color:var(--ink);
+    border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:10px 12px; font:inherit;
+  }
+  .form-row-2{display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; align-items:end}
+  .hr{height:1px; background:linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent); margin:14px 0}
+  canvas{width:100%; height:260px; background:#121633; border:1px solid rgba(255,255,255,.08); border-radius:12px}
+  .legend{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
+  .legend .sw{width:12px; height:12px; border-radius:3px; display:inline-block; border:1px solid rgba(255,255,255,.2)}
+  .sw.c{background:#8ec5ff}
+  .sw.t{background:#c7afff}
+  .callout{padding:10px 12px; border-radius:12px; background:#102328; border:1px solid rgba(79,209,165,.35);}
+  .danger{padding:10px 12px; border-radius:12px; background:#2a1318; border:1px solid rgba(255,107,107,.35);}
+  footer{margin-top:32px; color:var(--muted); font-size:13px}
+  .small{font-size:12px}
+  .flex{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .badge{background:#10162f; border:1px solid rgba(255,255,255,.08); padding:2px 8px; border-radius:999px; font-size:12px}
+  .live{color:var(--ok); font-weight:700}
+  .progress{height:12px; background:#0f1433; border:1px solid rgba(255,255,255,.1); border-radius:999px; overflow:hidden}
+  .progress .fill{height:100%; width:0%}
+  .history{background:#101537; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:8px 10px; max-height:160px; overflow:auto}
+  .hide-sizes{display:none!important;}
+  /* Full-width histogram gets a bit taller */
+  #histCanvas{height:320px}
+  #meansCanvas{height:130px}
+  .inline-stats{display:flex; gap:20px; align-items:baseline; justify-content:center; flex-wrap:wrap; margin:10px 0 6px}
+  .inline-stats .item{background:#141938; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.08)}
+  .inline-stats .k{font-size:12px; color:var(--muted)}
+  .inline-stats .v{font-weight:900; font-size:26px}
+  .data-preview{background:#101537; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:8px 10px; max-height:160px; overflow:auto; margin-top:8px}
+  input[type=number].compact{width:110px}
+  .toggle-bar{display:flex; justify-content:center; gap:10px; margin-top:4px; margin-bottom:8px}
+  .mini-form{display:flex; justify-content:center; align-items:center; gap:12px; margin:4px 0 12px; font-size:13px}
+  .mini-form label{display:inline-flex; align-items:center; gap:6px; cursor:pointer}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <div class="title">Two Sample t-Test for Means</div>
+      <div class="sub">Enter Control & Treatment, see means, then pool & shuffle (using <strong>all</strong> pooled values each run) to test if results could happen by chance.</div>
+    </div>
+    <button class="btn ghost" id="demoBtn" title="Load a small example dataset for class demos">Load Demo Data</button>
+  </header>
+
+  <!-- Sidedness Toggle -->
+  <section aria-label="Test selection">
+    <div class="toggle-bar" role="group" aria-label="Sidedness toggle">
+      <button class="btn secondary" id="oneSidedBtn" type="button" aria-pressed="false">One Sided</button>
+      <button class="btn" id="twoSidedBtn" type="button" aria-pressed="true">Two Sided</button>
+    </div>
+    <div id="oneSidedOptions" class="mini-form hidden" aria-label="One-sided alternative">
+      <span class="muted">Alternative Hypothesis: control is</span>
+      <div class="toggle-bar" role="group" aria-label="Alternative: control vs treatment">
+        <button class="btn" id="altLessBtn" type="button" aria-pressed="true">less</button>
+        <button class="btn secondary" id="altGreaterBtn" type="button" aria-pressed="false">greater</button>
+      </div>
+      <span class="muted">than treatment</span>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="expDataLabel">
+    <h2 id="expDataLabel">Experimental Data</h2>
+    <!-- Data Entry Cards -->
+    <div class="top-cards">
+      <div class="card" id="controlCard" aria-labelledby="controlLabel">
+        <h3 id="controlLabel">Control Data (Sample 1)</h3>
+        <div class="stats">
+          <div class="stat"><div class="k">Count (n)</div><div class="v" id="nControl">0</div></div>
+          <div class="stat"><div class="k">Mean</div><div class="v mono" id="meanControl">—</div></div>
+          <div class="stat"><div class="k">Std Dev</div><div class="v mono" id="sdControl">—</div></div>
+        </div>
+        <label for="controlInput">Paste numbers: CSV / space / line separated.</label>
+        <textarea id="controlInput" placeholder="e.g., 12, 14, 13.5&#10;or&#10;12&#10;14&#10;13.5"></textarea>
+        <div class="row">
+          <button class="btn" id="addControl">Upload More Data</button>
+          <button class="btn ghost" id="previewControlBtn" type="button">Toggle Data</button>
+          <button class="btn secondary" id="resetControl">Reset Control</button>
+          <span class="pill" id="controlMsg" aria-live="polite"></span>
+        </div>
+        <div id="controlPreview" class="data-preview" style="display:none"></div>
+      </div>
+
+      <div class="card" id="treatmentCard" aria-labelledby="treatmentLabel">
+        <h3 id="treatmentLabel">Treatment Data (Sample 2)</h3>
+        <div class="stats">
+          <div class="stat"><div class="k">Count (n)</div><div class="v" id="nTreatment">0</div></div>
+          <div class="stat"><div class="k">Mean</div><div class="v mono" id="meanTreatment">—</div></div>
+          <div class="stat"><div class="k">Std Dev</div><div class="v mono" id="sdTreatment">—</div></div>
+        </div>
+        <label for="treatmentInput">Paste numbers: CSV / space / line separated.</label>
+        <textarea id="treatmentInput" placeholder="e.g., 15, 18, 19.2&#10;or&#10;15&#10;18&#10;19.2"></textarea>
+        <div class="row">
+          <button class="btn" id="addTreatment">Upload More Data</button>
+          <button class="btn ghost" id="previewTreatmentBtn" type="button">Toggle Data</button>
+          <button class="btn secondary" id="resetTreatment">Reset Treatment</button>
+          <span class="pill" id="treatmentMsg" aria-live="polite"></span>
+        </div>
+        <div id="treatmentPreview" class="data-preview" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <!-- Means & Difference -->
+    <section class="grid" aria-labelledby="meansLabel">
+      <div class="panel">
+        <h2 id="meansLabel">Group Means</h2>
+        <div class="legend" style="margin-bottom:8px">
+          <span><span class="sw c"></span> Control</span>
+          <span><span class="sw t"></span> Treatment</span>
+          <span class="badge">Zero line and negative values supported</span>
+        </div>
+        <canvas id="meansCanvas" aria-label="Bar chart of means"></canvas>
+      </div>
+      <div class="panel">
+        <h2>Difference in Means</h2>
+        <div class="big mono" id="diffHeadline">—</div>
+        <div class="muted small" id="diffSub">Need data in both groups.</div>
+        <div class="hr"></div>
+        <div class="callout small" id="explainOriginal">
+          <strong>Original difference (Treatment − Control)</strong> is computed from your uploaded data and does not change when you pool & shuffle below.
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <div class="hr"></div>
+
+  <section class="panel" aria-labelledby="pvalGroupLabel">
+    <h2 id="pvalGroupLabel">P-Value Determination</h2>
+    <!-- Pool & Randomization -->
+    <section class="panel" aria-labelledby="poolLabel">
+      <h2 id="poolLabel">Pool & Randomization Test (Permutation)</h2>
+      <div class="flex small muted">
+        <span class="badge">1. Pool</span> <span class="badge">2. Run permutations</span> <span class="badge">3. Compare to original</span>
+        <span class="badge">Uses <strong>all</strong> pooled values each run</span>
+      </div>
+
+      <div class="row" style="margin:10px 0 12px">
+        <button class="btn" id="poolBtn">Pool Control + Treatment</button>
+        <button class="btn secondary" id="sampleOnceBtn" disabled>Sample Pool Once</button>
+        <input id="runCount" class="compact" type="number" min="1" value="100" title="Number of pool sample runs" />
+        <button class="btn" id="runManyBtn" disabled>Run Many</button>
+        <button class="btn ghost" id="clearRunsBtn" disabled>Restart Runs</button>
+        <button class="btn ghost" id="downloadRunsBtn" disabled>Download Runs CSV</button>
+        <span class="pill" id="poolInfo">Pool not created yet</span>
+      </div>
+
+      <div class="form-row-2" style="margin-bottom:6px">
+        <!-- Hidden: sample sizes fixed to original counts -->
+        <div class="hide-sizes">
+          <label for="sampleNControl">Sample size → Control (hidden; uses original n)</label>
+          <input id="sampleNControl" type="number" min="1" value="0" />
+        </div>
+        <div class="hide-sizes">
+          <label for="sampleNTreatment">Sample size → Treatment (hidden; uses original n)</label>
+          <input id="sampleNTreatment" type="number" min="1" value="0" />
+        </div>
+      </div>
+
+      <!-- Inline key stats -->
+      <div class="inline-stats">
+        <div class="item"><div class="k">Runs (N)</div><div class="v" id="runsCountBig">0</div></div>
+        <div class="item"><div class="k">Above original (>)</div><div class="v" id="aboveCountBig">0</div></div>
+        <div class="item"><div class="k">At/Below (≤)</div><div class="v" id="atOrBelowCountBig">0</div></div>
+      </div>
+
+      <!-- Dot plot directly under controls -->
+      <section class="panel">
+        <h2 style="margin-bottom:6px">Permutation Differences (Treatment − Control)</h2>
+        <canvas id="histCanvas" aria-label="Dot plot of permutation differences"></canvas>
+        <div class="legend" style="margin-top:8px">
+          <span class="badge">Vertical line = original difference</span>
+          <span class="badge">Dashed line = zero</span>
+        </div>
+      </section>
+
+      <!-- Live significance status -->
+      <div class="callout" id="sigGuide" style="margin:8px 0 12px">
+        <div class="flex" style="align-items:flex-start; justify-content:space-between; gap:16px">
+          <div class="small" style="max-width:520px">
+            <div><strong>Significance rule</strong></div>
+            <div class="muted">If the <strong>P‑value</strong> is <strong>&lt; 0.05</strong>, the result is considered <strong>statistically significant</strong>; otherwise it is <strong>not significant</strong>.</div>
+          </div>
+          <div class="stats" style="margin-top:2px">
+            <div class="stat"><div class="k" id="pvalueLabel">P‑value (two‑sided: P(|diff| ≥ |original|))</div><div class="v mono" id="pvalueHeadline">—</div></div>
+            <div class="stat"><div class="k">Status</div><div class="v" id="sigStatus">Not computed</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Most Important -->
+      <div class="panel" style="background:#1c2244">
+        <h2>Most Important: P‑value & Tally</h2>
+        <div class="huge mono" id="probHeadline">P‑value = —</div>
+        <div class="progress" style="margin:6px 0 8px"><div class="fill" id="probBar"></div></div>
+
+        <div class="stats" style="margin-bottom:6px">
+          <div class="stat"><div class="k">Runs (N)</div><div class="v" id="runsCount">0</div></div>
+          <div class="stat"><div class="k">Above original (>)</div><div class="v" id="aboveCount">0</div></div>
+          <div class="stat"><div class="k">At/Below (≤)</div><div class="v" id="atOrBelowCount">0</div></div>
+          <div class="stat"><div class="k">Current run diff</div><div class="v mono" id="lastDiff">—</div></div>
+          <div class="stat"><div class="k">Avg of last 6 diffs</div><div class="v mono" id="avg6">—</div></div>
+        </div>
+
+        <h3 style="margin:6px 0 6px 0; display:none">History (cumulative successes)</h3>
+        <div class="history mono small" id="tallyHistory" style="display:none">No runs yet.</div>
+      </div>
+    </section>
+
+    <div class="hr"></div>
+  </section>
+
+  <footer>
+    <p class="small">
+      Tip: Students can paste numbers from spreadsheets directly. Non‑numeric tokens are ignored with a note.
+      This tool performs a <strong>permutation (randomization) test</strong>.
+    </p>
+  </footer>
+</div>
+
+<script>
+/* =========================== Utilities =========================== */
+const fmt = (x, d=4) => (Number.isFinite(x) ? x.toFixed(d) : "—");
+const mean = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : NaN;
+const variance = arr => {
+  if (arr.length < 2) return NaN;
+  const m = mean(arr);
+  return arr.reduce((acc,x)=>acc+(x-m)*(x-m),0)/(arr.length-1);
+};
+const sd = arr => {
+  const v = variance(arr);
+  return Number.isFinite(v) ? Math.sqrt(v) : NaN;
+};
+function parseNumbers(raw){
+  if(!raw) return {nums:[], ignored:0};
+  const tokens = raw.replace(/[;\n\r\t]+/g, ' ').split(/[ ,]+/).filter(Boolean);
+  const nums = [];
+  let ignored = 0;
+  for(const t of tokens){
+    const val = Number(t);
+    if(Number.isFinite(val)) nums.push(val); else ignored++;
+  }
+  return {nums, ignored};
+}
+function shuffleInPlace(a){
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function copy(a){ return a.slice(); }
+
+// Choose a "nice" step near x using 1/2/5 × 10^k
+function niceStep(x){
+  if(!(x>0)) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(x)));
+  const step = x / pow;
+  let m = 1;
+  if(step <= 1) m = 1; else if(step <= 2) m = 2; else if(step <= 5) m = 5; else m = 10;
+  return m * pow;
+}
+
+/* =========================== State =========================== */
+let control = [];
+let treatment = [];
+let pool = [];
+let permDiffs = [];
+let originalDiff = NaN;
+
+let successesStrict = 0; // count of diffs where d > originalDiff
+let aboveFlags = [];
+let lastPermDiff = NaN;
+
+// Sidedness state
+let sidedness = 'two'; // 'one' | 'two'
+let oneSidedDirection = 'lt'; // 'lt' (control < experiment => right tail), 'gt' (control > experiment => left tail)
+
+// Histogram config (snapped edges around 0)
+let histConfigured = false;
+let histBinWidth = 0; // domain units
+let histK = 0;        // number of bins on each side of zero (total bins = 2*histK)
+
+/* =========================== DOM =========================== */
+const nControlEl = document.getElementById('nControl');
+const nTreatmentEl = document.getElementById('nTreatment');
+const meanControlEl = document.getElementById('meanControl');
+const meanTreatmentEl = document.getElementById('meanTreatment');
+const sdControlEl = document.getElementById('sdControl');
+const sdTreatmentEl = document.getElementById('sdTreatment');
+const diffHeadline = document.getElementById('diffHeadline');
+const diffSub = document.getElementById('diffSub');
+const origDiffStat = document.getElementById('origDiffStat');
+
+const controlInput = document.getElementById('controlInput');
+const treatmentInput = document.getElementById('treatmentInput');
+const controlMsg = document.getElementById('controlMsg');
+const treatmentMsg = document.getElementById('treatmentMsg');
+
+const poolBtn = document.getElementById('poolBtn');
+const poolInfo = document.getElementById('poolInfo');
+
+const sampleOnceBtn = document.getElementById('sampleOnceBtn');
+const runManyBtn = document.getElementById('runManyBtn');
+const quick6Btn = document.getElementById('quick6Btn');
+const clearRunsBtn = document.getElementById('clearRunsBtn');
+const downloadRunsBtn = document.getElementById('downloadRunsBtn');
+
+const runCount = document.getElementById('runCount');
+const sampleNControl = document.getElementById('sampleNControl');     // hidden
+const sampleNTreatment = document.getElementById('sampleNTreatment'); // hidden
+const runsCountEl = document.getElementById('runsCount');
+
+const aboveCountEl = document.getElementById('aboveCount');
+const atOrBelowCountEl = document.getElementById('atOrBelowCount');
+const probHeadline = document.getElementById('probHeadline');
+const probBar = document.getElementById('probBar');
+const lastDiffEl = document.getElementById('lastDiff');
+const avg6El = document.getElementById('avg6');
+const tallyHistoryEl = document.getElementById('tallyHistory');
+const pvalueHeadline = document.getElementById('pvalueHeadline');
+const sigStatus = document.getElementById('sigStatus');
+
+const meansCanvas = document.getElementById('meansCanvas');
+const histCanvas = document.getElementById('histCanvas');
+
+// Toggle DOM
+const oneSidedBtn = document.getElementById('oneSidedBtn');
+const twoSidedBtn = document.getElementById('twoSidedBtn');
+const oneSidedOptions = document.getElementById('oneSidedOptions');
+const pvalueLabelEl = document.getElementById('pvalueLabel');
+const altLessBtn = document.getElementById('altLessBtn');
+const altGreaterBtn = document.getElementById('altGreaterBtn');
+
+/* =========================== Canvas Helpers (HiDPI‑safe) =========================== */
+function setupHiDPICanvas(canvas){
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  // Fallback when layout isn't ready yet
+  let Wcss = Math.floor(rect.width);
+  let Hcss = Math.floor(rect.height);
+  if (Wcss < 2 || Hcss < 2) {
+    const p = canvas.parentElement;
+    Wcss = Math.max(2, Math.floor(p?.clientWidth || canvas.clientWidth || 300));
+    Hcss = Math.max(2, Math.floor(p?.clientHeight || canvas.clientHeight || 260));
+  }
+  // Only resize the backing store when needed (prevents flicker)
+  const Wpx = Math.round(Wcss * dpr), Hpx = Math.round(Hcss * dpr);
+  if (canvas.width !== Wpx || canvas.height !== Hpx) {
+    canvas.width = Wpx; canvas.height = Hpx;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
+  return { ctx, W: Wcss, H: Hcss };
+}
+
+/* =========================== Charts =========================== */
+function drawMeansChart(){
+  const {ctx, W, H} = setupHiDPICanvas(meansCanvas);
+  ctx.clearRect(0,0,W,H);
+
+  const mC = mean(control);
+  const mT = mean(treatment);
+  const hasC = control.length>0 && Number.isFinite(mC);
+  const hasT = treatment.length>0 && Number.isFinite(mT);
+
+  if(!hasC && !hasT){
+    ctx.fillStyle = '#9aa3c7';
+    ctx.font = '16px system-ui, sans-serif';
+    ctx.fillText('Add data to see means.', 12, 24);
+    return;
+  }
+
+  const vals = [0];
+  if(hasC) vals.push(mC);
+  if(hasT) vals.push(mT);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const pad = (maxV - minV) * 0.2 + 1e-9;
+  const yMin = minV - pad;
+  const yMax = maxV + pad;
+  const innerH = H - 40;
+
+  const yScale = v => (H - 20) - ((v - yMin)/(yMax - yMin)) * innerH;
+  const zeroY = yScale(0);
+
+  // zero axis
+  ctx.strokeStyle = 'rgba(255,255,255,.18)';
+  ctx.lineWidth = 1.25;
+  ctx.beginPath(); ctx.moveTo(40, zeroY); ctx.lineTo(W-10, zeroY); ctx.stroke();
+
+  // bars
+  const bars = [];
+  if(hasC) bars.push({label:'Control', value:mC, color:'#8ec5ff'});
+  if(hasT) bars.push({label:'Treatment', value:mT, color:'#c7afff'});
+
+  const bw = Math.min(120, Math.max(20, (W-100)/bars.length - 20));
+  let x = Math.max(50, (W - (bars.length*bw + (bars.length-1)*40))/2 + 10);
+  for(const b of bars){
+    const y = yScale(b.value);
+    const top = Math.min(y, zeroY);
+    const height = Math.abs(y - zeroY);
+    ctx.fillStyle = b.color;
+    roundRect(ctx, x, top, bw, Math.max(2, height), 8); ctx.fill();
+
+    ctx.fillStyle = '#cfd5ea';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText(b.label, x, H-6);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 15px ui-monospace, monospace';
+    ctx.fillText(fmt(b.value,3), x, top - 6);
+    x += bw + 40;
+  }
+
+  // y ticks
+  ctx.fillStyle = 'rgba(255,255,255,.7)';
+  ctx.font = '13px ui-monospace, monospace';
+  const ticks = 5;
+  for(let i=0;i<=ticks;i++){
+    const v = yMin + (i*(yMax-yMin)/ticks);
+    const yy = yScale(v);
+    ctx.fillText((Math.round(v*100)/100).toFixed(2), 6, yy+5);
+    ctx.strokeStyle = 'rgba(255,255,255,.06)';
+    ctx.beginPath(); ctx.moveTo(40, yy); ctx.lineTo(W-10, yy); ctx.stroke();
+  }
+}
+function roundRect(ctx, x, y, w, h, r){
+  const rr = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y, x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x, y+h, rr);
+  ctx.arcTo(x, y+h, x, y, rr);
+  ctx.arcTo(x, y, x+w, y, rr);
+  ctx.closePath();
+}
+function drawHistogram(){
+  const {ctx, W, H} = setupHiDPICanvas(histCanvas);
+  ctx.clearRect(0,0,W,H);
+
+  if(permDiffs.length === 0 || !Number.isFinite(originalDiff)){
+    ctx.fillStyle = '#9aa3c7';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText('Run permutations after pooling to see the randomization distribution.', 12, 24);
+    return;
+  }
+
+  const diffs = permDiffs.slice().sort((a,b)=>a-b);
+  const n = diffs.length;
+
+  // Stable snapped edges and fixed width derived from first configuration
+  const rawMin = Math.min(diffs[0], 0, originalDiff);
+  const rawMax = Math.max(diffs[n-1], 0, originalDiff);
+  const halfSpan = Math.max(Math.abs(rawMin), Math.abs(rawMax));
+  // Initialize histogram configuration once per session of runs
+  if (!histConfigured) {
+    // Choose target pixels per bin, compute a nice width in value units, fixed thereafter
+    const innerW = W - 60;
+    const targetBinPx = 22;
+    const baseBinCount = Math.max(10, Math.min(60, Math.round(innerW / targetBinPx)));
+    const evenBins = baseBinCount % 2 === 0 ? baseBinCount : baseBinCount + 1; // ensure symmetry
+    const pad = Math.max(halfSpan * 0.08, 1e-9);
+    const span = halfSpan + pad;
+    const rawWidth = span / Math.max(10, Math.round(evenBins/2));
+    histBinWidth = Math.max(1e-9, niceStep(rawWidth));
+    histK = Math.max(10, Math.round(span / histBinWidth));
+    histConfigured = true;
+  }
+  // Allow domain to expand using same width (keeps bins snapped and prevents gaps)
+  const neededK = Math.max(
+    histK,
+    Math.ceil(halfSpan / Math.max(histBinWidth,1e-12))
+  );
+  histK = Math.min(2000, Math.max(10, neededK)); // hard cap to avoid absurd bins
+  const xMin = -histK * histBinWidth;
+  const xMax =  histK * histBinWidth;
+
+  // Use a stable bin count based on canvas width (prevents jitter as N grows)
+  const desiredBinPx = 22; // target ~22px per bin
+  const binCount = 2*histK;
+  const bins = new Array(binCount).fill(0);
+  // Bin edges snapped so that bin i covers [xMin + i*w, xMin + (i+1)*w)
+  const w = (xMax - xMin) / binCount;
+  for(const d of diffs){
+    let bi = Math.floor((d - xMin) / w);
+    if(bi < 0) bi = 0; if(bi >= binCount) bi = binCount - 1;
+    bins[bi]++;
+  }
+  const maxBin = Math.max(...bins, 1);
+
+  const innerW = W - 60, innerH = H - 40;
+  const xScale = v => 40 + ((v - xMin)/(xMax - xMin)) * innerW;
+
+  // dot plot (stacked dots per bin), adaptively switch to bars for dense data
+  const binW = innerW / binCount;
+  let dotR = 4.5;
+  let dotSpacing = dotR * 2 + 3;
+  // Compute max stack height needed across bins
+  const maxCount = Math.max(...bins, 0);
+  if (maxCount > 0) {
+    // Ensure all dots fit vertically: (maxCount * dotSpacing) <= innerH
+    const needed = maxCount * dotSpacing;
+    if (needed > innerH) {
+      dotSpacing = innerH / maxCount;
+      dotR = Math.max(1.2, (dotSpacing - 2) / 2);
+    }
+  }
+  const useBars = (n > 10000) || dotSpacing < 5 || dotR < 2.2 || maxCount > 300;
+  if (useBars) {
+    // Draw simple bars to avoid aliasing artifacts when extremely dense
+    const barPad = Math.min(4, Math.max(1, binW * 0.15));
+    const barW = Math.max(2, binW - barPad);
+    ctx.fillStyle = '#7bb0ff';
+    ctx.strokeStyle = 'rgba(255,255,255,.4)';
+    for (let i = 0; i < binCount; i++) {
+      const c = bins[i];
+      if (c === 0) continue;
+      const xLeft = 40 + i*binW + (binW - barW)/2;
+      const h = (c / maxBin) * innerH;
+      const yTop = (H - 20) - h;
+      roundRect(ctx, xLeft, yTop, barW, Math.max(1.5, h), 3);
+      ctx.fill();
+      // optional subtle stroke for definition
+      // ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = '#7bb0ff';
+    ctx.strokeStyle = 'rgba(255,255,255,.5)';
+    const useStroke = dotR >= 2; // avoid thick-looking lines when dots are tiny
+    for(let i=0;i<binCount;i++){
+      const c = bins[i];
+      if(c === 0) continue;
+      const xCenter = 40 + i*binW + (binW/2);
+      for(let d=0; d<c; d++){
+        const row = d; // strictly vertical stacking
+        const cx = xCenter;
+        const cy = (H - 20) - (row + 0.5) * dotSpacing;
+        ctx.beginPath();
+        ctx.arc(cx, cy, dotR, 0, Math.PI*2);
+        ctx.fill();
+        if (useStroke) ctx.stroke();
+      }
+    }
+  }
+
+  // zero line (dashed) overlaid on top of dots
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(xScale(0), 10); ctx.lineTo(xScale(0), H-20); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // original diff line
+  ctx.strokeStyle = '#4fd1a5';
+  ctx.lineWidth = 2.25;
+  ctx.beginPath(); ctx.moveTo(xScale(originalDiff), 8); ctx.lineTo(xScale(originalDiff), H-18); ctx.stroke();
+
+  // axis labels
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.font = '13px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  for(let i=0;i<=6;i++){
+    const v = xMin + (i*(xMax-xMin)/6);
+    const rv = Math.abs(v) < 1e-12 ? 0 : v; // avoid -0.000 label
+    ctx.fillText((Math.round(rv*1000)/1000).toFixed(3), xScale(v), H-4);
+  }
+  ctx.textAlign = 'left';
+}
+
+/* =========================== UI Updates =========================== */
+function updateStatsAndCharts(){
+  const mC = mean(control), mT = mean(treatment);
+  const sdC = sd(control), sdT = sd(treatment);
+
+  nControlEl.textContent = control.length;
+  nTreatmentEl.textContent = treatment.length;
+  meanControlEl.textContent = Number.isFinite(mC)? fmt(mC,3) : '—';
+  meanTreatmentEl.textContent = Number.isFinite(mT)? fmt(mT,3) : '—';
+  sdControlEl.textContent = Number.isFinite(sdC)? fmt(sdC,3) : '—';
+  sdTreatmentEl.textContent = Number.isFinite(sdT)? fmt(sdT,3) : '—';
+
+  if(Number.isFinite(mC) && Number.isFinite(mT)){
+    originalDiff = mT - mC;
+    diffHeadline.textContent = `${fmt(originalDiff,3)}`;
+    diffSub.innerHTML = `<span class="muted">Original difference = Treatment − Control</span>`;
+    if (origDiffStat) origDiffStat.textContent = fmt(originalDiff,4);
+  } else {
+    originalDiff = NaN;
+    diffHeadline.textContent = '—';
+    diffSub.textContent = 'Need data in both groups.';
+    if (origDiffStat) origDiffStat.textContent = '—';
+  }
+
+  drawMeansChart();
+  updatePermutationUI();
+}
+
+/* Enable/disable action buttons coherently */
+function setControlsEnabled(enabled){
+  if (sampleOnceBtn) sampleOnceBtn.disabled = !enabled;
+  if (runManyBtn) runManyBtn.disabled = !enabled;
+  if (typeof quick6Btn !== 'undefined' && quick6Btn) quick6Btn.disabled = !enabled;
+  if (clearRunsBtn) clearRunsBtn.disabled = !enabled;
+  if (downloadRunsBtn) downloadRunsBtn.disabled = !enabled || permDiffs.length===0;
+}
+
+/* =========================== Permutation & Summary =========================== */
+function validateReadyToSample(){
+  const nA = control.length;
+  const nB = treatment.length;
+  if(nA === 0 || nB === 0) return false;
+  if(pool.length !== nA + nB) return false;
+  // store for completeness / downloads (hidden inputs)
+  sampleNControl.value = nA;
+  sampleNTreatment.value = nB;
+  return true;
+}
+function assignFromPoolOnce(){
+  const nA = control.length;
+  const nB = treatment.length;
+  const shuffled = shuffleInPlace(copy(pool));
+  const A = shuffled.slice(0, nA);
+  const B = shuffled.slice(nA, nA+nB);
+  return mean(B) - mean(A); // Treatment − Control
+}
+function sampleOnceFromPool(){
+  if(!validateReadyToSample()) return;
+  const d = assignFromPoolOnce();
+  lastPermDiff = d;
+  if(Number.isFinite(d)){
+    permDiffs.push(d);
+    const above = d > originalDiff; // STRICT greater than
+    aboveFlags.push(!!above);
+    if(above) successesStrict++;
+  }
+  updatePermutationUI();
+}
+function runManyPermutations(k){
+  if(!validateReadyToSample()) return;
+  const runs = Math.min( Math.max(1, (parseInt(k,10)||0) ), 50000 ); // guard for stability
+  for(let r=0;r<runs;r++){
+    const d = assignFromPoolOnce();
+    lastPermDiff = d;
+    if(Number.isFinite(d)){
+      permDiffs.push(d);
+      const above = d > originalDiff;
+      aboveFlags.push(!!above);
+      if(above) successesStrict++;
+    }
+  }
+  updatePermutationUI();
+}
+function clearRuns(){
+  permDiffs = [];
+  successesStrict = 0;
+  aboveFlags = [];
+  lastPermDiff = NaN;
+  // Reset histogram config so new runs reinitialize binning consistently
+  histConfigured = false;
+  histBinWidth = 0;
+  histK = 0;
+  updatePermutationUI();
+}
+
+/* =========================== Probability & Histogram UI =========================== */
+function updatePermutationUI(){
+  // counts
+  const N = permDiffs.length;
+  runsCountEl.textContent = N;
+  aboveCountEl.textContent = successesStrict;
+  atOrBelowCountEl.textContent = Math.max(0, N - successesStrict);
+  const runsCountBigEl = document.getElementById('runsCountBig');
+  const aboveCountBigEl = document.getElementById('aboveCountBig');
+  const atOrBelowCountBigEl = document.getElementById('atOrBelowCountBig');
+  if(runsCountBigEl) runsCountBigEl.textContent = N;
+  if(aboveCountBigEl) aboveCountBigEl.textContent = successesStrict;
+  if(atOrBelowCountBigEl) atOrBelowCountBigEl.textContent = Math.max(0, N - successesStrict);
+  lastDiffEl.textContent = Number.isFinite(lastPermDiff) ? fmt(lastPermDiff,4) : '—';
+
+  const last6 = permDiffs.slice(-6);
+  const avg6 = mean(last6);
+  avg6El.textContent = Number.isFinite(avg6) ? fmt(avg6,4) : '—';
+
+  let pValue = NaN;
+  if(N>0 && Number.isFinite(originalDiff)){
+    let labelText = '';
+    if (sidedness === 'two') {
+      // two‑sided (tail-based): if original > 0 → right tail; if original < 0 → left tail
+      if (originalDiff >= 0) {
+        let countGT = 0; // strictly greater than original
+        for (let i = 0; i < N; i++) {
+          if (permDiffs[i] > originalDiff) countGT++;
+        }
+        const tailProp = countGT / N;
+        pValue = Math.min(1, 2 * tailProp);
+        labelText = 'P‑value (two‑sided: 2 × P(diff > original))';
+      } else {
+        let countLT = 0; // strictly less than original
+        for (let i = 0; i < N; i++) {
+          if (permDiffs[i] < originalDiff) countLT++;
+        }
+        const tailProp = countLT / N;
+        pValue = Math.min(1, 2 * tailProp);
+        labelText = 'P‑value (two‑sided: 2 × P(diff < original))';
+      }
+    } else {
+      // one‑sided inclusive tails based on choice
+      if (oneSidedDirection === 'lt') {
+        // control less than treatment → (T − C) positive → right tail (≥)
+        let countGE = 0;
+        for (let i = 0; i < N; i++) {
+          if (permDiffs[i] >= originalDiff) countGE++;
+        }
+        pValue = countGE / N;
+        labelText = 'P‑value (one‑sided: P(diff ≥ original)) [control < treatment]';
+      } else {
+        // control greater than treatment → (T − C) negative → left tail (≤)
+        let countLE = 0;
+        for (let i = 0; i < N; i++) {
+          if (permDiffs[i] <= originalDiff) countLE++;
+        }
+        pValue = countLE / N;
+        labelText = 'P‑value (one‑sided: P(diff ≤ original)) [control > treatment]';
+      }
+    }
+    if (pvalueLabelEl) pvalueLabelEl.textContent = labelText;
+    probHeadline.textContent = `P‑value = ${fmt(pValue,4)}`;
+    pvalueHeadline.textContent = fmt(pValue,4);
+
+    // progress bar visual encodes p-value (green good / orange-red otherwise)
+    probBar.style.width = Math.round(Math.max(0, Math.min(1, pValue))*100) + '%';
+    probBar.style.background = pValue < 0.05
+      ? 'linear-gradient(90deg, #2fd29a, #7be3bc)'
+      : 'linear-gradient(90deg, #ff6b6b, #ffb86b)';
+
+    const significant = pValue < 0.05;
+    sigStatus.textContent = significant ? 'Significant (p < 0.05)' : 'Not significant (p ≥ 0.05)';
+    sigStatus.style.color = significant ? 'var(--ok)' : 'var(--muted)';
+  } else {
+    if (pvalueLabelEl) pvalueLabelEl.textContent = sidedness === 'two'
+      ? 'P‑value (two‑sided: 2 × tail proportion by sign)'
+      : (oneSidedDirection === 'lt'
+          ? 'P‑value (one‑sided: P(diff ≥ original)) [control < treatment]'
+          : 'P‑value (one‑sided: P(diff ≤ original)) [control > treatment]');
+    probHeadline.textContent = 'P‑value = —';
+    pvalueHeadline.textContent = '—';
+    probBar.style.width = '0%';
+    probBar.style.background = 'linear-gradient(90deg, #2fd29a, #7be3bc)';
+    sigStatus.textContent = 'Not computed';
+    sigStatus.style.color = 'var(--muted)';
+  }
+
+  // history (compact if many runs)
+  if(N===0){
+    tallyHistoryEl.textContent = 'No runs yet.';
+  } else {
+    let countGT = 0, countLT = 0, countGE = 0, countLE = 0;
+    const lines = [];
+    const step = N <= 40 ? 1 : Math.ceil(N/40);
+    for(let i=0;i<N;i++){
+      const d = permDiffs[i];
+      if(d > originalDiff) countGT++;
+      if(d < originalDiff) countLT++;
+      if(d >= originalDiff) countGE++;
+      if(d <= originalDiff) countLE++;
+      if(i % step === 0 || i === N-1){
+        const runsSoFar = i+1;
+        let successes = 0;
+        let tailPropDisp = 0;
+        let tailText = '';
+        let pApprox = 0;
+        if (sidedness === 'two') {
+          if (Number.isFinite(originalDiff) && originalDiff >= 0) {
+            successes = countGT;
+            tailPropDisp = countGT / runsSoFar;
+            tailText = 'P(diff>orig)';
+          } else {
+            successes = countLT;
+            tailPropDisp = countLT / runsSoFar;
+            tailText = 'P(diff<orig)';
+          }
+          pApprox = Math.min(1, 2 * tailPropDisp);
+        } else {
+          if (oneSidedDirection === 'lt') {
+            successes = countGE;
+            tailPropDisp = countGE / runsSoFar;
+            tailText = 'P(diff≥orig)';
+            pApprox = tailPropDisp;
+          } else {
+            successes = countLE;
+            tailPropDisp = countLE / runsSoFar;
+            tailText = 'P(diff≤orig)';
+            pApprox = tailPropDisp;
+          }
+        }
+        lines.push(`Run ${String(runsSoFar).padStart(4,' ')}: successes ${String(successes).padStart(4,' ')} of ${String(runsSoFar).padStart(4,' ')}  (${tailText}≈${tailPropDisp.toFixed(4)},  p≈${pApprox.toFixed(4)})`);
+      }
+    }
+    tallyHistoryEl.innerHTML = lines.join('<br>');
+  }
+
+  // histogram & control state
+  drawHistogram();
+  setControlsEnabled(pool.length>0);
+  downloadRunsBtn.disabled = permDiffs.length===0;
+}
+
+/* =========================== Pooling & Resets =========================== */
+function poolData(){
+  if(control.length===0 || treatment.length===0){
+    poolInfo.textContent = 'Need data in both groups before pooling.';
+    return;
+  }
+  pool = control.concat(treatment);
+  sampleNControl.value = control.length;
+  sampleNTreatment.value = treatment.length;
+  poolInfo.innerHTML = `Pooled: <strong>${pool.length}</strong> values · Control <strong>${control.length}</strong> + Treatment <strong>${treatment.length}</strong>`;
+  clearRuns(); // reset results for new pool
+  setControlsEnabled(true);
+}
+function resetData(which){
+  if(which==='control') control = [];
+  if(which==='treatment') treatment = [];
+  (which==='control' ? controlMsg : treatmentMsg).textContent = '';
+  updateStatsAndCharts();
+  // Reset pool & results because group sizes changed
+  pool = [];
+  poolInfo.textContent = 'Pool not created yet';
+  clearRuns();
+  setControlsEnabled(false);
+}
+function addData(which){
+  const input = which==='control' ? controlInput : treatmentInput;
+  const msg = which==='control' ? controlMsg : treatmentMsg;
+  const {nums, ignored} = parseNumbers(input.value);
+  if(nums.length>0){
+    if(which==='control') control.push(...nums); else treatment.push(...nums);
+    msg.textContent = `+${nums.length} added` + (ignored>0 ? ` · ignored ${ignored} non‑numeric` : '');
+    input.value = '';
+    updateStatsAndCharts();
+  } else {
+    msg.textContent = ignored>0 ? `Ignored ${ignored} non‑numeric` : 'No numbers found';
+  }
+}
+
+/* =========================== Downloads =========================== */
+function downloadRuns(){
+  if(permDiffs.length===0) return;
+  const header = 'run,diff_treatment_minus_control,greater_than_original\n';
+  const lines = permDiffs.map((d,i)=> `${i+1},${d},${d>originalDiff}`);
+  const csv = header + lines.join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'permutation_differences_with_greater_flag.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* =========================== Demo Data =========================== */
+function loadDemo(){
+  control = [7,8,9,10,11,12,13,9,10,11,8,12,7,13,10,9,11,8,12,10];
+  treatment = [8,9,10,11,12,13,14,10,11,12,9,13,8,14,11,10,12,9,13,11];
+  controlInput.value = '';
+  treatmentInput.value = '';
+  controlMsg.textContent = 'Demo data loaded';
+  treatmentMsg.textContent = 'Demo data loaded';
+  updateStatsAndCharts();
+  // reset pool/results
+  pool = [];
+  poolInfo.textContent = 'Pool not created yet';
+  clearRuns();
+  setControlsEnabled(false);
+}
+
+/* =========================== Init & Events =========================== */
+window.addEventListener('resize', ()=>{ drawMeansChart(); drawHistogram(); });
+
+document.getElementById('addControl').addEventListener('click', ()=>addData('control'));
+document.getElementById('addTreatment').addEventListener('click', ()=>addData('treatment'));
+document.getElementById('resetControl').addEventListener('click', ()=>resetData('control'));
+document.getElementById('resetTreatment').addEventListener('click', ()=>resetData('treatment'));
+document.getElementById('previewControlBtn').addEventListener('click', ()=>{
+  const el = document.getElementById('controlPreview');
+  if(!el) return;
+  if(el.style.display==='none' || el.style.display===''){
+    el.style.display='block';
+    el.textContent = control.join(', ');
+  } else {
+    el.style.display='none';
+  }
+});
+document.getElementById('previewTreatmentBtn').addEventListener('click', ()=>{
+  const el = document.getElementById('treatmentPreview');
+  if(!el) return;
+  if(el.style.display==='none' || el.style.display===''){
+    el.style.display='block';
+    el.textContent = treatment.join(', ');
+  } else {
+    el.style.display='none';
+  }
+});
+
+poolBtn.addEventListener('click', poolData);
+sampleOnceBtn.addEventListener('click', sampleOnceFromPool);
+runManyBtn.addEventListener('click', ()=>{
+  const kRaw = parseInt(runCount.value,10);
+  const k = Math.min( Math.max(1, kRaw || 0), 50000 ); // guard
+  runManyPermutations(k);
+});
+clearRunsBtn.addEventListener('click', clearRuns);
+downloadRunsBtn.addEventListener('click', downloadRuns);
+document.getElementById('demoBtn').addEventListener('click', loadDemo);
+
+// Sidedness toggle behavior
+function setSidedness(mode){
+  sidedness = mode; // 'one' or 'two'
+  const oneActive = mode === 'one';
+  oneSidedBtn.classList.toggle('secondary', true);
+  twoSidedBtn.classList.toggle('secondary', true);
+  if(oneActive){
+    oneSidedBtn.classList.remove('secondary');
+  } else {
+    twoSidedBtn.classList.remove('secondary');
+  }
+  oneSidedBtn.setAttribute('aria-pressed', String(oneActive));
+  twoSidedBtn.setAttribute('aria-pressed', String(!oneActive));
+  oneSidedOptions.classList.toggle('hidden', !oneActive);
+  // Recompute UI summaries (labels & p-value headline)
+  updatePermutationUI();
+}
+
+oneSidedBtn.addEventListener('click', ()=> setSidedness('one'));
+twoSidedBtn.addEventListener('click', ()=> setSidedness('two'));
+function setAltDirection(dir){
+  oneSidedDirection = dir; // 'lt' | 'gt'
+  const lessActive = dir === 'lt';
+  altLessBtn.classList.toggle('secondary', !lessActive);
+  altGreaterBtn.classList.toggle('secondary', lessActive);
+  altLessBtn.setAttribute('aria-pressed', String(lessActive));
+  altGreaterBtn.setAttribute('aria-pressed', String(!lessActive));
+  updatePermutationUI();
+}
+altLessBtn.addEventListener('click', ()=> setAltDirection('lt'));
+altGreaterBtn.addEventListener('click', ()=> setAltDirection('gt'));
+
+window.addEventListener('load', () => {
+  updateStatsAndCharts();
+  requestAnimationFrame(() => {
+    drawMeansChart();
+    drawHistogram();
+  });
+  // Initialize labels for default two‑sided
+  setSidedness('two');
+});
+</script>
+</body>
+</html>

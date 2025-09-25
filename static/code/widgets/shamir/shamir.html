@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shamir's Secret Sharing - Geometric Demo with Random Wiggles</title>
+<style>
+  body {
+    background: #1e1e1e;
+    color: #ddd;
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  header, .controls, .info {
+    margin: 10px;
+  }
+  header h1 {
+    margin: 5px 0;
+    color: #fff;
+  }
+  .controls {
+    background: #2e2e2e;
+    padding: 10px;
+    border-radius: 8px;
+  }
+  .controls label {
+    margin-right: 10px;
+  }
+  .controls input {
+    width: 60px;
+  }
+  .controls button {
+    margin-right: 10px;
+    background-color: #444;
+    color: #fff;
+    border: 1px solid #666;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 5px 10px;
+  }
+  .controls button:hover {
+    background-color: #555;
+  }
+  .controls .smallToggle {
+    width: auto;
+    margin-left: 10px;
+    cursor: pointer;
+  }
+  #canvasContainer {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  canvas {
+    background: #fff;
+    border: 1px solid #ccc;
+  }
+  .info {
+    background: #2e2e2e;
+    padding: 10px;
+    border-radius: 8px;
+    line-height: 1.4em;
+    max-width: 700px;
+    margin: 10px auto;
+  }
+  .info h2 {
+    margin-top: 0;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Shamir's Secret Sharing Demo (Geometry + “Wiggles”)</h1>
+</header>
+
+<div class="controls">
+  <label>Threshold (t):</label>
+  <input type="number" id="thresholdInput" value="3" min="2" max="6">
+  
+  <label>Total Shares (n):</label>
+  <input type="number" id="totalSharesInput" value="5" min="3" max="10">
+
+  <button onclick="generatePolynomial()">Generate New Secret</button>
+  <button onclick="resetSelection()">Reset Selection</button>
+
+  <br><br>
+
+  <input type="checkbox" id="showRandomToggle" class="smallToggle" checked>
+  <label for="showRandomToggle" class="smallToggle">Show random “wiggles” if not enough points?</label>
+
+  <button onclick="regenerateWiggles()">Regenerate Wiggles</button>
+</div>
+
+<div id="canvasContainer">
+  <canvas id="shamirCanvas" width="800" height="500"></canvas>
+</div>
+
+<div class="info">
+  <h2>How this Demo Works</h2>
+  <p>
+    We create a random polynomial <em>f(x)</em> of degree <strong>t-1</strong>. 
+    Its constant term <em>f(0)</em> is our "secret."
+  </p>
+  <p>
+    We plot <em>n</em> points: <strong>(1, f(1)), (2, f(2)), ..., (n, f(n))</strong>. Each is a "share."
+    Click on a share to toggle selection. 
+    If you select <em>t</em> or more shares, we can reconstruct the polynomial exactly 
+    (green line matches the original gray line). This reveals <em>f(0)</em>.
+  </p>
+  <p>
+    If you select <em>fewer</em> than <em>t</em> shares, you can see (if you turn on the toggle) 
+    random “wiggles” (polynomials) that pass through those selected points but differ elsewhere. 
+    This shows how the secret stays hidden when not enough points are known, 
+    since there are infinitely many possibilities.
+  </p>
+  <p>
+    Real Shamir’s Secret Sharing uses arithmetic in a finite field (like a large prime modulus), 
+    but the geometric idea is the same: <strong>t</strong> points uniquely define a 
+    degree-<strong>t-1</strong> polynomial. Fewer than <strong>t</strong> leaves infinitely many solutions.
+  </p>
+</div>
+
+<script>
+/******************************************************************************
+ *                           SHAMIR DEMO JAVASCRIPT                            *
+ ******************************************************************************/
+
+// We'll do real-number polynomials for illustration, not actual finite-field ops.
+
+const canvas = document.getElementById("shamirCanvas");
+const ctx = canvas.getContext("2d");
+
+// Global state
+let polynomial = [];    // The original "secret" polynomial of degree t-1
+let points = [];        // Shares: [{x, y, selected}, ...]
+let t = 3;              // threshold
+let n = 5;              // total shares
+const margin = 50; 
+const scaleX = 50; 
+let maxY = 0;           // track max absolute value for y range
+
+let randomPolynomials = []; // store random "wiggles" polynomials
+
+/**
+ * Generate a random polynomial of degree (t-1), then
+ * produce n shares (x, f(x)) for x=1..n, storing in `points`.
+ */
+function generatePolynomial() {
+  t = parseInt(document.getElementById('thresholdInput').value, 10) || 3;
+  n = parseInt(document.getElementById('totalSharesInput').value, 10) || 5;
+  if (t < 2) t = 2;
+  if (n < t) n = t;
+
+  // Random polynomial of degree t-1
+  polynomial = [];
+  for (let i = 0; i < t; i++) {
+    // random coeff in [-10..10]
+    polynomial.push(Math.floor(Math.random()*21 - 10));
+  }
+
+  // Build points
+  points = [];
+  maxY = 0;
+  for (let x = 1; x <= n; x++) {
+    let y = evalPoly(polynomial, x);
+    if (Math.abs(y) > maxY) maxY = Math.abs(y);
+    points.push({x, y, selected: false});
+  }
+
+  randomPolynomials = []; // clear wiggles
+  drawAll();
+}
+
+/** Evaluate polynomial (array of coeffs) at x. */
+function evalPoly(coeffs, x) {
+  let sum = 0;
+  let power = 1;
+  for (let i=0; i<coeffs.length; i++) {
+    sum += coeffs[i]*power;
+    power *= x;
+  }
+  return sum;
+}
+
+/** Convert from data X to canvas X. */
+function toCanvasX(dataX) {
+  return margin + dataX * scaleX;
+}
+/** Convert from data Y to canvas Y. */
+function toCanvasY(dataY) {
+  // Center the polynomial around the middle:
+  let center = canvas.height/2;
+  let yRange = maxY*1.2; // some margin
+  if (yRange < 1) yRange = 1;
+  let halfCanvas = (canvas.height - margin*2)/2;
+  let s = halfCanvas / yRange;
+  return center - dataY*s;
+}
+
+/** Redraw everything. */
+function drawAll() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawAxes();
+
+  // Draw the original polynomial in gray (for demo)
+  drawPolynomial(polynomial, '#999');
+
+  // If user has >= t selected points, reconstruct exactly
+  let selectedPoints = points.filter(p => p.selected);
+  if (selectedPoints.length >= t) {
+    let recPoly = lagrangeInterpolate(selectedPoints, t-1);
+    drawPolynomial(recPoly, '#0f0'); // green
+  } else {
+    // If user wants to see random polynomials that also pass these points (wiggles)
+    if (document.getElementById('showRandomToggle').checked && randomPolynomials.length>0) {
+      randomPolynomials.forEach(rp => {
+        drawPolynomial(rp, randomColor());
+      });
+    }
+  }
+
+  drawPoints();
+}
+
+/** Draw X and Y axes. */
+function drawAxes() {
+  ctx.save();
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 1;
+  // X-axis
+  ctx.beginPath();
+  ctx.moveTo(0, toCanvasY(0));
+  ctx.lineTo(canvas.width, toCanvasY(0));
+  ctx.stroke();
+  // Y-axis
+  ctx.beginPath();
+  ctx.moveTo(toCanvasX(0), 0);
+  ctx.lineTo(toCanvasX(0), canvas.height);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Draw a polynomial line from x=0..(n+1) in small steps. */
+function drawPolynomial(poly, color) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  let started = false;
+  for (let xPos=0; xPos<=n+1; xPos+=0.1) {
+    let yVal = evalPoly(poly, xPos);
+    let cX = toCanvasX(xPos);
+    let cY = toCanvasY(yVal);
+    if (!started) {
+      ctx.moveTo(cX, cY);
+      started = true;
+    } else {
+      ctx.lineTo(cX, cY);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Draw the share points. */
+function drawPoints() {
+  ctx.save();
+  for (let p of points) {
+    let cX = toCanvasX(p.x);
+    let cY = toCanvasY(p.y);
+    ctx.beginPath();
+    ctx.arc(cX, cY, 6, 0, 2*Math.PI);
+    ctx.fillStyle = p.selected ? '#f33' : '#33f';
+    ctx.fill();
+    // label
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#000';
+    ctx.fillText(`(${p.x}, ${p.y})`, cX+8, cY-8);
+  }
+  ctx.restore();
+}
+
+/** On canvas click, see if we clicked near a point, toggle selection. */
+canvas.addEventListener('click', e => {
+  let rect = canvas.getBoundingClientRect();
+  let mx = e.clientX - rect.left;
+  let my = e.clientY - rect.top;
+
+  for (let p of points) {
+    let cX = toCanvasX(p.x);
+    let cY = toCanvasY(p.y);
+    let dx = mx - cX;
+    let dy = my - cY;
+    if (Math.sqrt(dx*dx + dy*dy) < 10) {
+      p.selected = !p.selected; // toggle
+      break;
+    }
+  }
+  drawAll();
+});
+
+/** Reset all points to unselected. */
+function resetSelection() {
+  for (let p of points) {
+    p.selected = false;
+  }
+  drawAll();
+}
+
+/** Lagrange interpolation over real numbers to produce a polynomial of <= (deg). 
+ *  If you have k points, but ask for deg=(t-1) with t>k, you get a polynomial 
+ *  of up to degree t-1 that EXACTLY fits those k points but might have free parameters. 
+ *  We'll just do the standard Lagrange formula for a polynomial of degree (k-1), 
+ *  then if we want exactly degree (t-1), we'll embed it in a bigger polynomial 
+ *  if needed. But let's keep it simpler: 
+ *  - We'll do standard Lagrange with degree (k-1).
+ *  - If deg>(k-1), we won't fill the extra terms unless we add random “wiggles.”
+ */
+function lagrangeInterpolate(pts, deg) {
+  let k = pts.length; 
+  if (k === 0) {
+    // no points => a polynomial of all zero for this demo
+    return Array(deg+1).fill(0);
+  }
+  // If k=1, Lagrange is trivial. If k>1, do normal Lagrange. 
+  // The polynomial we get is exactly degree up to (k-1).
+  // Then if we want "explicitly" degree=deg with k< deg+1, 
+  // we can embed it in a bigger polynomial (the random wiggle part).
+  let basePoly = computeLagrange(pts); // degree <= k-1
+  if (basePoly.length-1 > deg) {
+    // Something unexpected if user gave deg < (k-1)
+    // We'll just truncate. (In a rigorous approach, we'd handle differently.)
+    return basePoly.slice(0, deg+1);
+  } else {
+    // pad with zeros if needed
+    while (basePoly.length < deg+1) {
+      basePoly.push(0);
+    }
+    return basePoly;
+  }
+}
+
+/** Actual Lagrange: return polynomial of exactly degree up to (k-1). */
+function computeLagrange(pts) {
+  let k = pts.length;
+  let result = Array(k).fill(0); // up to degree k-1
+  for (let i=0; i<k; i++) {
+    let Li = [1]; // polynomial "1"
+    // build the factor for each j != i
+    for (let j=0; j<k; j++) {
+      if (j===i) continue;
+      let denom = (pts[i].x - pts[j].x);
+      // multiply Li by (x - x_j)/denom
+      Li = polyMultiply(Li, [-pts[j].x, 1]); 
+      Li = polyScale(Li, 1/denom);
+    }
+    // multiply by y_i
+    Li = polyScale(Li, pts[i].y);
+    // add to result
+    result = polyAdd(result, Li);
+  }
+  return result;
+}
+
+/** Generate random polynomials that pass exactly through the selected points
+ *  but differ elsewhere (the “wiggles”).
+ */
+function generateRandomWiggles(selectedPts, count, deg) {
+  // Step 1: basePoly = Lagrange interpolation of selectedPts with degree <= (k-1).
+  let k = selectedPts.length;
+  let basePoly = computeLagrange(selectedPts); // degree <= k-1
+  while (basePoly.length < deg+1) {
+    basePoly.push(0);
+  }
+
+  // Step 2: We want a polynomial of degree up to (deg), 
+  // but with (k - 1) points fixed. We have leftover (deg+1 - k) degrees 
+  // of freedom. We can create a polynomial R(x) that is 0 at each selected x_i,
+  // and multiply it by a random polynomial of degree (deg+1 - k). 
+  // Then add to basePoly. 
+  // We'll define a factor poly F(x) = ∏(x - x_i) for i in selectedPts
+  // Then pick random polynomial H of degree (deg+1 - k). 
+  // final = basePoly + F(x)*H(x).
+  let factorPoly = [1]; 
+  for (let pt of selectedPts) {
+    factorPoly = polyMultiply(factorPoly, [-pt.x, 1]); 
+  }
+  let leftoverDeg = deg+1 - factorPoly.length; 
+  // leftoverDeg could be negative if k is close to deg+1, 
+  // meaning there's not much freedom. If leftoverDeg<0 => no wiggles. 
+  let randomPolys = [];
+
+  for (let c = 0; c < count; c++) {
+    // if leftoverDeg >= 0, create random poly H of degree leftoverDeg
+    let H = [];
+    for (let i=0; i<=Math.max(0,leftoverDeg); i++){
+      // random small coeff
+      H.push(Math.floor(Math.random()*11 - 5));
+    }
+    let R = polyMultiply(factorPoly, H);
+    // Now sum up with basePoly
+    let wiggle = polyAdd(basePoly, R);
+    // If wiggle is longer than deg+1, we can trim
+    if (wiggle.length > deg+1) {
+      wiggle = wiggle.slice(0, deg+1);
+    }
+    randomPolys.push(wiggle);
+  }
+  return randomPolys;
+}
+
+/** Polynomials: add, multiply, scale. */
+function polyAdd(a,b) {
+  let len = Math.max(a.length,b.length);
+  let out = Array(len).fill(0);
+  for (let i=0; i<len; i++){
+    if (i<a.length) out[i]+=a[i];
+    if (i<b.length) out[i]+=b[i];
+  }
+  return out;
+}
+function polyMultiply(a,b) {
+  let out = Array(a.length+b.length-1).fill(0);
+  for (let i=0; i<a.length; i++){
+    for (let j=0; j<b.length; j++){
+      out[i+j]+= a[i]*b[j];
+    }
+  }
+  return out;
+}
+function polyScale(a,c) {
+  return a.map(x=>x*c);
+}
+
+/** Utility for random color (semi-transparent?). */
+function randomColor() {
+  // generate a random hue
+  const r = Math.floor(Math.random()*256);
+  const g = Math.floor(Math.random()*256);
+  const b = Math.floor(Math.random()*256);
+  return `rgba(${r}, ${g}, ${b}, 0.8)`;
+}
+
+/** Re-generate the random polynomials (wiggles) if user has < t selected points. */
+function regenerateWiggles() {
+  let selectedPts = points.filter(p => p.selected);
+  if (selectedPts.length >= t) {
+    // with t or more, there's exactly one polynomial, no extra wiggles
+    randomPolynomials = [];
+  } else {
+    // Generate some random polynomials that pass exactly those selected points
+    // but differ elsewhere. The "true" polynomial degree is (t-1).
+    randomPolynomials = generateRandomWiggles(selectedPts, 3, t-1);
+  }
+  drawAll();
+}
+
+/** On load, create initial polynomial. */
+window.onload = () => {
+  generatePolynomial();
+};
+</script>
+
+</body>
+</html>

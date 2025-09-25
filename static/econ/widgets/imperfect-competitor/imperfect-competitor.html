@@ -432,11 +432,26 @@ canvas {
         <!-- Legend -->
         <div class="legend" aria-label="Legend">
           <h3>Legend</h3>
-          <p><span class="swatch parent" style="background:var(--c-demand)"></span> Demand / AR</p>
-          <p><span class="swatch trans"  style="background:var(--c-mr)"></span> MR</p>
-          <p><span class="swatch" style="background:var(--c-mc)"></span> MC</p>
-          <p><span class="swatch" style="background:var(--c-atc)"></span> ATC</p>
-          <p><span class="swatch" style="background:var(--c-avc)"></span> AVC</p>
+          <p>
+            <span class="swatch parent" style="background:var(--c-demand)"></span>
+            <span class="technical">Demand / AR</span><span class="plain">Willingness to Pay</span>
+          </p>
+          <p>
+            <span class="swatch trans"  style="background:var(--c-mr)"></span>
+            <span class="technical">MR</span><span class="plain">Extra money from next unit</span>
+          </p>
+          <p>
+            <span class="swatch" style="background:var(--c-mc)"></span>
+            <span class="technical">MC</span><span class="plain">Extra cost of next unit</span>
+          </p>
+          <p>
+            <span class="swatch" style="background:var(--c-atc)"></span>
+            <span class="technical">ATC</span><span class="plain">Avg total cost</span>
+          </p>
+          <p>
+            <span class="swatch" style="background:var(--c-avc)"></span>
+            <span class="technical">AVC</span><span class="plain">Avg variable cost</span>
+          </p>
           <p><span class="swatch axis"></span> Axes & DWL guides</p>
         </div>
 
@@ -651,7 +666,7 @@ function toCanvasScaler(width, height, pad, Pmax, Qmax) {
 function drawAxes(sc, width, height) {
   ctx.save();
   ctx.strokeStyle = '#999';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 2;
 
   // Axes
   ctx.beginPath();
@@ -662,28 +677,28 @@ function drawAxes(sc, width, height) {
 
   // Ticks & labels (simple)
   ctx.fillStyle = '#000';
-  ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
   const qTicks = 5, pTicks = 5;
   for (let i=1;i<=qTicks;i++){
     const q = i/qTicks;
     const x = sc.left + q*sc.W;
     ctx.beginPath();
     ctx.moveTo(x, height - sc.bottom);
-    ctx.lineTo(x, height - sc.bottom + 4);
+    ctx.lineTo(x, height - sc.bottom + 6);
     ctx.stroke();
   }
   for (let i=1;i<=pTicks;i++){
     const p = i/pTicks;
     const y = sc.top + (1-p)*sc.H;
     ctx.beginPath();
-    ctx.moveTo(sc.left-4, y);
+    ctx.moveTo(sc.left-6, y);
     ctx.lineTo(sc.left, y);
     ctx.stroke();
   }
 
   // Axis labels
-  ctx.fillText('Q', width - sc.right - 8, height - sc.bottom + 12);
-  ctx.fillText('P', sc.left - 12, sc.top + 8);
+  ctx.fillText('Q', width - sc.right - 8, height - sc.bottom + 16);
+  ctx.fillText('P', sc.left - 12, sc.top + 12);
   ctx.restore();
 }
 
@@ -705,6 +720,34 @@ function drawCurve(fnQtoP, sc, color, Qmax, samples=200, dash=null){
   }
   ctx.stroke();
   ctx.restore();
+}
+
+function drawLabel(text, x, y, color, align='left'){
+  if (!isFinite(x) || !isFinite(y)) return;
+  ctx.save();
+  ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  const pad = 4;
+  const textWidth = ctx.measureText(text).width;
+  const textHeight = 14;
+  let boxX = x;
+  if (align==='right') boxX = x - textWidth - pad*2;
+  const boxY = y - textHeight - pad + 2;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillRect(boxX - pad, boxY - pad, textWidth + pad*2, textHeight + pad*2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(boxX - pad, boxY - pad, textWidth + pad*2, textHeight + pad*2);
+  ctx.fillStyle = color;
+  ctx.fillText(text, boxX, boxY + textHeight - 2);
+  ctx.restore();
+}
+
+function drawCurveLabel(sc, Q, fnQtoP, text, color, align='left'){
+  const q = Math.max(0, Math.min(Q, 1e9));
+  const p = fnQtoP(q);
+  if (!isFinite(p)) return;
+  const X = sc.x(q), Y = sc.y(p);
+  drawLabel(text, X + 8, Y - 4, color, align);
 }
 
 function shadeProfitRect(sc, qStar, pStar, atcStar, color){
@@ -795,11 +838,17 @@ function render(){
   if (state.show.dwl && c.produce) shadeDWL(sc, state, c, getComputedStyle(document.documentElement).getPropertyValue('--c-dwl') || '#f0b80022');
 
   // curves
-  if (state.show.demand) drawCurve(q=>P(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-demand') || '#333', c.Qmax);
-  if (state.show.mr)     drawCurve(q=>MR(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-mr') || '#E60000', c.Qmax, 200, [6,4]);
-  if (state.show.mc)     drawCurve(q=>MC(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-mc') || '#0B84A5', c.Qmax);
-  if (state.show.atc)    drawCurve(q=>ATC(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-atc') || '#6F2DBD', c.Qmax);
-  if (state.show.avc)    drawCurve(q=>AVC(q,state), sc, getComputedStyle(document.documentElement).getPropertyValue('--c-avc') || '#2A9D8F', c.Qmax);
+  const colDemand = (getComputedStyle(document.documentElement).getPropertyValue('--c-demand') || '#333').trim() || '#333';
+  const colMR     = (getComputedStyle(document.documentElement).getPropertyValue('--c-mr') || '#E60000').trim() || '#E60000';
+  const colMC     = (getComputedStyle(document.documentElement).getPropertyValue('--c-mc') || '#0B84A5').trim() || '#0B84A5';
+  const colATC    = (getComputedStyle(document.documentElement).getPropertyValue('--c-atc') || '#6F2DBD').trim() || '#6F2DBD';
+  const colAVC    = (getComputedStyle(document.documentElement).getPropertyValue('--c-avc') || '#2A9D8F').trim() || '#2A9D8F';
+
+  if (state.show.demand) drawCurve(q=>P(q,state), sc, colDemand, c.Qmax);
+  if (state.show.mr)     drawCurve(q=>MR(q,state), sc, colMR, c.Qmax, 200, [6,4]);
+  if (state.show.mc)     drawCurve(q=>MC(q,state), sc, colMC, c.Qmax);
+  if (state.show.atc)    drawCurve(q=>ATC(q,state), sc, colATC, c.Qmax);
+  if (state.show.avc)    drawCurve(q=>AVC(q,state), sc, colAVC, c.Qmax);
 
   // Profit/Loss shading
   if (state.show.profit){
@@ -817,6 +866,18 @@ function render(){
     ctx.fill();
     ctx.restore();
   }
+
+  // On-curve labels (technical vs plain-English)
+  const labelsTech = { demand:'Demand / AR', mr:'MR', mc:'MC', atc:'ATC', avc:'AVC' };
+  const labelsPlain= { demand:'Willingness to Pay', mr:'Extra money from next unit', mc:'Extra cost of next unit', atc:'Avg total cost', avc:'Avg variable cost' };
+  const L = (state.mode==='less') ? labelsPlain : labelsTech;
+  const qAtcMin = (state.beta>0) ? Math.sqrt(2*state.F / state.beta) : c.qStar;
+
+  if (state.show.demand) drawCurveLabel(sc, 0.75*c.Qmax, q=>P(q,state), L.demand, colDemand);
+  if (state.show.mr)     drawCurveLabel(sc, Math.min(0.55*c.Qmax, Math.max(0.15*c.Qmax, (state.a/(2*state.b)) || 0.55*c.Qmax)), q=>MR(q,state), L.mr, colMR);
+  if (state.show.mc)     drawCurveLabel(sc, 0.70*c.Qmax, q=>MC(q,state), L.mc, colMC);
+  if (state.show.atc)    drawCurveLabel(sc, Math.max(0.12*c.Qmax, Math.min(qAtcMin, 0.85*c.Qmax)), q=>ATC(q,state), L.atc, colATC);
+  if (state.show.avc)    drawCurveLabel(sc, 0.60*c.Qmax, q=>AVC(q,state), L.avc, colAVC);
 
   // KPIs
   kpiQ.textContent = c.produce ? fmt(c.qStar) : '0 (shutdown)';

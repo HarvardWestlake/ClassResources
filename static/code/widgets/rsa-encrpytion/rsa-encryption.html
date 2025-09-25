@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>RSA Key Generation: Interactive Dark-Themed Demo</title>
+  <style>
+    /***************** DARK THEME & BASIC LAYOUT *****************/
+    body {
+      margin: 20px;
+      background-color: #1e1e1e; 
+      color: #f0f0f0;
+      font-family: Arial, sans-serif;
+    }
+    h1, h2 {
+      margin: 0.5em 0;
+      color: #ffffff;
+    }
+    h1 {
+      margin-bottom: 0.2em;
+    }
+    h2 {
+      margin-top: 1.2em;
+    }
+    p {
+      margin: 0.4em 0;
+    }
+
+    /***************** SUMMARY BOX *****************/
+    #rsaSummary {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #555;
+      background-color: #2c2c2c;
+      border-radius: 6px;
+    }
+    #rsaSummary ul {
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+    }
+    .summary-step {
+      padding: 2px 0;
+    }
+    .highlight {
+      background-color: #444444;
+      color: #20fc8f; /* bright green highlight */
+    }
+
+    /***************** STEP CONTAINERS *****************/
+    .step-container {
+      display: flex;
+      flex-wrap: wrap;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      padding: 0.5em;
+      border-radius: 5px;
+      margin-bottom: 1em;
+    }
+    .step-left {
+      flex: 1 1 500px;
+      min-width: 300px;
+      margin-right: 10px;
+    }
+    .step-right {
+      flex: 1 1 300px;
+      min-width: 200px;
+      background-color: #333;
+      border-radius: 5px;
+      padding: 0.5em;
+      border: 1px solid #555;
+      color: #ccc;
+      font-size: 0.9em;
+    }
+
+    details {
+      margin: 0.5em 0;
+    }
+    details summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: #f0f0f0;
+      outline: none;
+    }
+
+    /***************** INPUTS, BUTTONS, OUTPUTS *****************/
+    label {
+      display: inline-block;
+      width: 30px;
+    }
+    input[type="number"],
+    input[type="text"] {
+      width: 140px;
+      margin: 0.2em 0;
+      padding: 3px;
+      background-color: #1e1e1e;
+      color: #f0f0f0;
+      border: 1px solid #555;
+      border-radius: 3px;
+    }
+    button {
+      margin: 6px 0;
+      padding: 6px 12px;
+      background-color: #444;
+      color: #fff;
+      border: 1px solid #666;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #555;
+    }
+    .output {
+      margin-top: 4px;
+      padding: 5px;
+      background-color: #1f1f1f;
+      border: 1px solid #555;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    textarea {
+      background-color: #1e1e1e;
+      color: #f0f0f0;
+      border: 1px solid #555;
+      border-radius: 3px;
+    }
+    .subtitle {
+      font-style: italic;
+      color: #aaa;
+      font-size: 0.8em;
+      margin-top: 0.3em;
+    }
+
+    /***************** SECTION GROUPINGS, ETC. *****************/
+    hr {
+      margin: 1em 0;
+      border: 0;
+      border-top: 1px solid #444;
+    }
+    #equationsBox {
+      margin: 0.5em 0 1em 0;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      padding: 0.5em;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Interactive RSA Demo (Dark Theme)</h1>
+
+<!-- TOP SUMMARY: We'll highlight each step as the user completes it. -->
+<div id="rsaSummary">
+  <h2>RSA Steps Overview</h2>
+  <ul>
+    <li id="summaryStep1" class="summary-step">1) Choose two primes <em>p</em> and <em>q</em>.</li>
+    <li id="summaryStep2" class="summary-step">2) Compute <em>n</em> = <em>p</em>×<em>q</em>.</li>
+    <li id="summaryStep3" class="summary-step">3) Compute <em>φ(n)</em> = (<em>p</em>−1)(<em>q</em>−1).</li>
+    <li id="summaryStep4" class="summary-step">4) Choose public exponent <em>e</em> (coprime with φ(n)).</li>
+    <li id="summaryStep5" class="summary-step">5) Compute private exponent <em>d</em> = inverse of <em>e</em> mod φ(n).</li>
+    <li id="summaryStep6" class="summary-step">6) Encrypt with <em>(n, e)</em>.</li>
+    <li id="summaryStep7" class="summary-step">7) Decrypt with <em>(n, d)</em>.</li>
+    <li id="summaryStep8" class="summary-step">8) Encrypt for someone else using their public key.</li>
+  </ul>
+</div>
+
+<h2>Public/Private Key Generation</h2>
+
+<!-- STEP 1 -->
+<div class="step-container">
+  <div class="step-left">
+    <details open>
+      <summary>Step 1: Choose primes <code>p</code> and <code>q</code></summary>
+      <p>Enter your own small primes or leave blank to auto-generate:</p>
+      <label>p:</label>
+      <input type="number" id="pInput" placeholder="e.g. 17" />
+      <br>
+      <label>q:</label>
+      <input type="number" id="qInput" placeholder="e.g. 11" />
+      <br>
+      <button onclick="choosePrimes()">Choose/Generate Primes</button>
+      <div id="outputChoosePQ" class="output"></div>
+      <p class="subtitle">For real security, these primes should be extremely large.</p>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening here?</strong>
+    <p>We need two prime numbers because it's hard to factor their product. This makes the system secure.</p>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="step-container">
+  <div class="step-left">
+    <details>
+      <summary>Step 2: Compute <code>n</code> = <code>p</code>×<code>q</code></summary>
+      <button onclick="computeN()">Compute n</button>
+      <div id="outputN" class="output"></div>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening?</strong>
+    <p>The number <em>n</em> is our main modulus used in both public and private keys.</p>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="step-container">
+  <div class="step-left">
+    <details>
+      <summary>Step 3: Compute <code>φ(n)</code> = (<code>p</code>−1)(<code>q</code>−1)</summary>
+      <button onclick="computePhi()">Compute φ(n)</button>
+      <div id="outputPhi" class="output"></div>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening?</strong>
+    <p><em>φ(n)</em> is needed to figure out the private key. It counts how many numbers below <em>n</em> are “coprime” to <em>n</em>.</p>
+  </div>
+</div>
+
+<!-- STEP 4 -->
+<div class="step-container">
+  <div class="step-left">
+    <details>
+      <summary>Step 4: Choose public exponent <code>e</code></summary>
+      <button onclick="chooseE()">Generate e (coprime with φ(n))</button>
+      <div id="outputE" class="output"></div>
+      <p class="subtitle">In real RSA, <code>e=65537</code> is often used.</p>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening?</strong>
+    <p>We pick <em>e</em> so it doesn't share any factors with <em>φ(n)</em>. That ensures encryption works properly.</p>
+  </div>
+</div>
+
+<!-- STEP 5 -->
+<div class="step-container">
+  <div class="step-left">
+    <details>
+      <summary>Step 5: Compute private exponent <code>d</code></summary>
+      <button onclick="computeD()">Compute d (inverse of e mod φ(n))</button>
+      <div id="outputD" class="output"></div>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening?</strong>
+    <p>We find <em>d</em> so that <em>(d × e) ≡ 1</em> mod <em>φ(n)</em>. You need <em>d</em> to undo the encryption.</p>
+  </div>
+</div>
+
+<hr/>
+
+<h2>Encryption / Decryption</h2>
+
+<!-- A small box showing the actual equations with the user's chosen numbers -->
+<div id="equationsBox">
+  <h3>Encryption &amp; Decryption Equations</h3>
+  <p><strong>Encryption:</strong> <span id="encryptEqNumbers">C = M<sup>e</sup> mod n</span></p>
+  <p><strong>Decryption:</strong> <span id="decryptEqNumbers">M = C<sup>d</sup> mod n</span></p>
+
+  <p class="subtitle">
+    <strong>How does modular arithmetic keep this secure?</strong><br/>
+    By using big primes, it is extremely hard to figure out <em>d</em> 
+    from <em>e</em> and <em>n</em> alone because you would need 
+    to factor <em>n</em> back into its primes. This keeps the private 
+    key safe even though <em>(n, e)</em> is public.
+  </p>
+</div>
+
+<!-- STEP 6 -->
+<div class="step-container">
+  <div class="step-left">
+    <details>
+      <summary>Step 6: Encrypt your message (with your public key)</summary>
+      <p>Type a short text message and click <em>Encrypt</em>:</p>
+      <input type="text" id="messageInput" placeholder="Hello RSA!" />
+      <br>
+      <button onclick="encryptMessage()">Encrypt</button>
+      <div id="outputEncrypt" class="output"></div>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening?</strong>
+    <p>We convert each character to a number, then compute <em>number<sup>e</sup> mod n</em> to scramble it using <em>(n, e)</em>.</p>
+  </div>
+</div>
+
+<!-- STEP 7 -->
+<div class="step-container">
+  <div class="step-left">
+    <details>
+      <summary>Step 7: Decrypt the ciphertext (with your private key)</summary>
+      <p>Your ciphertext (numbers):</p>
+      <textarea id="ciphertextArea" rows="3" cols="40"></textarea>
+      <br>
+      <button onclick="decryptMessage()">Decrypt</button>
+      <div id="outputDecrypt" class="output"></div>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening?</strong>
+    <p>We raise those scrambled numbers to <em>d</em> mod <em>n</em> to get back the original message. This uses <em>(n, d)</em>.</p>
+  </div>
+</div>
+
+<hr/>
+
+<!-- STEP 8: Encrypt using someone else's public key -->
+<div class="step-container">
+  <div class="step-left">
+    <details>
+      <summary>Step 8: Encrypt using someone else’s public key</summary>
+      <p>Enter another public key <em>(n, e)</em>:</p>
+      <label>n:</label>
+      <input type="number" id="otherN" placeholder="12345"/>
+      <br>
+      <label>e:</label>
+      <input type="number" id="otherE" placeholder="65537"/>
+      <br>
+      <p>Message to encrypt:</p>
+      <input type="text" id="otherMessage" placeholder="Hello friend!" />
+      <br>
+      <button onclick="encryptWithOtherKey()">Encrypt with their Key</button>
+      <div id="outputEncryptOther" class="output"></div>
+    </details>
+  </div>
+  <div class="step-right">
+    <strong>What is happening?</strong>
+    <p>We use <em>(their n, their e)</em> to turn your message into ciphertext that only the holder of <em>(n, d)</em> (their private key) can decrypt.</p>
+  </div>
+</div>
+
+<p><strong>Public key:</strong> <code>(n, e)</code> &nbsp;|&nbsp; 
+   <strong>Private key:</strong> <code>(n, d)</code></p>
+
+<script>
+  /************************************************************
+   *                  RSA DEMO JAVASCRIPT (VANILLA)           *
+   ************************************************************/
+
+  let p = null;
+  let q = null;
+  let n = null;
+  let phi = null;
+  let e = null;
+  let d = null;
+
+  // GCD (Euclid's algorithm)
+  function gcd(a, b) {
+    while (b !== 0) {
+      const t = b;
+      b = a % b;
+      a = t;
+    }
+    return a;
+  }
+
+  // Extended Euclidean Algorithm to find modular inverse
+  function modInverse(e, phi) {
+    let [old_r, r] = [e, phi];
+    let [old_s, s] = [1, 0];
+    let [old_t, t] = [0, 1];
+
+    while (r !== 0) {
+      let quotient = Math.floor(old_r / r);
+      [old_r, r] = [r, old_r - quotient * r];
+      [old_s, s] = [s, old_s - quotient * s];
+      [old_t, t] = [t, old_t - quotient * t];
+    }
+    if (old_r !== 1) {
+      return null;
+    }
+    return (old_s % phi + phi) % phi;
+  }
+
+  // Check primality (only for small numbers, demonstration only)
+  function isPrime(num) {
+    if (num < 2) return false;
+    if (num % 2 === 0 && num !== 2) return false;
+    for (let i = 3; i * i <= num; i += 2) {
+      if (num % i === 0) return false;
+    }
+    return true;
+  }
+
+  // Generate a small random prime for demo
+  function generateRandomPrime(min = 10, max = 200) {
+    let prime = null;
+    while (!prime) {
+      const candidate = Math.floor(Math.random() * (max - min)) + min;
+      if (isPrime(candidate)) prime = candidate;
+    }
+    return prime;
+  }
+
+  // Modular exponentiation: (base^exp) mod m
+  function modPow(base, exp, m) {
+    let result = 1;
+    let cur = base % m;
+    let e = exp;
+    while (e > 0) {
+      if (e & 1) {
+        result = (result * cur) % m;
+      }
+      cur = (cur * cur) % m;
+      e >>= 1;
+    }
+    return result;
+  }
+
+  // Highlight a step in the top summary
+  function highlightStep(stepNum) {
+    // remove highlight from all steps
+    for (let i = 1; i <= 8; i++) {
+      document.getElementById('summaryStep' + i).classList.remove('highlight');
+    }
+    // add highlight to the chosen step
+    document.getElementById('summaryStep' + stepNum).classList.add('highlight');
+  }
+
+  // Update the displayed encryption/decryption equations with actual numbers
+  function updateEquations() {
+    let eVal = (e !== null) ? e : '?';
+    let dVal = (d !== null) ? d : '?';
+    let nVal = (n !== null) ? n : '?';
+
+    // Example: "C = M^e mod n" => "C = M^13 mod 77"
+    document.getElementById('encryptEqNumbers').textContent = `C = M^${eVal} mod ${nVal}`;
+    document.getElementById('decryptEqNumbers').textContent = `M = C^${dVal} mod ${nVal}`;
+  }
+
+  /********************* STEP 1: Choose p and q *********************/
+  function choosePrimes() {
+    highlightStep(1);
+
+    let pInput = document.getElementById('pInput').value.trim();
+    let qInput = document.getElementById('qInput').value.trim();
+
+    if (!pInput) {
+      p = generateRandomPrime(10, 200);
+      document.getElementById('pInput').value = p;
+    } else {
+      p = parseInt(pInput, 10);
+      if (!isPrime(p)) {
+        alert("p is not prime (or invalid). Generating random prime instead.");
+        p = generateRandomPrime(10, 200);
+        document.getElementById('pInput').value = p;
+      }
+    }
+
+    if (!qInput) {
+      do {
+        q = generateRandomPrime(10, 200);
+      } while (q === p);
+      document.getElementById('qInput').value = q;
+    } else {
+      q = parseInt(qInput, 10);
+      if (!isPrime(q) || q === p) {
+        alert("q is not prime or not distinct from p. Generating random prime.");
+        do {
+          q = generateRandomPrime(10, 200);
+        } while (q === p);
+        document.getElementById('qInput').value = q;
+      }
+    }
+
+    document.getElementById('outputChoosePQ').textContent =
+      `p = ${p}, q = ${q} chosen successfully.`;
+
+    // Reset subsequent steps
+    n = null;
+    phi = null;
+    e = null;
+    d = null;
+    updateEquations();
+  }
+
+  /********************* STEP 2: Compute n ***************************/
+  function computeN() {
+    highlightStep(2);
+
+    if (!p || !q) {
+      alert('Please complete Step 1 first.');
+      return;
+    }
+    n = p * q;
+    document.getElementById('outputN').textContent = `n = p * q = ${n}`;
+    updateEquations();
+  }
+
+  /********************* STEP 3: Compute φ(n) ************************/
+  function computePhi() {
+    highlightStep(3);
+
+    if (!n) {
+      alert('Please complete Step 2 first.');
+      return;
+    }
+    phi = (p - 1) * (q - 1);
+    document.getElementById('outputPhi').textContent = `φ(n) = (p-1)*(q-1) = ${phi}`;
+    updateEquations();
+  }
+
+  /********************* STEP 4: Choose e ****************************/
+  function chooseE() {
+    highlightStep(4);
+
+    if (!phi) {
+      alert('Please complete Step 3 first.');
+      return;
+    }
+    let candidate;
+    while (true) {
+      candidate = Math.floor(Math.random() * (phi - 2)) + 2;
+      if (gcd(candidate, phi) === 1) {
+        break;
+      }
+    }
+    e = candidate;
+    document.getElementById('outputE').textContent =
+      `e chosen to be ${e}, which is coprime with φ(n).`;
+    d = null; // reset d
+    updateEquations();
+  }
+
+  /********************* STEP 5: Compute d ****************************/
+  function computeD() {
+    highlightStep(5);
+
+    if (!e) {
+      alert('Please complete Step 4 first.');
+      return;
+    }
+    d = modInverse(e, phi);
+    if (d == null) {
+      alert('Could not compute modular inverse. Try again.');
+      return;
+    }
+    document.getElementById('outputD').textContent =
+      `d = ${d}, so that (d * e) ≡ 1 (mod φ(n)).`;
+    updateEquations();
+  }
+
+  /********************* STEP 6: Encrypt (with your public key) ******/
+  function encryptMessage() {
+    highlightStep(6);
+
+    if (!n || !e) {
+      alert('Steps 1–5 must be completed first (need n and e).');
+      return;
+    }
+    const message = document.getElementById('messageInput').value;
+    if (!message) {
+      alert('Please enter a message to encrypt.');
+      return;
+    }
+    // Convert each character to char code, then (code^e) mod n
+    let encryptedCodes = [];
+    for (let i = 0; i < message.length; i++) {
+      let code = message.charCodeAt(i);
+      let enc = modPow(code, e, n);
+      encryptedCodes.push(enc);
+    }
+    let cipherText = encryptedCodes.join(' ');
+    document.getElementById('outputEncrypt').textContent =
+      `Ciphertext (numbers): ${cipherText}`;
+    document.getElementById('ciphertextArea').value = cipherText;
+  }
+
+  /********************* STEP 7: Decrypt (with your private key) *****/
+  function decryptMessage() {
+    highlightStep(7);
+
+    if (!n || !d) {
+      alert('Need valid n and d from Steps 1–5.');
+      return;
+    }
+    let ciphertext = document.getElementById('ciphertextArea').value.trim();
+    if (!ciphertext) {
+      alert('No ciphertext found. Please encrypt first.');
+      return;
+    }
+    let parts = ciphertext.split(' ').map(x => parseInt(x, 10));
+    let decryptedChars = [];
+    for (let i = 0; i < parts.length; i++) {
+      let dec = modPow(parts[i], d, n);
+      decryptedChars.push(String.fromCharCode(dec));
+    }
+    let decryptedMessage = decryptedChars.join('');
+    document.getElementById('outputDecrypt').textContent =
+      `Decrypted message: ${decryptedMessage}`;
+  }
+
+  /********************* STEP 8: Encrypt with someone else's key ******/
+  function encryptWithOtherKey() {
+    highlightStep(8);
+
+    let otherNVal = parseInt(document.getElementById('otherN').value, 10);
+    let otherEVal = parseInt(document.getElementById('otherE').value, 10);
+    if (!otherNVal || !otherEVal) {
+      alert('Please enter a valid public key (n, e).');
+      return;
+    }
+    let msg = document.getElementById('otherMessage').value;
+    if (!msg) {
+      alert('Please enter a message to encrypt for the other person.');
+      return;
+    }
+
+    let encryptedCodes = [];
+    for (let i = 0; i < msg.length; i++) {
+      let code = msg.charCodeAt(i);
+      let enc = modPow(code, otherEVal, otherNVal);
+      encryptedCodes.push(enc);
+    }
+    let cipherText = encryptedCodes.join(' ');
+    document.getElementById('outputEncryptOther').textContent =
+      `Ciphertext (numbers): ${cipherText}`;
+  }
+</script>
+
+</body>
+</html>
