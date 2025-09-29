@@ -2,79 +2,29 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Shamir's Secret Sharing - Geometric Demo with Random Wiggles</title>
+<!-- Shared styles (Math widgets baseline) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../math/widgets/shared/styles.css" />
 <style>
-  body {
-    background: #1e1e1e;
-    color: #ddd;
-    font-family: sans-serif;
-    margin: 0;
-    padding: 0;
-  }
-  header, .controls, .info {
-    margin: 10px;
-  }
-  header h1 {
-    margin: 5px 0;
-    color: #fff;
-  }
-  .controls {
-    background: #2e2e2e;
-    padding: 10px;
-    border-radius: 8px;
-  }
-  .controls label {
-    margin-right: 10px;
-  }
-  .controls input {
-    width: 60px;
-  }
-  .controls button {
-    margin-right: 10px;
-    background-color: #444;
-    color: #fff;
-    border: 1px solid #666;
-    border-radius: 4px;
-    cursor: pointer;
-    padding: 5px 10px;
-  }
-  .controls button:hover {
-    background-color: #555;
-  }
-  .controls .smallToggle {
-    width: auto;
-    margin-left: 10px;
-    cursor: pointer;
-  }
-  #canvasContainer {
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  canvas {
-    background: #fff;
-    border: 1px solid #ccc;
-  }
-  .info {
-    background: #2e2e2e;
-    padding: 10px;
-    border-radius: 8px;
-    line-height: 1.4em;
-    max-width: 700px;
-    margin: 10px auto;
-  }
-  .info h2 {
-    margin-top: 0;
-    color: #fff;
-  }
+  /* Scoped overrides for this demo to fit the math layout */
+  .controls { background: #f8f9fa; border:1px solid #eee; }
+  #canvasContainer { text-align:center; }
+  canvas { background:#fff; border:1px solid #ccc; }
+  .info { background:#f8f9fa; border:1px solid #eee; }
+  .info h2 { margin-top:0; }
 </style>
 </head>
 <body>
 
-<header>
+<div class="container">
+  <a href="../../../index.html" class="back-link">← Back to Home</a>
   <h1>Shamir's Secret Sharing Demo (Geometry + “Wiggles”)</h1>
-</header>
 
-<div class="controls">
+  <div class="controls">
   <label>Threshold (t):</label>
   <input type="number" id="thresholdInput" value="3" min="2" max="6">
   
@@ -90,13 +40,13 @@
   <label for="showRandomToggle" class="smallToggle">Show random “wiggles” if not enough points?</label>
 
   <button onclick="regenerateWiggles()">Regenerate Wiggles</button>
-</div>
+  </div>
 
-<div id="canvasContainer">
-  <canvas id="shamirCanvas" width="800" height="500"></canvas>
-</div>
+  <div id="canvasContainer" class="chartarea">
+    <canvas id="shamirCanvas" width="800" height="500"></canvas>
+  </div>
 
-<div class="info">
+  <div class="info">
   <h2>How this Demo Works</h2>
   <p>
     We create a random polynomial <em>f(x)</em> of degree <strong>t-1</strong>. 
@@ -119,6 +69,7 @@
     but the geometric idea is the same: <strong>t</strong> points uniquely define a 
     degree-<strong>t-1</strong> polynomial. Fewer than <strong>t</strong> leaves infinitely many solutions.
   </p>
+  </div>
 </div>
 
 <script>

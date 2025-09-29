@@ -8,14 +8,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="static/math/widgets/shared/styles.css" />
+    <style>
+      body { background-color: #f8f9fa; }
+      .widgets-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:2rem; padding:1rem; justify-items:center; }
+      .widget-card { background:#fff; border-radius:12px; padding:1.5rem; box-shadow:0 4px 6px rgba(0,0,0,.05); border:1px solid rgba(0,0,0,.05); color:inherit; text-decoration:none; display:block; transition:.3s; }
+      .widget-card:hover { transform: translateY(-5px); box-shadow:0 8px 15px rgba(0,0,0,.1); border-color: rgba(230,0,0,.2); }
+      .widget-card .title-row { display:flex; flex-direction:column; margin-bottom:0.75rem; padding-bottom:.6rem; border-bottom:1px solid rgba(0,0,0,.05); }
+      .widget-card h3 { margin:0; font-size:1.2rem; font-weight:600; color:#000; }
+      .widget-card p { color:#666; margin-bottom:1rem; }
+      .widget-card .button { display:inline-block; background:#E60000; color:#fff; padding:.55rem 1.1rem; border-radius:8px; text-decoration:none; transition:.2s; font-weight:500; }
+      .widget-card:hover .button { background:#cc0000; transform: translateY(-2px); box-shadow:0 4px 8px rgba(230,0,0,.2); }
+    </style>
   </head>
   <body>
     <div class="container">
       <h1>Class Resources</h1>
-      <p style="text-align:center;"><a class="widget-action-button" href="static/math/index.html">Math Widgets</a></p>
-      <p style="text-align:center;"><a class="widget-action-button" href="static/code/index.html">Code Widgets</a></p>
-      <p style="text-align:center;"><a class="widget-action-button" href="static/econ/index.html">Economics Widgets</a></p>
-      <p style="text-align:center;"><a class="widget-action-button" href="static/stats/index.html">Statistics Widgets</a></p>
+      <h2>Explore by Subject</h2>
+      <div class="widgets-grid">
+        <a href="static/math/index.html" class="widget-card">
+          <div class="title-row" style="text-align:center">
+            <h3>Math</h3>
+          </div>
+          <p>Explore transformations, sequences, symmetry, puzzles, and more.</p>
+          <span class="button">Browse Math</span>
+        </a>
+        <a href="static/code/index.html" class="widget-card">
+          <div class="title-row" style="text-align:center">
+            <h3>Code</h3>
+          </div>
+          <p>Visual demos for CS topics like data structures and cryptography.</p>
+          <span class="button">Browse Code</span>
+        </a>
+        <a href="static/econ/index.html" class="widget-card">
+          <div class="title-row" style="text-align:center">
+            <h3>Economics</h3>
+          </div>
+          <p>Market structure, revenue/cost curves, and interactive scenarios.</p>
+          <span class="button">Browse Econ</span>
+        </a>
+        <a href="static/stats/index.html" class="widget-card">
+          <div class="title-row" style="text-align:center">
+            <h3>Statistics</h3>
+          </div>
+          <p>Hands-on inference tools, including permutation tests and charts.</p>
+          <span class="button">Browse Stats</span>
+        </a>
+      </div>
     </div>
   </body>
 </html>

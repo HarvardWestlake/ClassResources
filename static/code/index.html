@@ -8,12 +8,85 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../math/widgets/shared/styles.css" />
+    <style>
+      body { background-color: #f8f9fa; }
+      .widgets-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 2rem;
+        padding: 1rem;
+      }
+      .widget-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.75rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      .widget-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        border-color: rgba(230, 0, 0, 0.2);
+      }
+      .widget-card .title-row {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      .widget-card h3 { margin: 0; font-size: 1.25rem; font-weight: 600; color: #000; }
+      .widget-card p { color: #666; margin-bottom: 1.5rem; line-height: 1.6; }
+      .widget-card .function {
+        font-family: 'Times New Roman', serif;
+        font-style: italic;
+        color: #000000; font-weight: 600; font-size: 1.1rem;
+        background: #f8f9fa; padding: 0.5rem 0.75rem; border-radius: 8px; text-align: center;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      .widget-card:hover .function { background: #F0B800; border-color: rgba(0,0,0,0.1); color: #000; }
+      .widget-card .button {
+        display: inline-block; background-color: #E60000; color: #fff; padding: 0.6rem 1.25rem; border-radius: 8px;
+        text-decoration: none; transition: all 0.2s ease; font-weight: 500; letter-spacing: 0.5px;
+      }
+      .widget-card:hover .button { background-color: #cc0000; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(230,0,0,0.2); }
+    </style>
   </head>
   <body>
     <div class="container">
       <a class="back-link" href="../../index.html">← Back to Home</a>
-      <h1>Code Widgets</h1>
-      <p style="text-align:center;"><a class="widget-action-button" href="widgets/array-list/array-list.html">Array List</a></p>
+      <h1>Interactive Code Learning Widgets</h1>
+      <h2>Widgets</h2>
+      <div class="widgets-grid">
+        <a href="widgets/array-list/array-list.html" class="widget-card">
+          <div class="title-row">
+            <h3>Java ArrayList — Memory Visualizer</h3>
+            <div class="function">Dynamic array backing</div>
+          </div>
+          <p>See allocation, growth, and shifting as you add/remove elements from an ArrayList. Visualizes capacity vs size and copies on resize.</p>
+          <span class="button">Launch Widget</span>
+        </a>
+        <a href="widgets/shamir/shamir.html" class="widget-card">
+          <div class="title-row">
+            <h3>Shamir's Secret Sharing</h3>
+            <div class="function">Reconstruct with t points</div>
+          </div>
+          <p>Explore how t points uniquely define a degree t−1 polynomial. Toggle points and visualize exact reconstruction or possible "wiggles".</p>
+          <span class="button">Launch Widget</span>
+        </a>
+        <a href="widgets/rsa-encrpytion/rsa-encryption.html" class="widget-card">
+          <div class="title-row">
+            <h3>RSA Encryption (Demo)</h3>
+            <div class="function">Keys, encrypt, decrypt</div>
+          </div>
+          <p>Step through toy RSA: generate keys, encrypt messages, and decrypt to understand the flow behind public‑key cryptography.</p>
+          <span class="button">Launch Widget</span>
+        </a>
+      </div>
     </div>
   </body>
 </html>

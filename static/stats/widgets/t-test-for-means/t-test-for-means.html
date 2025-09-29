@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Two Sample t-Test for Means</title>
+<!-- Shared styles (Math widgets baseline) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../math/widgets/shared/styles.css" />
 <style>
   :root{
     --bg: #0f1221;
@@ -24,9 +29,9 @@
     margin:0;
     background: radial-gradient(1200px 800px at 80% -10%, #283060, transparent 60%), var(--bg);
     color: var(--ink);
-    font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    font: 16px/1.5 'Source Sans Pro', -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
   }
-  .container{max-width:1100px; margin-inline:auto; padding:28px 18px 64px;}
+  .container{max-width:1100px; margin-inline:auto; padding:28px 18px 64px; background:transparent; box-shadow:none;}
   header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px;}
   .title{font-weight:700; font-size:clamp(20px, 3.6vw, 28px); letter-spacing:.2px}
   .sub{color:var(--muted); font-size:14px}
@@ -113,6 +118,7 @@
 </head>
 <body>
 <div class="container">
+  <a href="../../index.html" class="back-link">← Back to Stats Home</a>
   <header>
     <div>
       <div class="title">Two Sample t-Test for Means</div>
