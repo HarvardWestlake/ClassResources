@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Add Git Blob Visualizer (Static)</title>
+
+<style>
+/* ===================== */
+/* Provided common theme */
+/* ===================== */
+
+/* Common styles for all widgets */
+body {
+  font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  color: #E60000;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.back-link:hover {
+  color: #cc0000;
+  text-decoration: underline;
+}
+
+h1 {
+  color: #000000;
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.controls-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+}
+
+.control.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control label {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+  color: #000000;
+  font-size: 0.9rem;
+}
+
+.control input[type="range"] {
+  width: 100%;
+  margin: 0.15rem 0;
+  -webkit-appearance: none;
+  background: #f8f9fa;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.control input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="checkbox"] {
+  margin: 0;
+}
+
+.legend,
+.info {
+  font-size: 0.9rem;
+  background: #f8f9fa;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.legend {
+  margin-bottom: 0;
+  display: inline-block;
+}
+
+.legend h3,
+.info h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #000000;
+  font-weight: 600;
+}
+
+.legend p,
+.info p {
+  margin: 0.1rem 0;
+  color: #000000;
+}
+
+.swatch {
+  display: inline-block;
+  width: 24px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.swatch.parent { background: #666; }
+.swatch.trans { background: #E60000; }
+.swatch.axis { background: #F0B800; }
+.swatch.asymptote { background: #F0B800; }
+
+.chartarea {
+  flex: 1 1 400px;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+canvas {
+  max-width: 100%;
+  height: 300px;
+}
+
+/* Common styles for action buttons within widgets */
+.widget-action-button {
+  display: inline-block; /* More versatile */
+  padding: 0.65rem 1rem; 
+  background: #E60000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem; 
+  min-width: 120px; /* Ensure a decent minimum size */
+  line-height: 1.2; /* Ensure text vertical align is good */
+}
+
+.widget-action-button:hover {
+  background: #cc0000;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.widget-action-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* If a .widget-action-button is a direct child of a display:flex container, 
+   and we want it to take full width or grow: */
+.flex-container > .widget-action-button {
+    /* flex-grow: 1; /* Uncomment if buttons in flex should always grow */
+    /* width: 100%; /* Uncomment if buttons in flex should take full width of flex item */
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  body {
+    padding: 0.25rem;
+  }
+  .container {
+    padding: 0.5rem;
+  }
+  .controls-container {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex: 1 1 100%;
+    align-items: center;
+    order: 1;
+  }
+  .chartarea {
+    order: 2;
+    padding: 0.5rem;
+    width: calc(100% - 1rem);
+    margin: 0 auto;
+  }
+  .controls {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+  }
+  .info {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+    margin-bottom: 0.5rem;
+  }
+  .legend {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+    margin-top: 0.5rem;
+    order: 3;
+    text-align: left;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+  canvas {
+    height: 250px;
+  }
+}
+
+/* ============================= */
+/* App-specific layout & visuals */
+/* ============================= */
+
+.three-col {
+  display: grid;
+  grid-template-columns: 60% 40%; /* left: Working Directory (60%), right: Hash (40%) */
+  gap: 0.75rem;
+}
+
+/* Make the right panel span the full width as a second row */
+#rightPanel { 
+  grid-column: 1 / -1; 
+  display: grid; 
+  grid-template-columns: 60% 40%; /* index | git/objects */
+  gap: 0.5rem;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 400px;
+  position: relative;
+}
+
+.panel h2, .panel h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.muted {
+  color: #6c757d;
+}
+
+/* --- Left section: file graphic --- */
+
+.inputs-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr; /* folder input | '/' | filename input */
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.input-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.input-wrap label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
+}
+
+.input-wrap input {
+  padding: 0.5rem;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.inline-folder {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem;
+}
+
+.path-divider {
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  color: #adb5bd;
+  font-weight: 600;
+  padding-bottom: 0.15rem;
+}
+
+#filepath {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  background: #f8f9fa;
+  border: 1px dashed #dee2e6;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+}
+
+.file-figure {
+  position: relative;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  height: 120px;
+  background: linear-gradient(180deg, #ffffff, #fafafa);
+  overflow: hidden;
+}
+
+/* folded corner look */
+.file-figure::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-width: 0 36px 36px 0;
+  border-style: solid;
+  border-color: transparent #f1f3f5 transparent transparent;
+}
+
+.file-figure textarea {
+  position: absolute;
+  inset: 12px;
+  width: calc(100% - 24px);
+  height: calc(100% - 24px);
+  resize: none;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  background: #fff;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pill {
+  background: #f1f3f5;
+  border: 1px solid #e9ecef;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+/* --- Middle section: hashing --- */
+
+.hash-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.hash-controls select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.to-hash-zone {
+  flex: 1;
+  border: 2px dashed #e9ecef;
+  border-radius: 6px;
+  background: #fcfcfc;
+  padding: 0.5rem;
+  min-height: 90px;
+  position: relative;
+}
+
+.to-hash-zone .label {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  color: #adb5bd;
+  font-size: 0.8rem;
+}
+
+#toHashContent {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+  padding-right: 1.2rem;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 28px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e9ecef;
+  border-top-color: #E60000;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg);} }
+
+.hash-output {
+  margin-top: 0.25rem;
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  word-break: break-all;
+}
+
+/* --- Right section: git/objects + index --- */
+
+.box {
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 0.5rem;
+  background: #fff;
+}
+
+/* Right panel typography tweaks: smaller text, try to keep single line items */
+#rightPanel .box {
+  font-size: 0.8rem;
+}
+
+#rightPanel .objects-list li {
+  font-size: 0.8rem;
+  white-space: nowrap; /* prefer single line */
+  overflow: hidden;
+  text-overflow: ellipsis; /* clip with ellipsis if too long */
+}
+
+#rightPanel .index-pre {
+  font-size: 0.8rem;
+  white-space: pre-wrap; /* keep wrapping available */
+  word-break: break-all; /* allow breaking long hashes/paths */
+}
+
+.objects-list {
+  list-style: none;
+  margin: 0.25rem 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.objects-list li {
+  border: 1px solid #e9ecef;
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  cursor: default;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  position: relative;
+}
+
+.objects-list li:hover {
+  border-color: #E60000;
+  background: #fff;
+}
+
+.index-pre {
+  margin: 0;
+  padding: 0.5rem;
+  border-radius: 4px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  min-height: 160px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Hover preview dialog */
+.preview-bubble {
+  position: fixed;
+  left: 0;
+  top: 0;
+  min-width: 240px;
+  max-width: 340px;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  padding: 0.5rem;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.preview-bubble .title {
+  font-weight: 600; 
+  margin-bottom: 0.25rem; 
+  font-size: 0.85rem;
+}
+
+.preview-bubble pre {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+}
+
+/* --- Fly animations (left -> middle -> right) --- */
+
+.flyer, .hash-chip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  transform: translate(0,0);
+  transition: transform 650ms cubic-bezier(.2,.9,.2,1), opacity 650ms ease;
+}
+
+.flyer {
+  width: 120px;
+  height: 90px;
+  border: 2px solid #E60000;
+  background: #fff;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  color: #E60000;
+  box-shadow: 0 8px 22px rgba(230,0,0,0.15);
+}
+
+.hash-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #E60000;
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85rem;
+  max-width: 60vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 8px 22px rgba(230,0,0,0.15);
+}
+
+/* Responsive tweak: stack columns on small screens */
+@media (max-width: 980px) {
+  .three-col {
+    grid-template-columns: 1fr;
+  }
+  /* Stack the right panel boxes on small screens */
+  #rightPanel {
+    grid-template-columns: 1fr;
+  }
+}
+
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Git Blob Visualizer</h1>
+
+    <div class="three-col" id="threeCol">
+
+      <!-- =============== LEFT: Working Directory =============== -->
+      <section class="panel" id="leftPanel" aria-label="Working Directory">
+        <h2>Working Directory</h2>
+
+        <div class="inputs-row">
+          <div class="input-wrap">
+            <label for="folderInput">Add Directory</label>
+            <div class="inline-folder">
+              <input id="folderInput" type="text" placeholder="e.g. src or docs" />
+              <button id="addFolderBtn" class="widget-action-button" title="Add directory segment">Add Directory</button>
+            </div>
+          </div>
+
+          <div class="path-divider" aria-hidden="true">/</div>
+
+          <div class="input-wrap">
+            <label for="filenameInput">Filename</label>
+            <input id="filenameInput" type="text" placeholder="e.g. README.md" />
+          </div>
+        </div>
+
+        <div id="filepath" class="small"><strong>FilePath:</strong> <span id="filepathText"></span></div>
+
+        <div class="pills" id="foldersPills" aria-live="polite"></div>
+
+        <div class="file-figure" id="fileFigure" aria-label="File contents">
+          <textarea id="fileText" placeholder="Type file contents here..."></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:center; margin-top: 0.25rem;">
+          <button id="stageBtn" class="widget-action-button">Stage File</button>
+          <button id="addSamplesBtn" class="widget-action-button" style="margin-left: 0.5rem;">Add Sample Files</button>
+        </div>
+
+        <div class="muted small">Staging simulates creating a Git blob without compression (zlib).</div>
+      </section>
+
+      <!-- =============== MIDDLE: Hashing =============== -->
+      <section class="panel" id="middlePanel" aria-label="Hash">
+        <h2>hash()</h2>
+        <div class="hash-controls">
+          <label for="algoSelect" class="small" style="font-weight:600;">Algorithm:</label>
+          <select id="algoSelect" aria-label="Hash Algorithm">
+            <option value="SHA-1" selected>SHA1</option>
+            <option value="SHA-1-GIT">SHA1 Git-Style</option>
+            <option value="SHA-256">SHA256</option>
+          </select>
+        </div>
+
+        <div class="to-hash-zone" id="toHashZone" aria-live="polite" aria-busy="false">
+          <div class="label">input → hash()</div>
+          <div id="toHashContent" class="muted">[ File will appear here when staged ]</div>
+        </div>
+
+        <div class="status" id="hashStatusRow">
+          <!-- spinner + status text injected here -->
+        </div>
+
+        <div id="hashOutput" class="hash-output small" style="display:none;"></div>
+      </section>
+
+      <!-- =============== RIGHT: git/objects + index =============== -->
+      <section class="panel" id="rightPanel" aria-label="Git Objects and Index">
+        <div class="box">
+          <h3>index</h3>
+          <pre id="indexPre" class="index-pre" aria-live="polite"></pre>
+        </div>
+
+        <div class="box">
+          <h3>git/objects</h3>
+          <ul id="objectsList" class="objects-list" aria-live="polite"></ul>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+<script>
+/* ==========================================
+   Git Blob Visualizer — Static JS
+   ========================================== */
+
+(function() {
+  // --- Elements
+  const folderInput   = document.getElementById('folderInput');
+  const addFolderBtn  = document.getElementById('addFolderBtn');
+  const filenameInput = document.getElementById('filenameInput');
+  const filepathText  = document.getElementById('filepathText');
+  const foldersPills  = document.getElementById('foldersPills');
+  const fileText      = document.getElementById('fileText');
+  const stageBtn      = document.getElementById('stageBtn');
+  const addSamplesBtn = document.getElementById('addSamplesBtn');
+
+  const algoSelect    = document.getElementById('algoSelect');
+  const toHashZone    = document.getElementById('toHashZone');
+  const toHashContent = document.getElementById('toHashContent');
+  const hashStatusRow = document.getElementById('hashStatusRow');
+  const hashOutput    = document.getElementById('hashOutput');
+
+  const objectsList   = document.getElementById('objectsList');
+  const indexPre      = document.getElementById('indexPre');
+
+  const leftPanel     = document.getElementById('leftPanel');
+  const middlePanel   = document.getElementById('middlePanel');
+  const rightPanel    = document.getElementById('rightPanel');
+  const fileFigure    = document.getElementById('fileFigure');
+
+  // --- App state
+  let folders = [];
+  const objects = new Map(); // hash -> { content, path, algo }
+
+  // --- Helpers
+  const enc = new TextEncoder();
+
+  function updateFilepath() {
+    const fname = (filenameInput.value || '').trim();
+    const pre = folders.length ? folders.join('/') : '';
+    const path = pre && fname ? `${pre}/${fname}` : (pre || fname);
+    filepathText.textContent = (path || '').replace(/\/+/g, '/');
+  }
+
+  function renderPills() {
+    foldersPills.innerHTML = '';
+    folders.forEach((name, i) => {
+      const el = document.createElement('span');
+      el.className = 'pill';
+      el.textContent = name;
+      el.title = 'Click to remove';
+      el.addEventListener('click', () => {
+        folders.splice(i, 1);
+        renderPills();
+        updateFilepath();
+      });
+      foldersPills.appendChild(el);
+    });
+  }
+
+  function addFolder() {
+    const val = (folderInput.value || '').trim().replace(/\s+/g, '_');
+    if (!val) return;
+    folders.push(val);
+    folderInput.value = '';
+    renderPills();
+    updateFilepath();
+  }
+
+  function showStatus(text, withSpinner=true) {
+    hashStatusRow.innerHTML = '';
+    if (withSpinner) {
+      const sp = document.createElement('div');
+      sp.className = 'spinner';
+      hashStatusRow.appendChild(sp);
+    }
+    const msg = document.createElement('div');
+    msg.textContent = text;
+    hashStatusRow.appendChild(msg);
+  }
+
+  function clearStatus() {
+    hashStatusRow.innerHTML = '';
+  }
+
+  function bytesLen(str) {
+    return enc.encode(str).length;
+  }
+
+  async function gitBlobHash(content, algo /* 'SHA-1' | 'SHA-256' */) {
+    // Git blob header: "blob {len}\0" + content (UTF-8)
+    const contentBytes = enc.encode(content);
+    const header = `blob ${contentBytes.length}\0`;
+    const headerBytes = enc.encode(header);
+    const full = new Uint8Array(headerBytes.length + contentBytes.length);
+    full.set(headerBytes, 0);
+    full.set(contentBytes, headerBytes.length);
+
+    const digest = await crypto.subtle.digest(algo, full);
+    const hashHex = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return { hashHex, header };
+  }
+
+  async function contentOnlyHash(content, algo /* 'SHA-1' */) {
+    const digest = await crypto.subtle.digest(algo, enc.encode(content));
+    const hashHex = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return { hashHex };
+  }
+
+  function createFlyer(fromEl, label='file') {
+    const r = fromEl.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'flyer';
+    el.textContent = label;
+    el.style.left = `${r.left + (r.width/2 - 60)}px`;
+    el.style.top = `${r.top + (r.height/2 - 45)}px`;
+    el.style.opacity = '1';
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function createHashChip(fromEl, text) {
+    const r = fromEl.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'hash-chip';
+    el.textContent = text;
+    el.style.left = `${r.left}px`;
+    el.style.top = `${r.top}px`;
+    el.style.opacity = '1';
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function moveElement(el, toEl, {dx=0, dy=0}={}) {
+    return new Promise(resolve => {
+      const to = toEl.getBoundingClientRect();
+      const from = el.getBoundingClientRect();
+      const tx = (to.left - from.left) + dx;
+      const ty = (to.top - from.top) + dy;
+      requestAnimationFrame(() => {
+        el.style.transform = `translate(${tx}px, ${ty}px)`;
+        el.style.opacity = '0.95';
+      });
+      el.addEventListener('transitionend', () => resolve(), {once:true});
+    });
+  }
+
+  function removeAfter(el, ms=10) {
+    setTimeout(() => el.remove(), ms);
+  }
+
+  function ensureToHashContentVisible(text) {
+    toHashZone.setAttribute('aria-busy','true');
+    toHashContent.classList.remove('muted');
+    toHashContent.textContent = text;
+  }
+
+  function addObjectToList(hash, {content, path, algo}) {
+    const item = document.createElement('li');
+    item.textContent = hash;
+    item.title = `${algo}`;
+    item.dataset.hash = hash;
+
+    // Hover preview bubble
+    let bubble;
+    item.addEventListener('mouseenter', () => {
+      bubble = document.createElement('div');
+      bubble.className = 'preview-bubble';
+      const t = document.createElement('div');
+      t.className = 'title';
+      t.textContent = path;
+      const pre = document.createElement('pre');
+      pre.textContent = content || '(empty file)';
+      bubble.appendChild(t);
+      bubble.appendChild(pre);
+      document.body.appendChild(bubble);
+
+      const itemRect = item.getBoundingClientRect();
+      const bubbleRect = bubble.getBoundingClientRect();
+      let left = itemRect.right + 8;
+      let top = itemRect.top;
+      if (left + bubbleRect.width > window.innerWidth - 8) {
+        left = Math.max(8, itemRect.left - 8 - bubbleRect.width);
+      }
+      if (top + bubbleRect.height > window.innerHeight - 8) {
+        top = Math.max(8, window.innerHeight - 8 - bubbleRect.height);
+      }
+      bubble.style.left = `${left}px`;
+      bubble.style.top = `${top}px`;
+    });
+    item.addEventListener('mouseleave', () => {
+      if (bubble) bubble.remove();
+    });
+
+    objectsList.prepend(item);
+  }
+
+  function appendIndexLine(hash, path) {
+    const clean = (path || '').replace(/^\/+/, '');
+    const line = `${hash} ${clean}`;
+    const current = indexPre.textContent;
+    indexPre.textContent = current ? `${line}\n${current}` : line;
+  }
+
+  function buildPath() {
+    const fname = (filenameInput.value || '').trim();
+    const pfx = folders.length ? folders.join('/') : '';
+    const path = pfx && fname ? `${pfx}/${fname}` : (pfx || fname);
+    return (path || '').replace(/\/+/g,'/');
+  }
+
+  // --- Events
+  addFolderBtn.addEventListener('click', addFolder);
+  folderInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addFolder();
+  });
+  filenameInput.addEventListener('input', updateFilepath);
+  fileText.addEventListener('input', () => {/* content changed; nothing else to do */});
+  updateFilepath();
+
+  // --- Add Sample Files flow
+  addSamplesBtn.addEventListener('click', async () => {
+    const algo = algoSelect.value;
+    const isGitStyle = algo === 'SHA-1-GIT';
+    const cryptoAlgo = isGitStyle ? 'SHA-1' : algo;
+    const algoLabel = isGitStyle ? 'SHA1 Git-Style' : algo;
+
+    const samples = [
+      { path: 'dirA/file1.txt', content: 'Alpha 1' },
+      { path: 'dirA/file2.txt', content: 'Alpha 2' },
+      { path: 'dirA/file3.txt', content: 'Alpha 3' },
+      { path: 'dirB/file1.md',  content: '# Bravo 1' },
+      { path: 'dirB/file2.md',  content: '# Bravo 2' },
+      { path: 'dirC/file1.log', content: 'info: charlie 1' },
+      { path: 'dirC/file2.log', content: 'info: charlie 2' },
+      { path: 'dirC/file3.log', content: 'info: charlie 3' },
+      { path: 'dirC/file4.log', content: 'info: charlie 4' },
+      { path: 'dirC/nested/deeper.txt', content: 'deep content' },
+    ];
+
+    addSamplesBtn.disabled = true;
+    showStatus(`adding 10 sample files with ${algoLabel}…`, true);
+    hashOutput.style.display = 'none';
+    hashOutput.textContent = '';
+
+    try {
+      for (const { path, content } of samples) {
+        let hashHex;
+        if (isGitStyle) {
+          ({ hashHex } = await gitBlobHash(content, 'SHA-1'));
+        } else {
+          ({ hashHex } = await contentOnlyHash(content, cryptoAlgo));
+        }
+        objects.set(hashHex, { content, path, algo: algoLabel });
+        addObjectToList(hashHex, { content, path, algo: algoLabel });
+        appendIndexLine(hashHex, path);
+      }
+      showStatus('Sample files added', false);
+    } catch (e) {
+      console.error(e);
+      showStatus('Failed adding samples (see console).', false);
+    } finally {
+      addSamplesBtn.disabled = false;
+    }
+  });
+
+  // --- Stage flow
+  stageBtn.addEventListener('click', async () => {
+    const path = buildPath();
+    const content = fileText.value ?? '';
+    const algo = algoSelect.value;
+    const isGitStyle = algo === 'SHA-1-GIT';
+    const cryptoAlgo = isGitStyle ? 'SHA-1' : algo;
+    const algoLabel = isGitStyle ? 'SHA1 Git-Style' : algo;
+
+    if (!path || path === '/' || !(filenameInput.value || '').trim()) {
+      alert('Please enter a filename.');
+      return;
+    }
+
+    stageBtn.disabled = true;
+
+    // 1) Animate file -> middle
+    const flyer = createFlyer(fileFigure, 'file');
+    await moveElement(flyer, middlePanel, {dx: -40, dy: 0});
+    removeAfter(flyer, 150);
+
+    // Put content into the middle zone (as if fed into hash())
+    ensureToHashContentVisible(content || '(empty file)');
+    showStatus(`hashing with ${algoLabel}…`, true);
+    hashOutput.style.display = 'none';
+    hashOutput.textContent = '';
+
+    try {
+      // 2) Compute hash according to selection
+      let hashHex, header;
+      if (isGitStyle) {
+        ({ hashHex, header } = await gitBlobHash(content, 'SHA-1'));
+      } else {
+        ({ hashHex } = await contentOnlyHash(content, cryptoAlgo));
+      }
+
+      // Give the animation a breath (optional)
+      await new Promise(r => setTimeout(r, 450));
+
+      // 3) Update middle UI
+      showStatus(isGitStyle ? 'BLOB Created' : 'Hashed', false);
+      hashOutput.style.display = 'block';
+      if (isGitStyle) {
+        const bytes = bytesLen(content);
+        hashOutput.innerHTML =
+          `<div><strong>Header:</strong> <code>blob ${bytes}\\0</code></div>` +
+          `<div><strong>${algoLabel}:</strong> <code>${hashHex}</code></div>`;
+      } else {
+        hashOutput.innerHTML =
+          `<div><strong>${algoLabel}:</strong> <code>${hashHex}</code></div>`;
+      }
+
+      // 4) Animate hash -> right (git/objects)
+      const chip = createHashChip(hashOutput, hashHex);
+      await moveElement(chip, rightPanel, {dx: -20, dy: 10});
+      chip.style.opacity = '0';
+      removeAfter(chip, 180);
+
+      // 5) Persist in "objects" + "index"
+      objects.set(hashHex, { content, path, algo: algoLabel });
+      addObjectToList(hashHex, { content, path, algo: algoLabel });
+      appendIndexLine(hashHex, path);
+
+    } catch (err) {
+      console.error(err);
+      clearStatus();
+      showStatus('Hashing failed (see console).', false);
+    } finally {
+      toHashZone.setAttribute('aria-busy','false');
+      stageBtn.disabled = false;
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
