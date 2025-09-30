@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Index → Tree Files (String SHA‑1)</title>
+<link rel="stylesheet" href="../../../math/widgets/shared/styles.css">
+<style>
+  :root{
+    --blob-bg:#fff4e5;          /* soft amber */
+    --tree-bg:#e7f3ff;          /* soft blue  */
+    --accent:#2f6feb;           /* linkish blue */
+    --line:#cfcfcf;
+    --muted:#6b7280;
+    --ok:#15803d;
+    --warn:#b45309;
+    --danger:#b91c1c;
+    --chip:#eef2ff;
+    --code-bg:#f8fafc;
+  }
+  html,body{height:100%}
+  body{
+    margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,
+    Noto Sans,sans-serif,Apple Color Emoji,Segoe UI Emoji;
+    color:#0f172a;background:#fff;overflow-y:scroll;
+  }
+  header{
+    padding:1.25rem 1rem;border-bottom:1px solid #eee;
+    position:sticky;top:0;background:#fff;z-index:5;
+  }
+  header h1{margin:.2rem 0 0;font-size:1.25rem;font-weight:700}
+  header p{margin:.25rem 0 0;color:var(--muted);font-size:.95rem}
+  main{padding:1rem;max-width:1100px;margin:0 auto}
+  .row{display:grid;gap:1rem}
+  .grid-2{grid-template-columns: 1fr 1fr}
+  .grid-3{grid-template-columns: repeat(3, 1fr)}
+  @media (max-width:980px){.grid-3{grid-template-columns:1fr}}
+  @media (max-width:820px){.grid-2{grid-template-columns:1fr}}
+  /* Force Step 3 onto its own row to avoid overflow */
+  .grid-3 > .step3{grid-column:1 / -1}
+
+  .panel{border:1px solid #e5e7eb;border-radius:.6rem;background:#fff}
+  .panel header{
+    position:static;border-bottom:1px solid #e5e7eb;background:#f9fafb;
+    padding:.7rem .9rem;border-radius:.6rem .6rem 0 0
+  }
+  .panel header h2{margin:0;font-size:1rem}
+  .panel .body{padding:.9rem}
+  label{font-weight:600;display:block;margin-bottom:.4rem}
+  textarea{
+    width:100%;min-height:120px;padding:.7rem;border-radius:.5rem;border:1px solid #e5e7eb;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",
+    "Courier New",monospace;font-size:.95rem;background:#fff
+  }
+  textarea.drop{
+    outline:2px dashed var(--accent);background:#f0f7ff
+  }
+  .btn{
+    appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:.5rem;
+    padding:.5rem .8rem;font-weight:600;cursor:pointer;transition:all .15s ease;
+  }
+  .btn:hover{border-color:#9ca3af;background:#f8fafc}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(0.97)}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--accent)}
+  .btn-row{display:flex;gap:.5rem;flex-wrap:wrap}
+
+  /* Tree view */
+  .treeview{padding:1rem;border:1px solid #e5e7eb;border-radius:.6rem;background:#fff}
+  .legend{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem}
+  .chip{background:var(--chip);border:1px solid #e5e7eb;border-radius:999px;
+        padding:.15rem .55rem;font-size:.85rem;color:#374151}
+  .tree{list-style:none;margin:0;padding-left:1.2rem;position:relative}
+  .tree:before{
+    content:"";position:absolute;left:.35rem;top:0;bottom:0;border-left:1px solid var(--line);
+  }
+  .tree li{
+    position:relative;margin:.28rem 0 .28rem 0;padding-left:.85rem
+  }
+  .tree li:before{
+    content:"";position:absolute;left:.35rem;top:0.95em;width:.65rem;
+    border-top:1px solid var(--line);
+  }
+  .node{
+    display:inline-flex;align-items:center;gap:.4rem;
+    padding:.15rem .45rem;border-radius:.4rem;border:1px solid #e5e7eb;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9rem;
+    transition:transform .15s ease, box-shadow .2s ease;
+    white-space:nowrap;
+  }
+  .node.blob{background:var(--blob-bg)}
+  .node.dir.pending{background:#f6f7fb}
+  .node.dir.tree{background:var(--tree-bg)}
+  .node .muted{color:var(--muted);font-size:.85em}
+  .node .hash{font-weight:700}
+  .node.new{
+    outline:2px solid var(--accent);
+    animation:pulse 1400ms ease 1;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(47,111,235,.5)}
+    70%{box-shadow:0 0 0 10px rgba(47,111,235,0)}
+    100%{box-shadow:0 0 0 0 rgba(47,111,235,0)}
+  }
+
+  /* Code & outputs */
+  pre, code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",
+    "Courier New",monospace
+  }
+  pre{
+    background:var(--code-bg);border:1px solid #e5e7eb;border-radius:.5rem;
+    padding:.75rem;overflow:auto;max-height:320px
+  }
+  .small{font-size:.9rem;color:var(--muted)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .danger{color:var(--danger)}
+
+  /* Tooltip popup */
+  .tooltip{
+    position:fixed;z-index:9999;pointer-events:none;display:none;
+    max-width:min(680px, 90vw);
+    background:#0f172a;color:#e5e7eb;border-radius:.5rem;padding:.55rem .7rem;
+    box-shadow:0 10px 30px rgba(2,6,23,.4);border:1px solid #111827
+  }
+  .tooltip pre{background:transparent;border:none;padding:0;max-height:360px}
+  .section-title{font-weight:700;margin:.25rem 0 .5rem}
+
+  .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85em;
+       background:#f3f4f6;border:1px solid #e5e7eb;border-bottom-color:#d1d5db;
+       border-radius:.25rem;padding:.1rem .35rem}
+  .muted-p{margin:.3rem 0 0;color:var(--muted)}
+  .hr{height:1px;background:#eee;margin:1rem 0}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Animate building simplified <code>tree</code> files from an index (String SHA‑1)</h1>
+    <p>Paste or drop your index file, then step through building trees bottom‑up. No Git headers, just SHA‑1 of the plain text tree file contents.</p>
+  </header>
+
+  <main>
+    <!-- Input + Controls -->
+    <div class="panel">
+      <header><h2>1) Provide Index File</h2></header>
+      <div class="body">
+        <label for="indexInput">Index file (<span class="small">one entry per line: <code>&lt;SHA1&gt; &lt;pathname&gt;</code></span>)</label>
+        <textarea id="indexInput" spellcheck="false" placeholder="e.g.
+f5c3b5f5e0d9b2c0f1a2345678901234567890ab src/docs/README.txt
+1111111111111111111111111111111111111111 apples/info.ini
+2222222222222222222222222222222222222222 drive.txt"></textarea>
+        <div class="btn-row" style="margin-top:.6rem">
+          <button id="showBtn" class="btn primary">Show Tree Structure</button>
+          <button id="resetBtn" class="btn">Reset</button>
+          <span class="small">Tip: You can drag &amp; drop a text file onto the box.</span>
+        </div>
+        <div id="errors" class="small" style="margin-top:.5rem"></div>
+      </div>
+    </div>
+
+    <!-- Visualization -->
+    <div class="row grid-2" style="margin-top:1rem">
+      <div class="panel">
+        <header><h2>Tree Visualization</h2></header>
+        <div class="body">
+          <div class="legend">
+            <span class="chip">Blob <span style="background:var(--blob-bg);border:1px solid #e5e7eb;border-radius:.25rem;padding:0 .35rem;margin-left:.3rem">color</span></span>
+            <span class="chip">Tree <span style="background:var(--tree-bg);border:1px solid #e5e7eb;border-radius:.25rem;padding:0 .35rem;margin-left:.3rem">color</span></span>
+            <span class="chip">Hover: shows file contents</span>
+          </div>
+          <div id="treeView" class="treeview">
+            <div class="small muted">Load an index and click <b>Show Tree Structure</b> to render…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <header><h2>Working List</h2></header>
+        <div class="body">
+          <div class="small muted">This list starts as every blob path from the index. Each time a directory is turned into a tree, all of its children are replaced by a single <code>tree &lt;hash&gt; &lt;dirname&gt;</code> entry. When finished, only the root tree remains.</div>
+          <pre id="workingList">(empty)</pre>
+          <div class="small muted" id="rootStatus"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Process: 3 Steps -->
+    <div class="panel" style="margin-top:1rem">
+      <header><h2>2) The 3 Conversion Steps</h2></header>
+      <div class="body">
+        <div class="row grid-3">
+          <!-- Step 1 -->
+          <div>
+            <div class="section-title">Step 1 — Sort by filename</div>
+            <div class="small muted">Lexicographic (path) order. This is used within each directory when creating its tree file.</div>
+            <div class="btn-row" style="margin:.5rem 0">
+              <button id="sortBtn" class="btn">Sort &amp; Preview</button>
+            </div>
+            <pre id="sortedPreview">(none)</pre>
+          </div>
+
+          <!-- Step 2 -->
+          <div>
+            <div class="section-title">Step 2 — Create the <em>next</em> leaf-most tree</div>
+            <div class="small muted">On each press we create a tree for the deepest directory whose subdirectories (if any) are already trees.</div>
+            <div class="btn-row" style="margin:.5rem 0">
+              <button id="nextTreeBtn" class="btn">Create NEXT tree</button>
+            </div>
+            <div class="small muted">Recently created tree</div>
+            <div class="small muted">Details</div>
+            <pre id="recentTreeHeader">(none yet)</pre>
+            <div class="small muted">Content</div>
+            <pre id="recentTreeContent">(none)</pre>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step3">
+            <div class="section-title">Step 3 — Run to completion</div>
+            <div class="small muted">Automatically repeats Step 2 bottom‑up until the root is a tree.</div>
+            <div class="btn-row" style="margin:.5rem 0">
+              <button id="autoBtn" class="btn">Auto‑build all</button>
+              <button id="stopBtn" class="btn">Stop</button>
+            </div>
+            <div id="progressNote" class="small muted">Idle.</div>
+            <div class="hr"></div>
+            <div class="small muted">Final root tree (when done)</div>
+            <div class="small muted">Details</div>
+            <pre id="rootTreeHeader">(not yet built)</pre>
+            <div class="small muted">Content</div>
+            <pre id="rootTreeContent">(none)</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Explanation -->
+    <div class="panel" style="margin-top:1rem">
+      <header><h2>How the conversion works (concise)</h2></header>
+      <div class="body">
+        <p><strong>Goal.</strong> From a flat index of blobs (<code>&lt;SHA1&gt; &lt;pathname&gt;</code>) create a hierarchy of <em>tree files</em> whose textual contents list their immediate children in sorted order:</p>
+        <pre>blob &lt;SHA1&gt; &lt;filename&gt;
+tree &lt;SHA1&gt; &lt;dirname&gt;</pre>
+        <p><strong>Hashing.</strong> Each directory’s tree file is hashed as <em>String SHA‑1 of its plain text</em> (no Git headers or modes). The hash of a tree therefore depends only on the exact lines and order in its file.</p>
+        <p><strong>Algorithm (bottom‑up):</strong></p>
+        <ol>
+          <li><b>Parse &amp; normalize</b> each index line into (<code>blobSHA</code>, <code>path</code>).</li>
+          <li><b>Group by directories</b> to build an in‑memory folder tree.</li>
+          <li><b>Repeat</b> until root becomes a tree:
+            <ul>
+              <li>Find the <em>leaf‑most</em> directory whose subdirectories are all already trees (or it has none).</li>
+              <li>Make its <b>tree file</b> by listing immediate children, sorted by name:
+                <ul>
+                  <li><code>blob &lt;childBlobSHA&gt; &lt;filename&gt;</code> for files</li>
+                  <li><code>tree &lt;childTreeSHA&gt; &lt;dirname&gt;</code> for subtrees</li>
+                </ul>
+              </li>
+              <li>Compute the directory’s <b>tree SHA‑1</b> over that text.</li>
+              <li><b>Collapse</b> the directory in the working list: replace all its children with a single <code>tree &lt;SHA1&gt; &lt;dirpath&gt;</code> entry.</li>
+            </ul>
+          </li>
+        </ol>
+        <p>This produces a final <b>root tree</b> whose contents resemble your example (e.g., <code>tree &lt;SHA1&gt; src</code>, <code>blob &lt;SHA1&gt; drive.txt</code>, <code>tree &lt;SHA1&gt; apples</code>), plus separate tree files for every subdirectory encountered.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Tooltip element -->
+  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"><pre id="tooltipPre"></pre></div>
+
+<script>
+/* ----------------------------
+ * Utilities: String SHA-1 (plain text)
+ * - Prefers Web Crypto (async)
+ * - Has a synchronous fallback implementation for insecure contexts/older engines
+ * ---------------------------- */
+function toHex(bytes){
+  let s="", n=bytes.length;
+  for(let i=0;i<n;i++){ s += bytes[i].toString(16).padStart(2,"0"); }
+  return s;
+}
+
+async function sha1HexString(str){
+  // Prefer modern Web Crypto
+  try{
+    if (window.crypto && crypto.subtle && window.TextEncoder){
+      const data=new TextEncoder().encode(str);
+      const digest=await crypto.subtle.digest("SHA-1", data);
+      return toHex(new Uint8Array(digest));
+    }
+  }catch(e){/* fall back */}
+  // Fallback to synchronous implementation
+  return sha1SyncHex(str);
+}
+
+// Synchronous SHA-1 (string -> hex). UTF‑8 encoding, big-endian processing.
+// Compact but readable; avoids external libraries.
+function sha1SyncHex(str){
+  // UTF-8 encode
+  const bytes = (function utf8Encode(s){
+    if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(s);
+    const out=[]; let i=0, c;
+    while(i<s.length){
+      c=s.charCodeAt(i++);
+      if (c<0x80){ out.push(c); }
+      else if (c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }
+      else if (c<0xd800 || c>=0xe000){
+        out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63));
+      } else {
+        // surrogate pair
+        const c2=s.charCodeAt(i++); const u=0x10000 + (((c&0x3ff)<<10)|(c2&0x3ff));
+        out.push(0xf0|(u>>18), 0x80|((u>>12)&63), 0x80|((u>>6)&63), 0x80|(u&63));
+      }
+    }
+    return new Uint8Array(out);
+  })(str);
+
+  // Preprocess into 32-bit big-endian words
+  const l = bytes.length;
+  const withOne = l + 1;
+  const padLen = ((withOne + 8 + 63) & ~63) - withOne - 8; // bytes to reach length ≡ 56 mod 64
+  const total = l + 1 + padLen + 8;
+  const words = new Uint32Array(total >> 2);
+
+  let i=0, wIndex=0, shift;
+  for (; i<l; i++){
+    wIndex = (i>>2);
+    shift = 24 - ((i & 3) << 3);
+    words[wIndex] |= bytes[i] << shift;
+  }
+  // Append 0x80
+  wIndex = (i>>2);
+  shift = 24 - ((i & 3) << 3);
+  words[wIndex] |= 0x80 << shift;
+
+  // Append 64-bit big-endian length in bits
+  const bitLenHi = Math.floor((l * 8) / 0x100000000) >>> 0;
+  const bitLenLo = ((l * 8) >>> 0);
+  words[words.length - 2] = bitLenHi;
+  words[words.length - 1] = bitLenLo;
+
+  // SHA-1 core
+  let h0=0x67452301, h1=0xEFCDAB89, h2=0x98BADCFE, h3=0x10325476, h4=0xC3D2E1F0;
+  const w = new Uint32Array(80);
+
+  function rol(x,n){ return ((x<<n) | (x>>> (32-n)))>>>0; }
+
+  for (let b=0; b<words.length; b+=16){
+    for (let t=0; t<16; t++) w[t] = words[b+t]>>>0;
+    for (let t=16; t<80; t++) w[t] = rol((w[t-3]^w[t-8]^w[t-14]^w[t-16])>>>0, 1);
+
+    let a=h0, b1=h1, c=h2, d=h3, e=h4, f, k, temp;
+
+    for (let t=0; t<80; t++){
+      if (t<20){ f=((b1 & c) | ((~b1) & d))>>>0; k=0x5A827999; }
+      else if (t<40){ f=(b1 ^ c ^ d)>>>0; k=0x6ED9EBA1; }
+      else if (t<60){ f=((b1 & c) | (b1 & d) | (c & d))>>>0; k=0x8F1BBCDC; }
+      else{ f=(b1 ^ c ^ d)>>>0; k=0xCA62C1D6; }
+
+      temp = ( (rol(a,5) + f + e + k + w[t]) >>> 0 );
+      e = d; d = c; c = rol(b1,30)>>>0; b1 = a; a = temp>>>0;
+    }
+
+    h0 = (h0 + a) >>> 0;
+    h1 = (h1 + b1)>>> 0;
+    h2 = (h2 + c) >>> 0;
+    h3 = (h3 + d) >>> 0;
+    h4 = (h4 + e) >>> 0;
+  }
+
+  function hex32(n){ return (n>>>0).toString(16).padStart(8,"0"); }
+  return hex32(h0)+hex32(h1)+hex32(h2)+hex32(h3)+hex32(h4);
+}
+
+/* ----------------------------
+ * Data structures
+ * ---------------------------- */
+class BlobNode{
+  constructor(name, path, sha){
+    this.type="blob"; this.name=name; this.path=path; this.sha=sha;
+  }
+}
+class DirNode{
+  constructor(name, path){
+    this.type="dir"; this.name=name; this.path=path; // '' = root
+    this.children=new Map(); // name -> BlobNode | DirNode
+    this.status="pending";   // 'pending' | 'tree'
+    this.hash=null;          // when status='tree'
+    this.content="";         // textual tree file content
+  }
+}
+
+/* ----------------------------
+ * Global state
+ * ---------------------------- */
+const state = {
+  indexEntries: [],      // [{sha, path}]
+  sortedEntries: [],     // same, sorted
+  root: null,            // DirNode
+  newlyBuiltPath: null,  // for highlight
+  autoRunning: false,
+};
+
+/* ----------------------------
+ * Parsing & building directory map
+ * ---------------------------- */
+function normalizePath(p){
+  return p.replace(/^\/*/,'').replace(/\/+/g,'/').replace(/\/$/,'');
+}
+function parseIndex(text){
+  const lines = text.split(/\r?\n/);
+  const out = []; const errs=[];
+  lines.forEach((raw, idx)=>{
+    const line = raw.trim();
+    if (!line) return;
+    if (line.startsWith('#')) return;
+    const m = line.match(/^(\S+)\s+(.+)$/);
+    if (!m) { errs.push(`Line ${idx+1}: could not parse → ${raw}`); return; }
+    const sha=m[1]; const path=normalizePath(m[2]);
+    out.push({sha, path});
+  });
+  return {entries: out, errors: errs};
+}
+function buildDirTree(entries){
+  const root = new DirNode("(root)", "");
+  const dirMap = new Map(); dirMap.set("", root);
+
+  for (const {sha, path} of entries){
+    const parts = path.split('/');
+    const file = parts.pop();
+    let accPath = ""; let parent = root;
+
+    for (const part of parts){
+      accPath = accPath? (accPath + "/" + part) : part;
+      let node = dirMap.get(accPath);
+      if (!node){
+        node = new DirNode(part, accPath);
+        dirMap.set(accPath, node);
+        parent.children.set(part, node);
+      }
+      parent = node;
+    }
+    parent.children.set(file, new BlobNode(file, (accPath? accPath+"/":"")+file, sha));
+  }
+  return {root, dirMap};
+}
+
+/* ----------------------------
+ * Leaf-finding & building trees
+ * ---------------------------- */
+function depthOfPath(p){ return p ? p.split('/').length : 0; }
+
+function collectPendingLeafDirs(root){
+  const res=[];
+  function visit(node){
+    for (const ch of node.children.values()){
+      if (ch.type==="dir") visit(ch);
+    }
+    if (node.type==="dir" && node.status==="pending"){
+      let hasPendingSubdir=false;
+      for (const ch of node.children.values()){
+        if (ch.type==="dir" && ch.status==="pending"){ hasPendingSubdir=true; break; }
+      }
+      if (!hasPendingSubdir) res.push(node);
+    }
+  }
+  visit(root);
+  return res;
+}
+
+function pickNextLeafiest(root){
+  // Prefer non-root leaves; if none, allow root as final step
+  let cands = collectPendingLeafDirs(root).filter(d=>d.path!=="");
+  if (cands.length===0){
+    // maybe only root is pending and ready
+    const rootReady = (root.status==="pending" && collectPendingLeafDirs(root).some(d=>d===root));
+    if (rootReady) cands=[root];
+  }
+  if (cands.length===0) return null;
+  cands.sort((a,b)=> depthOfPath(b.path)-depthOfPath(a.path) || a.path.localeCompare(b.path));
+  return cands[0];
+}
+
+async function createTreeForDirectory(dirNode){
+  // Build immediate entries
+  const entries=[];
+  const names = [...dirNode.children.keys()].sort((a,b)=> a.localeCompare(b));
+  for (const name of names){
+    const ch = dirNode.children.get(name);
+    if (ch.type==="blob"){
+      entries.push({kind:"blob", name, line:`blob ${ch.sha} ${name}`});
+    } else if (ch.type==="dir"){
+      if (ch.status!=="tree"){
+        // Shouldn't happen for a chosen leaf
+        throw new Error(`Subdir ${ch.path} is not ready`);
+      }
+      entries.push({kind:"tree", name, line:`tree ${ch.hash} ${name}`});
+    }
+  }
+  const content = entries.map(e=>e.line).join("\n");
+  const hash = await sha1HexString(content);
+  dirNode.status="tree";
+  dirNode.hash=hash;
+  dirNode.content=content;
+  state.newlyBuiltPath = dirNode.path || "(root)";
+  return dirNode;
+}
+
+/* ----------------------------
+ * Working list derivation
+ * ---------------------------- */
+function buildWorkingListLines(node, out){
+  if (node.type==="dir" && node.status==="tree"){
+    out.push(`tree ${node.hash} ${node.path || "(root)"}`);
+  } else if (node.type==="dir"){
+    const names=[...node.children.keys()].sort((a,b)=> a.localeCompare(b));
+    for (const n of names) buildWorkingListLines(node.children.get(n), out);
+  } else {
+    out.push(`blob ${node.sha} ${node.path}`);
+  }
+  return out;
+}
+
+/* ----------------------------
+ * Rendering: tree, lists, tooltips, outputs
+ * ---------------------------- */
+function truncate8(h){ return (h && h.length>=8) ? (h.slice(0,8)+"...") : h; }
+
+function nodeTooltipFor(node){
+  if (node.type==="blob"){
+    const header = `blob ${node.sha} ${node.path}`;
+    const body = `[blob contents not provided in index]`;
+    return `Details\n${header}\n\nContent\n${body}`;
+  }
+  if (node.status==="tree"){
+    const header = `tree ${node.hash} ${node.path||"(root)"}`;
+    const body = (node.content? node.content : "[empty tree]");
+    return `Details\n${header}\n\nContent\n${body}`;
+  }
+  return `${node.path||"(root)"} [directory pending]\nBuild this directory to see its tree file.`;
+}
+
+function renderTreeNode(node){
+  const li = document.createElement("li");
+  const div = document.createElement("div");
+  div.className = "node " + (node.type==="blob" ? "blob" : ("dir " + (node.status==="tree" ? "tree":"pending")));
+  if (state.newlyBuiltPath && (node.path || "(root)") === state.newlyBuiltPath){
+    div.classList.add("new");
+  }
+  const label = document.createElement("span");
+
+  if (node.type==="blob"){
+    label.textContent = node.name;
+    const meta = document.createElement("span");
+    meta.className="muted";
+    meta.textContent = ` blob ${truncate8(node.sha)}`;
+    div.append(label, meta);
+  } else {
+    const strong = document.createElement("span"); strong.style.fontWeight="700";
+    strong.textContent = node.name || "(root)";
+    const meta = document.createElement("span");
+    meta.className="muted";
+    meta.textContent = node.status==="tree" ? ` tree ${truncate8(node.hash)}` : " dir";
+    div.append(strong, meta);
+  }
+
+  // Tooltip handlers
+  const tipText = nodeTooltipFor(node);
+  div.addEventListener("mouseenter", (ev)=> showTooltip(ev, tipText));
+  div.addEventListener("mousemove", (ev)=> positionTooltip(ev));
+  div.addEventListener("mouseleave", hideTooltip);
+
+  li.appendChild(div);
+
+  if (node.type==="dir" && node.children.size){
+    const ul = document.createElement("ul"); ul.className="tree";
+    const names=[...node.children.keys()].sort((a,b)=> a.localeCompare(b));
+    for (const name of names){
+      ul.appendChild(renderTreeNode(node.children.get(name)));
+    }
+    li.appendChild(ul);
+  }
+  return li;
+}
+
+function renderAll(){
+  // Tree view
+  const tv = document.getElementById("treeView");
+  tv.innerHTML="";
+  if (!state.root){ tv.innerHTML='<div class="small muted">No data.</div>'; return; }
+  const ul = document.createElement("ul"); ul.className="tree";
+  ul.appendChild(renderTreeNode(state.root));
+  tv.appendChild(ul);
+
+  // Working list
+  const wlLines = buildWorkingListLines(state.root, []);
+  document.getElementById("workingList").textContent = wlLines.join("\n") || "(empty)";
+  const rootDone = (state.root.status==="tree");
+  document.getElementById("rootStatus").innerHTML = rootDone
+    ? `<span class="ok">Root is a tree.</span>`
+    : `<span class="warn">Root pending…</span>`;
+  if (rootDone){
+    document.getElementById("rootTreeHeader").textContent = `tree ${state.root.hash} (root)`;
+    document.getElementById("rootTreeContent").textContent = state.root.content || "[empty tree]";
+  }
+}
+
+/* ----------------------------
+ * Tooltip impl
+ * ---------------------------- */
+const tooltip = document.getElementById("tooltip");
+const tooltipPre = document.getElementById("tooltipPre");
+function showTooltip(ev, text){
+  tooltipPre.textContent = text;
+  tooltip.style.display="block";
+  tooltip.setAttribute("aria-hidden","false");
+  positionTooltip(ev);
+}
+function positionTooltip(ev){
+  const pad=12;
+  const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+  const maxX = window.innerWidth - w - pad;
+  const maxY = window.innerHeight - h - pad;
+  const x = Math.min(ev.clientX + pad, maxX);
+  const y = Math.min(ev.clientY + pad, maxY);
+  tooltip.style.left = x + "px";
+  tooltip.style.top  = y + "px";
+}
+function hideTooltip(){
+  tooltip.style.display="none";
+  tooltip.setAttribute("aria-hidden","true");
+}
+
+/* ----------------------------
+ * Controls
+ * ---------------------------- */
+const elInput = document.getElementById("indexInput");
+const elErrors= document.getElementById("errors");
+const elSorted= document.getElementById("sortedPreview");
+const elRecentHeader = document.getElementById("recentTreeHeader");
+const elRecentContent = document.getElementById("recentTreeContent");
+const elProgress= document.getElementById("progressNote");
+const btnShow = document.getElementById("showBtn");
+const btnReset= document.getElementById("resetBtn");
+const btnSort = document.getElementById("sortBtn");
+const btnNext = document.getElementById("nextTreeBtn");
+const btnAuto = document.getElementById("autoBtn");
+const btnStop = document.getElementById("stopBtn");
+
+function clearAllOutputs(){
+  document.getElementById("treeView").innerHTML =
+    '<div class="small muted">Load an index and click <b>Show Tree Structure</b>…</div>';
+  document.getElementById("workingList").textContent="(empty)";
+  document.getElementById("rootTreeHeader").textContent="(not yet built)";
+  document.getElementById("rootTreeContent").textContent="(none)";
+  document.getElementById("rootStatus").textContent="";
+  elSorted.textContent="(none)";
+  elRecentHeader.textContent="(none yet)";
+  elRecentContent.textContent="(none)";
+  elProgress.textContent="Idle.";
+  state.indexEntries=[]; state.sortedEntries=[]; state.root=null;
+  state.newlyBuiltPath=null; state.autoRunning=false;
+}
+
+btnReset.addEventListener("click", ()=>{
+  elInput.value="";
+  elErrors.textContent="";
+  clearAllOutputs();
+});
+
+btnShow.addEventListener("click", async ()=>{
+  elErrors.textContent="";
+  const {entries, errors} = parseIndex(elInput.value||"");
+  if (errors.length){ elErrors.innerHTML = `<span class="danger">${errors.length} error(s)</span><br>${errors.join("<br>")}`; return; }
+  if (!entries.length){ elErrors.innerHTML = `<span class="warn">No entries found.</span>`; return; }
+  state.indexEntries = entries.slice();
+  state.sortedEntries = entries.slice().sort((a,b)=> a.path.localeCompare(b.path));
+  const {root} = buildDirTree(entries);
+  state.root = root;
+  state.newlyBuiltPath=null;
+  // Render
+  elSorted.textContent = state.sortedEntries.map(e=> `${e.sha} ${e.path}`).join("\n");
+  elRecentHeader.textContent="(none yet)";
+  elRecentContent.textContent="(none)";
+  renderAll();
+});
+
+btnSort.addEventListener("click", ()=>{
+  if (!state.indexEntries.length){ elSorted.textContent="(none)"; return; }
+  state.sortedEntries = state.indexEntries.slice().sort((a,b)=> a.path.localeCompare(b.path));
+  elSorted.textContent = state.sortedEntries.map(e=> `${e.sha} ${e.path}`).join("\n");
+});
+
+btnNext.addEventListener("click", async ()=>{
+  if (!state.root){ return; }
+  const dir = pickNextLeafiest(state.root);
+  if (!dir){
+    elRecent.textContent = "(nothing to build)";
+    return;
+  }
+  const built = await createTreeForDirectory(dir);
+  renderAll();
+  elRecentHeader.textContent = `tree ${built.hash} ${built.path || "(root)"}`;
+  elRecentContent.textContent = built.content || "[empty tree]";
+});
+
+btnAuto.addEventListener("click", async ()=>{
+  if (!state.root){ return; }
+  if (state.autoRunning) return;
+  state.autoRunning=true;
+  elProgress.textContent="Building…";
+  try{
+    // Gentle animation cadence
+    while(state.autoRunning){
+      const dir = pickNextLeafiest(state.root);
+      if (!dir){ elProgress.textContent="Done."; state.autoRunning=false; break; }
+      await createTreeForDirectory(dir);
+      renderAll();
+      elRecentHeader.textContent = `tree ${dir.hash} ${dir.path || "(root)"}`;
+      elRecentContent.textContent = dir.content || "[empty tree]";
+      await new Promise(r=> setTimeout(r, 420));
+    }
+  }catch(e){
+    state.autoRunning=false;
+    elProgress.textContent="Error during auto-build.";
+    console.error(e);
+  }
+});
+
+btnStop.addEventListener("click", ()=>{
+  state.autoRunning=false;
+  elProgress.textContent="Stopped.";
+});
+
+/* ----------------------------
+ * Drag & drop support for index textarea
+ * ---------------------------- */
+elInput.addEventListener("dragover", (e)=>{ e.preventDefault(); elInput.classList.add("drop"); });
+elInput.addEventListener("dragleave", ()=> elInput.classList.remove("drop"));
+elInput.addEventListener("drop", (e)=>{
+  e.preventDefault(); elInput.classList.remove("drop");
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!f) return;
+  if (!f.type.startsWith("text") && !/\.txt|\.idx|\.lst|\.log|\.out|\.cfg|\.conf|\.ini/i.test(f.name)){
+    elErrors.innerHTML = `<span class="warn">Dropped file isn’t recognized as text. Attempting to read anyway…</span>`;
+  }
+  const reader = new FileReader();
+  reader.onload = ()=>{ elInput.value = reader.result; };
+  reader.onerror = ()=>{ elErrors.innerHTML = `<span class="danger">Failed to read file.</span>`; };
+  reader.readAsText(f);
+});
+
+/* ----------------------------
+ * Seed example for convenience
+ * ---------------------------- */
+(function seed(){
+  if ((elInput.value||"").trim()) return;
+  elInput.value =
+`4a5d9f8b10c2de34567890abcdef1234567890ab src/docs/README.txt
+abcdefabcdefabcdefabcdefabcdefabcdefabcd apples/info.ini
+1111111111111111111111111111111111111111 drive.txt`;
+})();
+</script>
+</body>
+</html>

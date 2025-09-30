@@ -2,3 +2,5 @@
 *.Identifier
 
 .DS_Store
+
+.firebase/
