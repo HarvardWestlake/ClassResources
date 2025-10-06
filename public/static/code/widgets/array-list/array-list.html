@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../../math/widgets/shared/styles.css" />
+  <link rel="stylesheet" href="../../../math/widgets/shared/styles.css" />
 
   <!-- Page-specific styles -->
   <style>
@@ -37,7 +37,6 @@
       transition: box-shadow 0.2s ease;
       /* Allow large demonstrations (many rows) with scroll */
       max-height: 70vh;
-      overflow: auto;
     }
 
     .memory-grid.flash {
@@ -85,6 +84,12 @@
     @keyframes pulse {
       from { transform: scale(1); }
       to   { transform: scale(0.98); }
+    }
+
+    /* Copy animation highlight: use same color on source and destination */
+    .cell.copy-active {
+      box-shadow: 0 0 0 3px #4BB543 inset, 0 0 12px rgba(75,181,67,0.6);
+      border-color: #2E7D32;
     }
 
     /* Content wrapper inside a cell to scale text nicely */
@@ -268,6 +273,8 @@
         growthFactor: 2,
         stepsPerSecond: 2,
         busy: false,
+        opSeq: 0,
+        currentSleep: null,
 
         // Baseline memory grid (10x5)
         baselineCols: 10,
@@ -300,8 +307,34 @@
       growthMetric.textContent = state.growthFactor;
 
       // ---------- UTILITIES ----------
-      const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+      function cancelCurrentSleep() {
+        if (state.currentSleep) {
+          clearTimeout(state.currentSleep.timeoutId);
+          state.currentSleep.resolve();
+          state.currentSleep = null;
+        }
+      }
+
+      const sleep = (ms) => new Promise(resolve => {
+        const timeoutId = setTimeout(() => {
+          if (state.currentSleep && state.currentSleep.timeoutId === timeoutId) {
+            state.currentSleep = null;
+          }
+          resolve();
+        }, ms);
+        state.currentSleep = { timeoutId, resolve };
+      });
       const stepPause = () => sleep(Math.max(5, 1000 / state.stepsPerSecond));
+
+      const shouldAbort = (opId) => opId !== state.opSeq;
+
+      const requestCancel = () => {
+        if (!state.busy) return;
+        state.opSeq += 1;
+        cancelCurrentSleep();
+        clearCurrent();
+        setStatus('Animation cancelled.');
+      };
 
       const setBusy = (on) => {
         state.busy = on;
@@ -379,6 +412,34 @@
         updateMetrics();
       }
 
+      // Render a grid to a provided element with explicit data (used for copy animation)
+      function renderGridTo(el, capacity, size, values) {
+        el.innerHTML = '';
+        el.style.setProperty('--cols', state.baselineCols);
+        const total = Math.max(state.baselineCols * state.baselineRows, capacity);
+        for (let i = 0; i < total; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          if (i < capacity) cell.classList.add('allocated');
+          if (i < size) cell.classList.add('filled');
+          const content = document.createElement('div');
+          content.className = 'content';
+          content.textContent = (i < size) ? String(values[i]) : '';
+          cell.appendChild(content);
+          el.appendChild(cell);
+        }
+      }
+
+      function updateCellFontSizeFor(el) {
+        const firstCell = el.querySelector('.cell');
+        if (!firstCell) return;
+        const w = firstCell.getBoundingClientRect().width || 28;
+        const px = Math.max(9, Math.min(24, Math.floor(w * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-font-scale')))));
+        Array.from(el.querySelectorAll('.cell .content')).forEach(content => {
+          content.style.fontSize = px + 'px';
+        });
+      }
+
       function refreshFillOnly() {
         // Faster update when only fills changed (no structure change)
         const cells = getCells();
@@ -412,6 +473,7 @@
         setBusy(true);
 
         try {
+          const myOp = ++state.opSeq;
           // Reset everything
           state.values = [];
           state.size = 0;
@@ -427,41 +489,78 @@
             renderGrid();
             highlightIndex(i);
             await stepPause();
+            if (shouldAbort(myOp)) { clearCurrent(); return; }
           }
           clearCurrent();
-          setStatus('ArrayList created.');
+          if (!shouldAbort(myOp)) setStatus('ArrayList created.');
         } finally {
           setBusy(false);
         }
       }
 
-      async function ensureCapacityForAdd(targetSize) {
+      async function ensureCapacityForAdd(targetSize, myOp) {
         if (targetSize <= state.capacity) return;
 
-        // Grow until capacity >= targetSize
-        let newCap = (state.capacity === 0) ? 1 : state.capacity;
+        // Determine new capacity (at least doubling)
+        const oldCap = state.capacity;
+        let newCap = (oldCap === 0) ? 1 : oldCap;
         while (newCap < targetSize) newCap = Math.max(newCap * state.growthFactor, newCap + 1);
 
-        setStatus(`Capacity ${state.capacity} insufficient → resizing to ${newCap} (copying elements)...`);
+        const oldValues = state.values.slice(0, state.size);
+
+        setStatus(`Capacity ${oldCap} insufficient → resizing to ${newCap} (copying elements)...`);
         flashGrid();
 
-        // Conceptual copy animation (walk existing elements)
+        // Prepare dual-grid view: keep existing grid as OLD; create NEW grid below it
+        renderGrid(); // ensure OLD is accurate
+        const newGrid = document.createElement('div');
+        newGrid.id = 'gridNew';
+        newGrid.className = 'memory-grid';
+        newGrid.setAttribute('aria-label', 'New capacity grid');
+        newGrid.style.setProperty('--cols', state.baselineCols);
+        // Insert the new grid above the output area
+        grid.parentElement.insertBefore(newGrid, output);
+        newGrid.addEventListener('pointerdown', requestCancel);
+
+        renderGridTo(newGrid, newCap, 0, []);
+        updateCellFontSizeFor(newGrid);
+        updateCellFontSize();
+
+        const oldCells = Array.from(grid.querySelectorAll('.cell'));
+        const newCells = Array.from(newGrid.querySelectorAll('.cell'));
+
+        // Copy each element with synchronized highlight
         for (let i = 0; i < state.size; i++) {
-          highlightIndex(i);
+          if (shouldAbort(myOp)) { clearCurrent(); newGrid.remove(); return; }
+          const fromCell = oldCells[i];
+          const toCell = newCells[i];
+          fromCell.classList.add('copy-active');
+          toCell.classList.add('copy-active');
+          // Ensure visibility when scrollable
+          fromCell.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+          toCell.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
           await stepPause();
+          if (shouldAbort(myOp)) { fromCell.classList.remove('copy-active'); toCell.classList.remove('copy-active'); newGrid.remove(); return; }
+
+          // Perform visual copy to new grid
+          const val = oldValues[i];
+          const toContent = toCell.querySelector('.content');
+          toCell.classList.add('filled');
+          toContent.textContent = String(val);
+          updateCellFontSizeFor(newGrid);
+          await stepPause();
+          if (shouldAbort(myOp)) { fromCell.classList.remove('copy-active'); toCell.classList.remove('copy-active'); newGrid.remove(); return; }
+
+          fromCell.classList.remove('copy-active');
+          toCell.classList.remove('copy-active');
         }
 
-        // Apply new capacity and re-render
+        // Adoption: switch state to the new capacity and re-render single grid
         state.capacity = newCap;
         renderGrid();
-
-        // Briefly sweep across allocated range to show new space
-        for (let i = 0; i < state.capacity; i++) {
-          highlightIndex(i);
-          await stepPause();
-        }
         clearCurrent();
-        setStatus(`Resize complete. New capacity: ${state.capacity}.`);
+        if (newGrid && newGrid.parentElement) newGrid.remove();
+        if (!shouldAbort(myOp)) setStatus(`Resize complete. New capacity: ${state.capacity}.`);
       }
 
       async function opAdd() {
@@ -469,6 +568,7 @@
         setBusy(true);
 
         try {
+          const myOp = ++state.opSeq;
           if (state.capacity === 0) {
             setStatus('Create the ArrayList first.');
             setBusy(false);
@@ -482,20 +582,23 @@
           }
 
           // Ensure capacity (grow if needed)
-          await ensureCapacityForAdd(state.size + 1);
+          await ensureCapacityForAdd(state.size + 1, myOp);
+          if (shouldAbort(myOp)) return;
 
           // Animate writing the new value
           setStatus(`add(${JSON.stringify(val)}) at index ${state.size}`);
           highlightIndex(state.size);
           await stepPause();
+          if (shouldAbort(myOp)) { clearCurrent(); return; }
 
           state.values[state.size] = val;
           state.size += 1;
           refreshFillOnly();
 
           await stepPause();
+          if (shouldAbort(myOp)) { clearCurrent(); return; }
           clearCurrent();
-          setStatus('add() complete.');
+          if (!shouldAbort(myOp)) setStatus('add() complete.');
           addValueInput.value = '';
           removeIndexInput.value = '';
           containsValueInput.value = '';
@@ -509,6 +612,7 @@
         setBusy(true);
 
         try {
+          const myOp = ++state.opSeq;
           if (state.size === 0) {
             setStatus('List is empty. Nothing to remove.');
             setBusy(false);
@@ -526,18 +630,21 @@
           // Highlight the target index
           highlightIndex(idx);
           await stepPause();
+          if (shouldAbort(myOp)) { clearCurrent(); return; }
 
           // Shift left (visual: highlight source then destination)
           for (let j = idx; j < state.size - 1; j++) {
             // highlight source
             highlightIndex(j + 1);
             await stepPause();
+            if (shouldAbort(myOp)) { clearCurrent(); return; }
             // perform shift
             state.values[j] = state.values[j + 1];
             refreshFillOnly();
             // highlight destination
             highlightIndex(j);
             await stepPause();
+            if (shouldAbort(myOp)) { clearCurrent(); return; }
           }
 
           // Clear last slot
@@ -546,8 +653,9 @@
           refreshFillOnly();
 
           await stepPause();
+          if (shouldAbort(myOp)) { clearCurrent(); return; }
           clearCurrent();
-          setStatus('remove() complete.');
+          if (!shouldAbort(myOp)) setStatus('remove() complete.');
           removeIndexInput.value = '';
         } finally {
           setBusy(false);
@@ -559,6 +667,7 @@
         setBusy(true);
 
         try {
+          const myOp = ++state.opSeq;
           const needle = containsValueInput.value;
           if (needle.trim() === '') {
             setStatus('Enter a value to search for.');
@@ -570,15 +679,18 @@
           for (let i = 0; i < state.size; i++) {
             highlightIndex(i);
             await stepPause();
+            if (shouldAbort(myOp)) { clearCurrent(); return; }
             if (String(state.values[i]) === needle) {
               setStatus(`Found at index ${i}. contains() → true`);
               await stepPause();
+              if (shouldAbort(myOp)) { clearCurrent(); return; }
               clearCurrent();
               return;
             }
           }
           setStatus('Not found. contains() → false');
           await stepPause();
+          if (shouldAbort(myOp)) { clearCurrent(); return; }
           clearCurrent();
         } finally {
           setBusy(false);
@@ -590,18 +702,22 @@
         setBusy(true);
 
         try {
+          const myOp = ++state.opSeq;
           setStatus('Building string representation: [e0, e1, ...]');
           output.textContent = ''; // clear
           // Walk through to emphasize iteration
           for (let i = 0; i < state.size; i++) {
             highlightIndex(i);
             await stepPause();
+            if (shouldAbort(myOp)) { clearCurrent(); return; }
           }
           clearCurrent();
 
-          const s = `[${state.values.slice(0, state.size).map(v => String(v)).join(', ')}]`;
-          output.textContent = s;
-          setStatus('toString() complete.');
+          if (!shouldAbort(myOp)) {
+            const s = `[${state.values.slice(0, state.size).map(v => String(v)).join(', ')}]`;
+            output.textContent = s;
+            setStatus('toString() complete.');
+          }
         } finally {
           setBusy(false);
         }
@@ -614,9 +730,13 @@
       containsBtn.addEventListener('click', opContains);
       toStringBtn.addEventListener('click', opToString);
 
+      // Cancel animations immediately on any interaction inside the grid
+      grid.addEventListener('pointerdown', requestCancel);
+
       speedSlider.addEventListener('input', () => {
-        state.stepsPerSecond = parseFloat(speedSlider.value);
-        speedLabel.textContent = speedSlider.value;
+        const base = parseFloat(speedSlider.value);
+        state.stepsPerSecond = base * 3;
+        speedLabel.textContent = String(state.stepsPerSecond);
       });
 
       // Keep text size responsive when window resizes
@@ -629,8 +749,9 @@
         state.size = 0;
         renderGrid();
         setStatus('Click “Create new array list” to allocate capacity (cells turn red).');
-        speedLabel.textContent = speedSlider.value;
-        state.stepsPerSecond = parseFloat(speedSlider.value); // default 2 steps/sec
+        const base = parseFloat(speedSlider.value);
+        state.stepsPerSecond = base * 3; // 3× faster effective speed
+        speedLabel.textContent = String(state.stepsPerSecond);
       })();
     })();
   </script>
