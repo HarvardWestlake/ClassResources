@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Java Objects & Statics — Memory Visualizer</title>
+  <!-- Shared styles (Math widgets baseline) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../math/widgets/shared/styles.css" />
+
+  <!-- Page-specific styles -->
+  <style>
+    :root{
+      --gap: 8px;
+      --potato: #8bc34a;     /* greenish */
+      --carrot: #ff9800;     /* orange */
+      --class-area: #eef6ff; /* light bluish for method area */
+      --heap-area: #fff5f5;  /* light reddish for heap */
+      --tile: #ffffff;
+      --tile-border: #d0d0d0;
+      --muted: #6b7280;
+    }
+
+    .sections {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .panel {
+      background: white;
+      border-radius: 8px;
+      padding: 0.5rem;
+      border: 1px solid #eee;
+    }
+
+    .area-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      background: #fafafa;
+      font-size: 0.85rem;
+      cursor: default;
+      user-select: none;
+    }
+
+    .class-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(260px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .class-box {
+      position: relative;
+      border: 1px solid #d9e3f0;
+      background: var(--class-area);
+      border-radius: 8px;
+      padding: 0.5rem;
+      transition: box-shadow 0.15s ease, transform 0.15s ease;
+      overflow: hidden;
+    }
+
+    .class-box:hover {
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+
+    .class-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .class-name {
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .swatch-box {
+      width: 12px; height: 12px; border-radius: 3px; border: 1px solid #999;
+    }
+
+    .static-methods {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      min-height: 1.8rem;
+    }
+
+    .method-pill {
+      padding: 0.25rem 0.5rem;
+      background: #ffffff;
+      border: 1px solid #d0d0d0;
+      border-radius: 999px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.05s ease;
+    }
+
+    .method-pill:hover { background: #f3f4f6; }
+    .method-pill:active { transform: translateY(1px); }
+
+    .code-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.98);
+      border: 1px solid #d0d0d0;
+      border-radius: 8px;
+      padding: 0.5rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    /* Overlay now controlled via JS and positioned to the side */
+    .code-overlay { position: fixed; width: 380px; max-height: 70vh; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 50; transform: translateY(6px); }
+    .code-overlay.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+    .overlay-title { font-weight: 700; }
+    .overlay-close {
+      position: absolute; top: 6px; right: 8px; cursor: pointer; color: #333;
+      font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 4px; border: 1px solid #ddd; background: #fff;
+    }
+
+    .overlay-pre {
+      background: #0b1021;
+      color: #e6edf3;
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      overflow: auto;
+      font-size: 0.85rem;
+      line-height: 1.45;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    /* VS Code Dark+ inspired token colors */
+    .overlay-pre .tok-comment { color: #6a9955; }
+    .overlay-pre .tok-string { color: #ce9178; }
+    .overlay-pre .tok-char { color: #ce9178; }
+    .overlay-pre .tok-keyword { color: #c586c0; }
+    .overlay-pre .tok-type { color: #4ec9b0; }
+    .overlay-pre .tok-annotation { color: #dcdcaa; }
+    .overlay-pre .tok-number { color: #b5cea8; }
+    .overlay-pre .tok-func { color: #dcdcaa; }
+
+    .heap-panel { background: var(--heap-area); }
+
+    .heap-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: var(--gap);
+    }
+
+    .obj {
+      background: var(--tile);
+      border: 2px solid var(--tile-border);
+      border-radius: 8px;
+      padding: 0.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      transition: box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .obj:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+
+    .obj .id {
+      font-size: 0.8rem; color: var(--muted);
+    }
+
+    .obj .badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-weight: 700; font-size: 0.9rem;
+    }
+
+    .badge .swatch-box { width: 10px; height: 10px; }
+
+    .obj-fields { font-size: 0.85rem; }
+
+    .potato-color { background: var(--potato); border-color: #4b7b1f; }
+    .carrot-color { background: var(--carrot); border-color: #b36000; }
+
+    .legend .key { display:flex; align-items:center; gap:0.4rem; }
+
+    .output { margin-top: 0.5rem; }
+
+    .tester-title { display:flex; align-items:center; justify-content:space-between; }
+    .copy-btn { font-size: 0.8rem; }
+
+    /* Form alignment and section borders */
+    .control.form-section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.75rem; background: #fff; }
+    .form-section .inline-inputs { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 0.4rem 0.6rem; }
+    .form-section .inline-inputs label { margin: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .form-section .inline-inputs input[type="text"],
+    .form-section .inline-inputs input[type="number"],
+    .form-section .inline-inputs select {
+      margin: 0;
+      min-width: 0;
+      width: 140px;
+      max-width: 140px;
+    }
+    .form-section .inline-inputs .widget-action-button { justify-self: start; grid-column: 2 / 3; }
+    .form-section .inline-inputs + .inline-inputs { margin-top: 0.5rem !important; }
+
+    /* Prevent sidebar/grid overflow from forcing wrap */
+    .sidebar { min-width: 0; }
+    .chartarea { min-width: 0; }
+
+    /* On mobile, let inputs expand for readability */
+    @media (max-width: 768px) {
+      .form-section .inline-inputs input[type="text"],
+      .form-section .inline-inputs input[type="number"],
+      .form-section .inline-inputs select {
+        width: 100%;
+        max-width: 100%;
+      }
+    }
+
+    /* Small helper for hide/show overlays on touch */
+    .no-overlay .code-overlay { display: none !important; }
+
+    @media (max-width: 768px) {
+      .class-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="../../../index.html" class="back-link">← Back to Home</a>
+    <h1>Java Objects &amp; Static Methods — Visual Memory Demo</h1>
+
+    <div class="controls-container">
+      <!-- Left controls -->
+      <aside class="sidebar">
+        <div class="controls">
+          <div class="control form-section">
+            <div class="area-title">
+              <h3 style="margin:0;">Constructors</h3>
+              <button id="resetBtn" class="widget-action-button" style="min-width:auto;">Reset</button>
+            </div>
+            <div class="inline-inputs">
+              <label for="potatoName"><strong>Potato</strong> name</label>
+              <input id="potatoName" type="text" placeholder="e.g. Yukon" />
+              <label for="potatoWeight">weight (kg)</label>
+              <input id="potatoWeight" type="number" step="0.1" min="0" value="1.0" />
+              <button id="newPotatoBtn" class="widget-action-button">new Potato(...)</button>
+            </div>
+            <div class="inline-inputs" style="margin-top:0.35rem;">
+              <label for="carrotLength"><strong>Carrot</strong> length (cm)</label>
+              <input id="carrotLength" type="number" step="1" min="1" value="12" />
+              <label for="carrotPeeled">peeled?</label>
+              <input id="carrotPeeled" type="checkbox" />
+              <button id="newCarrotBtn" class="widget-action-button">new Carrot(...)</button>
+            </div>
+            <span class="thin-note">New objects are placed on the Heap; each square is an instance.</span>
+          </div>
+
+          <div class="control form-section">
+            <h3 style="margin-top:0;">Static methods</h3>
+            <div class="inline-inputs">
+              <label for="staticClass">Class</label>
+              <select id="staticClass">
+                <option value="Potato">Potato</option>
+                <option value="Carrot">Carrot</option>
+              </select>
+              <label for="presetStatic">preset</label>
+              <select id="presetStatic">
+                <option value="">Custom...</option>
+                <option value="getNutritionalFacts|String|\"Rich in vitamin C and potassium\"">getNutritionalFacts</option>
+                <option value="getCommonVarieties|String|\"Russet, Yukon Gold, Red\"">getCommonVarieties</option>
+                <option value="isRootVegetable|boolean|true">isRootVegetable</option>
+                <option value="averageLength|int|12">averageLength</option>
+                <option value="defaultWeightKg|double|0.2">defaultWeightKg</option>
+              </select>
+            </div>
+            <div class="inline-inputs" style="margin-top:0.35rem;">
+              <label for="staticName">name()</label>
+              <input id="staticName" type="text" placeholder="e.g. kind" />
+            </div>
+            <div class="inline-inputs" style="margin-top:0.35rem;">
+              <label for="staticReturn">returns</label>
+              <input id="staticReturn" type="text" placeholder="e.g. \"Potato\"" />
+            </div>
+            <div class="inline-inputs" style="margin-top:0.35rem;">
+              <label for="returnType">type</label>
+              <select id="returnType">
+                <option value="String" selected>String</option>
+                <option value="int">int</option>
+                <option value="boolean">boolean</option>
+                <option value="double">double</option>
+              </select>
+              <button id="addStaticBtn" class="widget-action-button">Add static</button>
+            </div>
+            <span class="thin-note">Static methods live with the <em>class</em> (Method Area), not with objects.</span>
+          </div>
+
+          <div class="legend info">
+            <h3>Legend</h3>
+            <div class="row">
+              <div class="key"><span class="swatch-box" style="background:var(--class-area);"></span> Class (Method Area)</div>
+            </div>
+            <div class="row">
+              <div class="key"><span class="swatch-box" style="background:var(--heap-area);"></span> Heap (Objects)</div>
+            </div>
+            <div class="row">
+              <div class="key"><span class="swatch-box potato-color"></span> Potato object</div>
+            </div>
+            <div class="row">
+              <div class="key"><span class="swatch-box carrot-color"></span> Carrot object</div>
+            </div>
+          </div>
+
+          <div class="info">
+            <h3>How to use</h3>
+            <p>1) Create some objects with the constructors. Notice they go to the <strong>Heap</strong>.</p>
+            <p>2) Add one or more <strong>static methods</strong> to the classes. They appear in the <strong>Method Area</strong>.</p>
+            <p>3) Click a static method pill to call it; the tester and output update.</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right area: class/method area + heap + tester/output -->
+      <main class="chartarea">
+        <div class="sections">
+          <section class="panel">
+            <div class="area-title">
+              <div class="pill">Method Area (class-level)</div>
+              <div class="thin-note">Hover a class to see its code</div>
+            </div>
+            <div class="class-row">
+              <div class="class-box" data-class="Potato">
+                <div class="class-header">
+                  <div class="class-name"><span class="swatch-box potato-color"></span> Potato <span class="pill">class</span></div>
+                </div>
+                <div class="static-methods" id="potatoMethods"></div>
+                <div class="code-overlay" data-overlay="Potato">
+                  <button class="overlay-close" aria-label="Close">×</button>
+                  <div class="overlay-title">Potato.java</div>
+                  <pre class="overlay-pre" id="potatoCode"></pre>
+                </div>
+              </div>
+              <div class="class-box" data-class="Carrot">
+                <div class="class-header">
+                  <div class="class-name"><span class="swatch-box carrot-color"></span> Carrot <span class="pill">class</span></div>
+                </div>
+                <div class="static-methods" id="carrotMethods"></div>
+                <div class="code-overlay" data-overlay="Carrot">
+                  <button class="overlay-close" aria-label="Close">×</button>
+                  <div class="overlay-title">Carrot.java</div>
+                  <pre class="overlay-pre" id="carrotCode"></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel heap-panel">
+            <div class="area-title">
+              <div class="pill">Heap (object instances)</div>
+              <div class="thin-note">Each tile is a distinct object created with <code>new</code></div>
+            </div>
+            <div class="heap-grid" id="heapGrid"></div>
+          </section>
+
+          <section class="panel">
+            <div class="tester-title">
+              <div class="pill">VegetableTester.java</div>
+              <button id="copyTesterBtn" class="widget-action-button copy-btn">Copy</button>
+            </div>
+            <div class="output"><pre id="testerCode" class="overlay-pre"></pre></div>
+          </section>
+
+          <section class="panel">
+            <div class="area-title">
+              <div class="pill">Program output</div>
+            </div>
+            <div class="output" id="programOutput"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      // ---------- STATE ----------
+      const state = {
+        instances: [], // { id, type: 'Potato'|'Carrot', fields: {...} }
+        nextId: 1,
+        nameCounters: { Potato: 1, Carrot: 1 },
+        staticMethods: {
+          Potato: [], // { name, returns }
+          Carrot: []
+        },
+        testerLines: []
+      };
+
+      // ---------- DOM ----------
+      const heapGrid = document.getElementById('heapGrid');
+      const potatoMethodsEl = document.getElementById('potatoMethods');
+      const carrotMethodsEl = document.getElementById('carrotMethods');
+      const testerCode = document.getElementById('testerCode');
+      const programOutput = document.getElementById('programOutput');
+
+      const newPotatoBtn = document.getElementById('newPotatoBtn');
+      const newCarrotBtn = document.getElementById('newCarrotBtn');
+      const potatoName = document.getElementById('potatoName');
+      const potatoWeight = document.getElementById('potatoWeight');
+      const carrotLength = document.getElementById('carrotLength');
+      const carrotPeeled = document.getElementById('carrotPeeled');
+      const staticClass = document.getElementById('staticClass');
+      const staticName = document.getElementById('staticName');
+      const staticReturn = document.getElementById('staticReturn');
+      const addStaticBtn = document.getElementById('addStaticBtn');
+      const copyTesterBtn = document.getElementById('copyTesterBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const presetStatic = document.getElementById('presetStatic');
+      const returnType = document.getElementById('returnType');
+
+      const potatoCode = document.getElementById('potatoCode');
+      const carrotCode = document.getElementById('carrotCode');
+
+      // ---------- UTIL ----------
+      function escapeJavaString(s) {
+        return s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/\"/g, '\\"');
+      }
+
+      function makeVarName(type) {
+        const index = state.nameCounters[type]++;
+        const prefix = type === 'Potato' ? 'p' : 'c';
+        return prefix + index;
+      }
+
+      function appendTester(line) {
+        state.testerLines.push(line);
+        renderTester();
+      }
+
+      function renderTester() {
+        const lines = [
+          'public class VegetableTester {',
+          '  public static void main(String[] args) {'
+        ];
+        const body = state.testerLines.map(l => '    ' + l);
+        lines.push(...body);
+        lines.push('  }');
+        lines.push('}');
+        testerCode.innerHTML = syntaxHighlightJava(lines.join('\n'));
+      }
+
+      function renderOutputLine(line) {
+        const div = document.createElement('div');
+        div.textContent = line;
+        programOutput.appendChild(div);
+      }
+
+      function renderHeap() {
+        heapGrid.innerHTML = '';
+        state.instances.forEach(inst => {
+          const el = document.createElement('div');
+          el.className = 'obj';
+          const badge = document.createElement('div');
+          badge.className = 'badge';
+          const swatch = document.createElement('span');
+          swatch.className = 'swatch-box ' + (inst.type === 'Potato' ? 'potato-color' : 'carrot-color');
+          const title = document.createElement('span');
+          title.textContent = inst.type + ' instance';
+          badge.appendChild(swatch); badge.appendChild(title);
+
+          const id = document.createElement('div');
+          id.className = 'id';
+          id.textContent = '#' + inst.id;
+
+          const fields = document.createElement('div');
+          fields.className = 'obj-fields';
+          fields.innerHTML = Object.entries(inst.fields).map(([k, v]) => `<div><strong>${k}</strong>: ${v}</div>`).join('');
+
+          el.appendChild(badge);
+          el.appendChild(id);
+          el.appendChild(fields);
+          heapGrid.appendChild(el);
+        });
+      }
+
+      function renderMethods() {
+        function renderFor(clazz, container) {
+          container.innerHTML = '';
+          state.staticMethods[clazz].forEach(m => {
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = 'method-pill';
+            pill.textContent = `${clazz}.${m.name}()`;
+            pill.title = `Click to call ${clazz}.${m.name}()`;
+            pill.addEventListener('click', () => {
+              renderOutputLine(`${clazz}.${m.name}() -> ${m.returns}`);
+              appendTester(`System.out.println(${clazz}.${m.name}());`);
+            });
+            container.appendChild(pill);
+          });
+        }
+        renderFor('Potato', potatoMethodsEl);
+        renderFor('Carrot', carrotMethodsEl);
+        updateClassCode();
+      }
+
+      function updateClassCode() {
+        const potatoStatic = state.staticMethods.Potato.map(m => `    public static ${m.type} ${m.name}() { return ${m.returns}; }`).join('\n');
+        const carrotStatic = state.staticMethods.Carrot.map(m => `    public static ${m.type} ${m.name}() { return ${m.returns}; }`).join('\n');
+
+        potatoCode.innerHTML = syntaxHighlightJava([
+          'public class Potato {',
+          '    private String name;',
+          '    private double weightKg;',
+          '',
+          '    public Potato(String name, double weightKg) {',
+          '        this.name = name;',
+          '        this.weightKg = weightKg;',
+          '    }',
+          '',
+          '    public String getName() { return name; }',
+          '    public double getWeightKg() { return weightKg; }',
+          '',
+          (potatoStatic ? potatoStatic + '\n' : ''),
+          '    public String toString() {',
+          '        return "Potato{" + name + ", " + weightKg + "kg}";',
+          '    }',
+          '}'
+        ].join('\n'));
+
+        carrotCode.innerHTML = syntaxHighlightJava([
+          'public class Carrot {',
+          '    private int lengthCm;',
+          '    private boolean peeled;',
+          '',
+          '    public Carrot(int lengthCm, boolean peeled) {',
+          '        this.lengthCm = lengthCm;',
+          '        this.peeled = peeled;',
+          '    }',
+          '',
+          '    public int getLengthCm() { return lengthCm; }',
+          '    public boolean isPeeled() { return peeled; }',
+          '',
+          (carrotStatic ? carrotStatic + '\n' : ''),
+          '    public String toString() {',
+          '        return "Carrot{" + lengthCm + "cm, peeled=" + peeled + "}";',
+          '    }',
+          '}'
+        ].join('\n'));
+      }
+
+      // Robust Java syntax highlighter (per-line with safe placeholders)
+      function syntaxHighlightJava(code) {
+        const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const lines = escapeHtml(code).split('\n');
+        const kwRe = /\b(abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|goto|if|implements|import|instanceof|int|interface|long|native|new|null|package|private|protected|public|return|short|static|strictfp|super|switch|synchronized|this|throw|throws|transient|try|void|volatile|while)\b/g;
+        const typeRe = /\b([A-Z][A-Za-z0-9_]*)\b/g;
+        const numRe = /\b(\d+(?:\.\d+)?)\b/g;
+        const annRe = /(@[A-Za-z_][A-Za-z0-9_]*)/g;
+        const strOrCharRe = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])'/g;
+
+        function alphaKey(n) {
+          let s = '';
+          n = n >>> 0;
+          do {
+            s = String.fromCharCode(97 + (n % 26)) + s;
+            n = Math.floor(n / 26) - 1;
+          } while (n >= 0);
+          return s;
+        }
+
+        return lines.map((raw) => {
+          const placeholders = Object.create(null);
+          let i = 0;
+          const withHoles = raw.replace(strOrCharRe, (m) => {
+            const cls = m.startsWith('"') ? 'tok-string' : 'tok-char';
+            const key = alphaKey(i++);
+            placeholders[key] = '<span class="' + cls + '\">' + m + '</span>';
+            return '\u0001' + key + '\u0002';
+          });
+          const ci = withHoles.indexOf('//');
+          let codePart = ci >= 0 ? withHoles.slice(0, ci) : withHoles;
+          let commentPart = ci >= 0 ? withHoles.slice(ci) : '';
+          codePart = codePart
+            .replace(annRe, (_, a) => '<span class="tok-annotation">' + a + '</span>')
+            .replace(kwRe, '<span class="tok-keyword">$1</span>')
+            .replace(typeRe, '<span class="tok-type">$1</span>')
+            .replace(numRe, '<span class="tok-number">$1</span>');
+          const restore = (s) => s.replace(/\u0001([a-z]+)\u0002/g, (_, k) => (k in placeholders ? placeholders[k] : ''));
+          codePart = restore(codePart);
+          if (commentPart) {
+            commentPart = restore(commentPart);
+            return codePart + '<span class="tok-comment">' + commentPart + '</span>';
+          }
+          return codePart;
+        }).join('\n');
+      }
+
+      // ---------- ACTIONS ----------
+      function createPotato() {
+        const name = (potatoName.value || '').trim() || `Potato${state.nameCounters.Potato}`;
+        const weight = parseFloat(potatoWeight.value || '0') || 0;
+        const id = state.nextId++;
+        state.instances.push({ id, type: 'Potato', fields: { name, weightKg: weight.toFixed(1) } });
+        renderHeap();
+        const varName = makeVarName('Potato');
+        appendTester(`Potato ${varName} = new Potato("${escapeJavaString(name)}", ${weight.toFixed(1)});`);
+      }
+
+      function createCarrot() {
+        const length = parseInt(carrotLength.value || '0', 10) || 0;
+        const peeled = !!carrotPeeled.checked;
+        const id = state.nextId++;
+        state.instances.push({ id, type: 'Carrot', fields: { lengthCm: length, peeled } });
+        renderHeap();
+        const varName = makeVarName('Carrot');
+        appendTester(`Carrot ${varName} = new Carrot(${length}, ${peeled});`);
+      }
+
+      function addStatic() {
+        const clazz = staticClass.value;
+        const name = (staticName.value || '').trim();
+        const ret = (staticReturn.value || '').trim();
+        const type = returnType.value || 'String';
+        if (!name) return;
+        const returns = normalizeReturnLiteral(type, ret || (type === 'String' ? (clazz === 'Potato' ? 'Potato' : 'Carrot') : defaultValueForType(type)));
+        state.staticMethods[clazz].push({ name, type, returns });
+        renderMethods();
+        appendTester(`// Added static method: ${clazz}.${name}()`);
+        staticName.value = '';
+        staticReturn.value = '';
+        returnType.value = 'String';
+      }
+
+      function normalizeReturnLiteral(type, raw) {
+        // If type is String, ensure the value is quoted exactly once
+        if (type === 'String') {
+          const unquoted = raw.replace(/^"|"$/g, '');
+          return '"' + unquoted.replace(/\\"/g, '"').replace(/"/g, '\\"') + '"';
+        }
+        // For booleans and numbers, pass through
+        if (type === 'boolean') return (raw === 'true' ? 'true' : 'false');
+        if (type === 'int' || type === 'double') return raw;
+        return raw;
+      }
+
+      function defaultValueForType(type) {
+        if (type === 'boolean') return 'false';
+        if (type === 'int') return '0';
+        if (type === 'double') return '0.0';
+        return '';
+      }
+
+      function doReset() {
+        state.instances = [];
+        state.nextId = 1;
+        state.nameCounters = { Potato: 1, Carrot: 1 };
+        state.staticMethods = { Potato: [], Carrot: [] };
+        state.testerLines = [];
+        programOutput.innerHTML = '';
+        renderHeap();
+        renderMethods();
+        appendTester('// Reset — start by creating objects, then add static methods');
+      }
+
+      function positionOverlayFor(box) {
+        const overlay = box.querySelector('.code-overlay');
+        if (!overlay) return;
+        const rect = box.getBoundingClientRect();
+        const margin = 10;
+        const preferredLeft = rect.right + margin;
+        const preferredTop = rect.top;
+        const width = 380;
+        const height = Math.min(window.innerHeight - 2 * margin, 500);
+        let left = preferredLeft;
+        let top = preferredTop;
+        if (left + width > window.innerWidth - margin) {
+          left = rect.left - width - margin; // place on left side if no room
+        }
+        if (top + height > window.innerHeight - margin) {
+          top = window.innerHeight - height - margin;
+        }
+        if (top < margin) top = margin;
+        overlay.style.left = left + 'px';
+        overlay.style.top = top + 'px';
+        overlay.style.width = width + 'px';
+        overlay.style.maxHeight = height + 'px';
+      }
+
+      function copyTester() {
+        const text = testerCode.textContent;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            renderOutputLine('Tester code copied to clipboard.');
+          });
+        } else {
+          // Fallback
+          const ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); renderOutputLine('Tester code copied to clipboard.'); } catch(e) {}
+          document.body.removeChild(ta);
+        }
+      }
+
+      // ---------- EVENTS ----------
+      newPotatoBtn.addEventListener('click', createPotato);
+      newCarrotBtn.addEventListener('click', createCarrot);
+      addStaticBtn.addEventListener('click', addStatic);
+      copyTesterBtn.addEventListener('click', copyTester);
+      resetBtn.addEventListener('click', doReset);
+
+      // Show overlays at side on mouseenter and hide on mouseleave, but not blocking static method pills
+      document.querySelectorAll('.class-box').forEach(box => {
+        const overlay = box.querySelector('.code-overlay');
+        box.addEventListener('mouseenter', () => {
+          positionOverlayFor(box);
+          overlay.classList.add('visible');
+        });
+        box.addEventListener('mouseleave', (e) => {
+          overlay.classList.remove('visible');
+        });
+      });
+
+      presetStatic.addEventListener('change', () => {
+        const value = presetStatic.value; // format: name|Type|return
+        if (!value) return;
+        const [name, type, ret] = value.split('|');
+        staticName.value = name || '';
+        returnType.value = type || 'String';
+        const suggested = type === 'String' ? (ret || '""') : (ret || defaultValueForType(type));
+        staticReturn.value = suggested;
+        staticReturn.placeholder = suggested;
+      });
+
+      // Allow closing overlay on click of × (good for touch devices)
+      document.querySelectorAll('.overlay-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const box = e.target.closest('.class-box');
+          if (!box) return;
+          box.classList.add('no-overlay');
+          setTimeout(() => box.classList.remove('no-overlay'), 50);
+        });
+      });
+
+      // ---------- INIT ----------
+      renderMethods();
+      renderHeap();
+      appendTester('// Start by creating objects, then try adding static methods');
+    })();
+  </script>
+</body>
+</html>
+
+
