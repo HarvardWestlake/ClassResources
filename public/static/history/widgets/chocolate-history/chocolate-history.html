@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chocolate: A Global History</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../../math/widgets/shared/styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+      #map { width: 100%; height: 360px; border-radius: 6px; }
+      .mode-tabs { display:flex; gap:0.5rem; justify-content:center; margin-bottom:0.75rem; }
+      .mode-tabs .btn { background:#e9ecef; color:#000; border-color:#dee2e6; }
+      .mode-tabs .btn.active { background:#E60000; color:#fff; border-color:#E60000; }
+      .timeline-controls { display:flex; align-items:center; gap:0.5rem; justify-content:center; margin-top:0.5rem; }
+      .year-badge { font-weight:700; }
+      .two-col { display:flex; gap:0.75rem; flex-wrap:wrap; }
+      .two-col .panel { flex:1 1 320px; }
+      .event-list { list-style:none; padding-left:1rem; }
+      .event-list li { margin:0.25rem 0; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <a class="back-link" href="../../index.html">← Back to History</a>
+      <h1>Chocolate: A Global History</h1>
+
+      <div class="mode-tabs" role="tablist" aria-label="View mode">
+        <button id="tabComprehensive" class="btn btn-sm active" role="tab" aria-selected="true">Comprehensive</button>
+        <button id="tabFormative" class="btn btn-sm" role="tab" aria-selected="false">Formative</button>
+        <button id="tabAnimated" class="btn btn-sm" role="tab" aria-selected="false">Animated</button>
+      </div>
+
+      <section id="viewComprehensive" class="panel" role="tabpanel" aria-labelledby="tabComprehensive">
+        <div class="grid grid-2">
+          <div class="panel">
+            <h3>Technically Accurate Overview</h3>
+            <p><strong>Origins:</strong> Cacao (<em>Theobroma cacao</em>) was domesticated in Mesoamerica by the Olmec and later central to Maya and Mexica (Aztec) ritual, elite exchange, and consumption as a spiced, frothed drink.</p>
+            <p><strong>Columbian Exchange:</strong> After the 16th century, cacao entered Iberian courts via colonial networks. Sugar, cinnamon, and milk transformed preparations; demand expanded with Atlantic trade.</p>
+            <p><strong>Industrialization:</strong> 18th–19th centuries saw hydraulic and steam pressing (van Houten, 1828), tempering, conching (Lindtinventions), and bar chocolate innovations (Fry, Cadbury, Nestlé), enabling mass production.</p>
+            <p><strong>Global Commodity Chains:</strong> Cultivation shifted to West Africa (notably Ghana, Côte d'Ivoire) under colonial and post‑colonial regimes. Modern supply chains involve smallholder production, commodity exchanges, and certification systems addressing labor and sustainability.</p>
+            <p><strong>Cultural Diffusion:</strong> Chocolate transitioned from ceremonial beverage to sweetened European drink, then to solid bars and confections, embedding in global cuisines and seasonal rituals.</p>
+          </div>
+          <div class="panel">
+            <h3>Key Prerequisites</h3>
+            <ul>
+              <li><strong>Geography:</strong> Mesoamerica; Atlantic world; West African cacao belts.</li>
+              <li><strong>Columbian Exchange:</strong> Biotic exchange, colonization, and trade systems.</li>
+              <li><strong>Industrial Revolution basics:</strong> Mechanization, steam power, and food processing.</li>
+              <li><strong>Commodity chains:</strong> Raw material → processing → distribution → retail.</li>
+              <li><strong>Map literacy and timelines:</strong> Reading maps, dates, and interpreting diffusion.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="viewFormative" class="panel" hidden role="tabpanel" aria-labelledby="tabFormative">
+        <h3>Chocolate’s Story in Simple Terms</h3>
+        <p>Chocolate starts as seeds from a tropical tree. Long ago in Central America, people drank it during special ceremonies. After Europeans arrived, chocolate traveled across the ocean. With new machines, chocolate became cheap and common. Farmers in Africa now grow most cacao, and chocolate is enjoyed worldwide.</p>
+        <div class="grid grid-3">
+          <div class="panel"><span class="badge badge-accent">Where</span><p>From Central America → across the Atlantic → around the world.</p></div>
+          <div class="panel"><span class="badge badge-accent">How</span><p>Boats and trade → factories and machines → stores and snacks.</p></div>
+          <div class="panel"><span class="badge badge-accent">Why</span><p>Tastes good, gives energy, and became part of culture and holidays.</p></div>
+        </div>
+      </section>
+
+      <section id="viewAnimated" class="panel" hidden role="tabpanel" aria-labelledby="tabAnimated">
+        <h3>Animated Map Timeline</h3>
+        <div id="map" aria-label="Map showing chocolate diffusion"></div>
+        <div class="timeline-controls">
+          <button id="playPause" class="btn btn-sm">Play</button>
+          <input id="yearRange" class="input" type="range" min="1500" max="2000" step="10" value="1500" />
+          <span class="badge badge-neutral">Year: <span id="yearLabel" class="year-badge">1500</span></span>
+        </div>
+        <ul id="eventsList" class="event-list muted"></ul>
+      </section>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script type="module" src="chocolate-history.js"></script>
+  </body>
+</html>
+
+

@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2D Crystal Lattice Growth – Temperature Controlled</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #121933;
+    --fg: #e9edf7;
+    --muted: #a8b2d1;
+    --accent: #7dd3fc; /* cyan */
+    --blue: #3b82f6;   /* square clusters */
+    --amber: #f59e0b;  /* hex clusters */
+    --free: #94a3b8;   /* free particles */
+    --ok: #22c55e;
+    --warn: #f97316;
+  }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: radial-gradient(1200px 800px at 70% 10%, #162042 0%, var(--bg) 55%, #050914 100%);
+    color: var(--fg);
+    font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    overflow: hidden;
+  }
+  #ui {
+    position: absolute; inset: 16px 16px auto 16px;
+    background: color-mix(in oklab, var(--panel) 92%, black 8%);
+    border: 1px solid color-mix(in oklab, var(--panel) 70%, white 10%);
+    box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    border-radius: 12px;
+    padding: 12px 14px;
+    backdrop-filter: blur(6px);
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 10px 16px;
+    align-items: center;
+  }
+  #ui h1 {
+    grid-column: 1 / -1;
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: 0.2px;
+  }
+  .row {
+    display: contents;
+  }
+  label {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  input[type="range"] {
+    width: 260px;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 999px;
+    background: #0d1531; border: 1px solid #23305f;
+    color: var(--fg); font-weight: 600;
+    letter-spacing: .2px;
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px; border-radius: 999px; font-size: 12px;
+    border: 1px solid #2a355f; background: #0a1330; color: var(--muted);
+  }
+  button {
+    appearance: none; border: 1px solid #27325e; background: #0d173b; color: var(--fg);
+    padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600;
+  }
+  button:hover { border-color: #3751a5; }
+  #stats {
+    position: absolute; right: 16px; bottom: 16px;
+    background: #0d1531cc; border: 1px solid #23305f; border-radius: 10px;
+    padding: 8px 10px; font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+  #canvas {
+    position: absolute; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+  }
+  .legend { display: inline-flex; gap: 10px; align-items: center; }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .sq { background: var(--blue); }
+  .hx { background: var(--amber); }
+  .fr { background: var(--free); }
+  .notice {
+    font-size: 12px; color: var(--muted);
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <h1>Crystal Lattice Growth (2D) – Temperature Controlled</h1>
+
+  <div class="row">
+    <label for="temp">Temperature</label>
+    <input id="temp" type="range" min="0" max="100" value="42" step="1" />
+    <div class="pill">
+      <span id="phaseLabel">Phase: <strong>Hexagonal</strong></span>
+      <span class="tag" id="bindLabel" title="Binding probability per encounter">p(bind)</span>
+      <span class="tag" id="speedLabel" title="Random drift scale">drift</span>
+    </div>
+    <div class="legend">
+      <span class="swatch fr"></span> free
+      <span class="swatch sq"></span> square
+      <span class="swatch hx"></span> hex
+    </div>
+  </div>
+
+  <div class="row">
+    <label>&nbsp;</label>
+    <div style="display:flex; gap:8px;">
+      <button id="resetBtn" title="Restart with new random positions">Reset</button>
+      <button id="joltBtn" title="Kick everything a bit">Jolt</button>
+      <button id="pauseBtn">Pause</button>
+    </div>
+    <div class="pill" id="goalPill">Goal: single crystal across canvas</div>
+  </div>
+
+  <div class="notice">
+    Tip: lower temperatures favor <strong>hexagonal</strong> ordering; higher temperatures favor <strong>square</strong>. Clusters drift, collide, and sometimes fuse when lattice sites line up.
+  </div>
+</div>
+
+<div id="stats"></div>
+
+<script>
+(() => {
+  // --------------------- Utilities ---------------------
+  const TAU = Math.PI * 2;
+  const DEG = (d) => d * Math.PI / 180;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand = (a=1, b=0) => Math.random() * (a - b) + b;
+  const sign = (x) => (x<0?-1:1);
+  const hypot2 = (dx, dy) => dx*dx + dy*dy;
+  const wrapPi = (t) => {
+    while (t > Math.PI) t -= TAU;
+    while (t < -Math.PI) t += TAU;
+    return t;
+  };
+
+  // Simple seeded-ish jitter for consistency of drift pulses
+  let timeSeed = 1;
+  function noise() {
+    // xorshift32-ish
+    timeSeed ^= timeSeed << 13; timeSeed ^= timeSeed >> 17; timeSeed ^= timeSeed << 5;
+    const n = (timeSeed >>> 0) / 4294967296; // [0,1)
+    return n - 0.5; // [-0.5, 0.5)
+  }
+
+  // Device-pixel-aware canvas
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  function resizeCanvas() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(canvas.clientWidth * dpr);
+    canvas.height = Math.floor(canvas.clientHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // ----------------- Simulation parameters --------------
+  const SETTINGS = {
+    N: 160,               // number of molecules
+    a: 18,                // lattice spacing in px
+    particleRadius: 2.6,  // draw radius
+    capture: 6.2,         // capture radius for binding in px
+    friction: 0.996,      // velocity damping per frame
+    rotFriction: 0.998,   // angular damping per frame
+    wallBounce: 0.9,      // coefficient of restitution for wall bounces
+    tolAngle: DEG(12),    // orientation error tolerance for cluster-cluster fuse
+    maxSitesPerCluster: 320, // to keep candidate search bounded
+  };
+
+  // Temperature mapping (0..100)
+  const tempSlider = document.getElementById('temp');
+  const phaseLabel = document.getElementById('phaseLabel');
+  const bindLabel = document.getElementById('bindLabel');
+  const speedLabel = document.getElementById('speedLabel');
+
+  function getControls() {
+    const T = +tempSlider.value;
+    const lattice = (T < 50) ? 'hex' : 'square';
+    // Random drift magnitude (Brownian), scaled to frame updates
+    const drift = 0.10 + (T / 100) * 0.90;  // ~0.1 .. 1.0
+    // Binding probability per encounter attempt (colder -> higher)
+    const pBind = 0.75 - (T / 100) * 0.45;  // ~0.75 .. 0.30
+    // Add a very small disfavor of cluster-cluster vs particle-cluster
+    const pBindCC = clamp(pBind - 0.08, 0.05, 0.95);
+    return { T, lattice, drift, pBindPC: pBind, pBindCC };
+  }
+
+  function updateHUD() {
+    const { lattice, drift, pBindPC } = getControls();
+    phaseLabel.innerHTML = `Phase: <strong>${lattice === 'hex' ? 'Hexagonal' : 'Square'}</strong>`;
+    bindLabel.textContent = `p(bind) ≈ ${pBindPC.toFixed(2)}`;
+    speedLabel.textContent = `drift ≈ ${drift.toFixed(2)}`;
+  }
+  tempSlider.addEventListener('input', updateHUD);
+  updateHUD();
+
+  // --------------------- Lattice math -------------------
+  // Square: neighbors (±1,0),(0,±1)
+  const NBR_SQ = [[1,0],[-1,0],[0,1],[0,-1]];
+  // Hex/triangular: neighbors (±1,0),(0,±1),(±1,∓1)
+  const NBR_HX = [[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]];
+
+  function basisVectors(type, a, theta) {
+    const ct = Math.cos(theta), st = Math.sin(theta);
+    if (type === 'square') {
+      // e1 along theta, e2 90° CCW
+      return [
+        { x:  a * ct,        y:  a * st        },
+        { x: -a * st,        y:  a * ct        },
+      ];
+    } else {
+      // hex/triangular lattice: e1 at theta, e2 at theta+60°
+      const c60 = Math.cos(Math.PI/3), s60 = Math.sin(Math.PI/3);
+      // Rotate (a/2, sqrt(3)/2*a) by theta
+      const ex = a * 0.5, ey = a * Math.sqrt(3)/2;
+      return [
+        { x:  a * ct,                   y:  a * st                   }, // e1
+        { x:  ex * ct - ey * st,        y:  ex * st + ey * ct        }, // e2 (theta+60°)
+      ];
+    }
+  }
+
+  // Index rotation (discrete symmetries) for alignment during cluster-cluster merging
+  // Square rotations: k * 90°
+  function rotSq(i, j, k) {
+    switch (((k % 4) + 4) % 4) {
+      case 0: return [ i,  j];
+      case 1: return [-j,  i];
+      case 2: return [-i, -j];
+      case 3: return [ j, -i];
+    }
+  }
+
+  // Hex axial coordinates rotation by steps of 60° around origin.
+  // We treat (i,j) as axial (q=i, r=j)
+  function axialToCube(q, r) { const x = q, z = r, y = -x - z; return [x,y,z]; }
+  function cubeToAxial(x, y, z) { return [x, z]; }
+  function rotHx(i, j, k) {
+    let [x,y,z] = axialToCube(i, j);
+    k = ((k % 6) + 6) % 6;
+    for (let s = 0; s < k; s++) {
+      // 60° rotation: (x,y,z) -> (-z, -x, -y)
+      const nx = -z, ny = -x, nz = -y;
+      x = nx; y = ny; z = nz;
+    }
+    const [q,r] = cubeToAxial(x,y,z);
+    return [q, r];
+  }
+
+  // Find nearest symmetry step between two orientations
+  function symmetryStep(type, thetaA, thetaB) {
+    const period = type === 'square' ? (Math.PI / 2) : (Math.PI / 3);
+    const delta = wrapPi(thetaA - thetaB);
+    const k = Math.round(delta / period);
+    const err = Math.abs(delta - k * period);
+    return { k, err };
+  }
+
+  // --------------------- Entities -----------------------
+  let particles = []; // free particles
+  let clusters  = []; // rigid crystals
+  let frameCount = 0;
+  const statsEl = document.getElementById('stats');
+
+  class Particle {
+    constructor(x, y, vx=0, vy=0) {
+      this.x = x; this.y = y;
+      this.vx = vx; this.vy = vy;
+      this.r  = SETTINGS.particleRadius;
+    }
+    step(bounds, drift) {
+      // Brownian kick
+      this.vx += (Math.random() - 0.5) * drift;
+      this.vy += (Math.random() - 0.5) * drift;
+      this.vx *= SETTINGS.friction;
+      this.vy *= SETTINGS.friction;
+      this.x  += this.vx;
+      this.y  += this.vy;
+      // Bounce walls
+      if (this.x < this.r) { this.x = this.r; this.vx = -this.vx * SETTINGS.wallBounce; }
+      if (this.x > bounds.w - this.r) { this.x = bounds.w - this.r; this.vx = -this.vx * SETTINGS.wallBounce; }
+      if (this.y < this.r) { this.y = this.r; this.vy = -this.vy * SETTINGS.wallBounce; }
+      if (this.y > bounds.h - this.r) { this.y = bounds.h - this.r; this.vy = -this.vy * SETTINGS.wallBounce; }
+    }
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, TAU);
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--free');
+      ctx.fill();
+    }
+  }
+
+  class Cluster {
+    constructor(type, a, cx, cy, theta=0) {
+      this.type = type;   // 'square' | 'hex'
+      this.a = a;
+      this.cx = cx; this.cy = cy;
+      this.theta = theta;
+      this.vx = (Math.random()-0.5) * 0.2;
+      this.vy = (Math.random()-0.5) * 0.2;
+      this.w  = (Math.random()-0.5) * 0.002; // angular velocity
+      this.nodes = Object.create(null); // key -> {i,j}
+      this._candCache = { frame: -1, list: [] };
+      this.boundR = a * 1.1;
+    }
+    mass() { return Object.keys(this.nodes).length || 1; }
+
+    key(i,j) { return i + ',' + j; }
+    has(i,j) { return this.nodes[this.key(i,j)] !== undefined; }
+    add(i,j) {
+      const k = this.key(i,j);
+      if (!this.nodes[k]) {
+        this.nodes[k] = { i, j };
+      }
+    }
+    forEachNode(fn) {
+      for (const k in this.nodes) fn(this.nodes[k]);
+    }
+
+    e1e2() { return basisVectors(this.type, this.a, this.theta); }
+    worldOf(i, j) {
+      const [e1, e2] = this.e1e2();
+      return { x: this.cx + i * e1.x + j * e2.x, y: this.cy + i * e1.y + j * e2.y };
+    }
+
+    // candidate sites (empty neighbors on the lattice boundary)
+    candidates(maxCount = SETTINGS.maxSitesPerCluster) {
+      if (this._candCache.frame === frameCount) return this._candCache.list;
+      const list = [];
+      const seen = new Set();
+      const nbrs = (this.type === 'square') ? NBR_SQ : NBR_HX;
+      const addSite = (i, j) => {
+        const k = this.key(i,j);
+        if (seen.has(k) || this.has(i,j)) return;
+        seen.add(k);
+        const p = this.worldOf(i,j);
+        list.push({ i, j, x: p.x, y: p.y });
+      };
+      this.forEachNode(({i,j}) => {
+        for (const [di,dj] of nbrs) {
+          if (!this.has(i+di, j+dj)) addSite(i+di, j+dj);
+          if (list.length >= maxCount) break;
+        }
+      });
+      this._candCache.frame = frameCount;
+      this._candCache.list = list;
+      return list;
+    }
+
+    // Update bounding radius (for broad-phase checks)
+    recomputeBounds() {
+      let r2 = this.a * this.a; // at least one spacing
+      const [e1, e2] = this.e1e2();
+      this.forEachNode(({i,j}) => {
+        const dx = i*e1.x + j*e2.x;
+        const dy = i*e1.y + j*e2.y;
+        const d2 = dx*dx + dy*dy;
+        if (d2 > r2) r2 = d2;
+      });
+      this.boundR = Math.sqrt(r2) + this.a * 0.8;
+    }
+
+    step(bounds, drift) {
+      // Random tiny kicks + rotational jitter
+      this.vx += (Math.random() - 0.5) * (drift * 0.25);
+      this.vy += (Math.random() - 0.5) * (drift * 0.25);
+      this.w  += (Math.random() - 0.5) * 0.0005;
+
+      this.vx *= SETTINGS.friction;
+      this.vy *= SETTINGS.friction;
+      this.w  *= SETTINGS.rotFriction;
+
+      this.cx += this.vx;
+      this.cy += this.vy;
+      this.theta = wrapPi(this.theta + this.w);
+
+      // Bounce walls as a rigid body using bounding radius
+      const R = this.boundR;
+      if (this.cx < R)      { this.cx = R;      this.vx = -this.vx * SETTINGS.wallBounce; }
+      if (this.cx > bounds.w - R) { this.cx = bounds.w - R; this.vx = -this.vx * SETTINGS.wallBounce; }
+      if (this.cy < R)      { this.cy = R;      this.vy = -this.vy * SETTINGS.wallBounce; }
+      if (this.cy > bounds.h - R) { this.cy = bounds.h - R; this.vy = -this.vy * SETTINGS.wallBounce; }
+
+      // Orientation cache invalid after rotation
+      this._candCache.frame = -1;
+    }
+
+    draw(ctx) {
+      const color = (this.type === 'square')
+        ? getComputedStyle(document.documentElement).getPropertyValue('--blue')
+        : getComputedStyle(document.documentElement).getPropertyValue('--amber');
+      ctx.fillStyle = color;
+      const r = SETTINGS.particleRadius + 0.2;
+
+      // draw nodes
+      this.forEachNode(({i,j}) => {
+        const p = this.worldOf(i,j);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, TAU);
+        ctx.fill();
+      });
+
+      // subtle outline to hint the cluster's "rigid body"
+      ctx.save();
+      ctx.translate(this.cx, this.cy);
+      ctx.rotate(this.theta);
+      ctx.beginPath();
+      ctx.arc(0, 0, this.boundR, 0, TAU);
+      ctx.globalAlpha = 0.06;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ----------------- Spatial hashing (particles) -----------------
+  // Small grid for free-free pairing proximity
+  const grid = {
+    cell: 20,
+    map: new Map(),
+    key(x,y) { return ((x|0)<<16) ^ (y|0); },
+    clear() { this.map.clear(); },
+    insert(p) {
+      const i = Math.floor(p.x / this.cell);
+      const j = Math.floor(p.y / this.cell);
+      const k = this.key(i,j);
+      if (!this.map.has(k)) this.map.set(k, []);
+      this.map.get(k).push(p);
+    },
+    neighbors(p) {
+      const i = Math.floor(p.x / this.cell);
+      const j = Math.floor(p.y / this.cell);
+      const out = [];
+      for (let di=-1; di<=1; di++) for (let dj=-1; dj<=1; dj++) {
+        const k = this.key(i+di, j+dj);
+        const arr = this.map.get(k);
+        if (arr) for (const q of arr) out.push(q);
+      }
+      return out;
+    }
+  };
+
+  // ----------------- Binding logic -----------------
+  const COLOR = {
+    square: getComputedStyle(document.documentElement).getPropertyValue('--blue'),
+    hex:    getComputedStyle(document.documentElement).getPropertyValue('--amber')
+  };
+
+  function tryParticleToCluster(p, cluster, pBind) {
+    // broad phase: check against cluster bounding circle expanded by spacing
+    const dxC = p.x - cluster.cx, dyC = p.y - cluster.cy;
+    const far = Math.hypot(dxC, dyC) > (cluster.boundR + SETTINGS.a*1.5);
+    if (far) return false;
+
+    const sites = cluster.candidates();
+    const cap2 = SETTINGS.capture * SETTINGS.capture;
+
+    for (let s of sites) {
+      const d2 = hypot2(p.x - s.x, p.y - s.y);
+      if (d2 <= cap2) {
+        if (Math.random() < pBind) {
+          // Bind: add node at (s.i, s.j)
+          cluster.add(s.i, s.j);
+          // momentum (very rough) -> slightly pull cluster velocity towards particle
+          const mA = cluster.mass(), mB = 1;
+          cluster.vx = (cluster.vx * mA + p.vx * mB) / (mA + mB);
+          cluster.vy = (cluster.vy * mA + p.vy * mB) / (mA + mB);
+          cluster.recomputeBounds();
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function tryParticleToParticle(p, q, phase, pBind) {
+    const cap2 = SETTINGS.capture * SETTINGS.capture;
+    if (p === q) return false;
+    const d2 = hypot2(p.x - q.x, p.y - q.y);
+    if (d2 > cap2) return false;
+    if (Math.random() >= pBind * 0.5) return false; // pair formation slightly rarer
+
+    // Form a new 2-node cluster aligned to the current phase.
+    // Quantize orientation to the lattice symmetry (helps future merges).
+    let angle = Math.atan2(q.y - p.y, q.x - p.x);
+    const period = (phase === 'square') ? (Math.PI/2) : (Math.PI/3);
+    angle = Math.round(angle / period) * period;
+
+    const cl = new Cluster(phase, SETTINGS.a, p.x, p.y, angle);
+    cl.add(0, 0);
+    cl.add(1, 0);            // neighbor along e1
+    cl.recomputeBounds();
+    clusters.push(cl);
+    return true;
+  }
+
+  function tryClusterMerge(A, B, pBind, tolAngle) {
+    if (A.type !== B.type) return false;
+
+    // broad-phase
+    const dx = B.cx - A.cx, dy = B.cy - A.cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist > (A.boundR + B.boundR + SETTINGS.a*1.5)) return false;
+
+    // Orientation compatibility modulo lattice symmetry
+    const { k, err } = symmetryStep(A.type, A.theta, B.theta);
+    if (err > tolAngle) return false;
+
+    const sitesA = A.candidates();
+    const sitesB = B.candidates();
+    const cap2   = SETTINGS.capture * SETTINGS.capture;
+
+    // Choose the correct integer rotation on B's index lattice
+    const rotFn = (A.type === 'square') ? rotSq : rotHx;
+
+    // Simple nested search (sizes are kept bounded)
+    for (let sa of sitesA) {
+      for (let sb of sitesB) {
+        const d2 = hypot2(sa.x - sb.x, sa.y - sb.y);
+        if (d2 > cap2) continue;
+
+        // Determine integer transform for B -> A and translation on the index grid
+        const [bi, bj] = rotFn(sb.i, sb.j, k);
+        const di = sa.i - bi;
+        const dj = sa.j - bj;
+
+        // Check for index conflicts after transform+translate
+        let conflict = false;
+        for (const key in B.nodes) {
+          const {i, j} = B.nodes[key];
+          const [ti, tj] = rotFn(i, j, k);
+          const ai = ti + di, aj = tj + dj;
+          if (A.has(ai, aj)) { conflict = true; break; }
+        }
+        if (conflict) continue;
+
+        // Random acceptance
+        if (Math.random() >= pBind) continue;
+
+        // Merge B into A: remap all B's nodes into A's index frame
+        for (const key in B.nodes) {
+          const {i, j} = B.nodes[key];
+          const [ti, tj] = rotFn(i, j, k);
+          A.add(ti + di, tj + dj);
+        }
+
+        // Momentum blending (approximate)
+        const mA = A.mass(), mB = B.mass();
+        A.vx = (A.vx * mA + B.vx * mB) / (mA + mB);
+        A.vy = (A.vy * mA + B.vy * mB) / (mA + mB);
+        A.w  = (A.w  * mA + B.w  * mB) / (mA + mB);
+
+        A.recomputeBounds();
+
+        // Remove B
+        const idx = clusters.indexOf(B);
+        if (idx >= 0) clusters.splice(idx, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ----------------- Initialization -----------------
+  function resetSimulation() {
+    particles.length = 0;
+    clusters.length = 0;
+
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    // Seed free particles
+    for (let i = 0; i < SETTINGS.N; i++) {
+      const x = rand(W*0.1, W*0.9);
+      const y = rand(H*0.15, H*0.85);
+      const vx = rand(-0.5, 0.5);
+      const vy = rand(-0.5, 0.5);
+      particles.push(new Particle(x, y, vx, vy));
+    }
+
+    // Add a tiny seed cluster to get growth going faster
+    const { lattice } = getControls();
+    const seed = new Cluster(lattice, SETTINGS.a, W*0.5, H*0.5, rand(0, TAU));
+    seed.add(0,0);
+    seed.recomputeBounds();
+    clusters.push(seed);
+  }
+
+  // UI buttons
+  document.getElementById('resetBtn').addEventListener('click', resetSimulation);
+  document.getElementById('joltBtn').addEventListener('click', () => {
+    // Kick all bodies
+    const { drift } = getControls();
+    for (const p of particles) {
+      p.vx += (Math.random()-0.5) * (drift*2.2);
+      p.vy += (Math.random()-0.5) * (drift*2.2);
+    }
+    for (const c of clusters) {
+      c.vx += (Math.random()-0.5) * (drift*1.5);
+      c.vy += (Math.random()-0.5) * (drift*1.5);
+      c.w  += (Math.random()-0.5) * 0.01;
+    }
+  });
+  let paused = false;
+  document.getElementById('pauseBtn').addEventListener('click', (e) => {
+    paused = !paused;
+    e.target.textContent = paused ? 'Resume' : 'Pause';
+  });
+
+  resetSimulation();
+
+  // ----------------- Main loop -----------------
+  function step() {
+    frameCount++;
+
+    const bounds = { w: canvas.clientWidth, h: canvas.clientHeight };
+    const { lattice: phase, drift, pBindPC, pBindCC } = getControls();
+
+    // Ensure all clusters are of current phase; new growth only occurs with current phase.
+    // (Existing clusters of the other phase will just drift until Reset.)
+    // Tip: for experiments, you can keep the slider steady during a run.
+
+    // Update particles
+    for (const p of particles) p.step(bounds, drift);
+
+    // Update clusters
+    for (const c of clusters) c.step(bounds, drift);
+
+    // Recompute spatial grid for free-free binding
+    grid.clear();
+    for (const p of particles) grid.insert(p);
+
+    // Particle -> cluster binding
+    // (iterate particles backward to allow safe splicing upon capture)
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      // Try nearby clusters that match the current lattice phase
+      for (let c of clusters) {
+        if (c.type !== phase) continue;
+        if (tryParticleToCluster(p, c, pBindPC)) {
+          particles.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    // Particle -> particle pairing (nucleation)
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      const near = grid.neighbors(p);
+      for (const q of near) {
+        if (q === p) continue;
+        if (tryParticleToParticle(p, q, phase, pBindPC)) {
+          // remove the paired particles (p and q); q may be before or after i
+          const qi = particles.indexOf(q);
+          const i1 = Math.max(i, qi), i2 = Math.min(i, qi);
+          particles.splice(i1, 1);
+          particles.splice(i2, 1);
+          break;
+        }
+      }
+    }
+
+    // Cluster -> cluster merging (try random shuffles to avoid O(n^2) worst pattern)
+    // Simple near-all-pairs pass with early exits when merged.
+    for (let a = 0; a < clusters.length; a++) {
+      for (let b = a + 1; b < clusters.length; b++) {
+        const A = clusters[a], B = clusters[b];
+        if (A.type !== phase || B.type !== phase) continue;
+        if (tryClusterMerge(A, B, pBindCC, SETTINGS.tolAngle)) {
+          // merged into A; restart pair checking for A
+          a = -1; break;
+        }
+      }
+    }
+
+    // Termination condition text
+    const freeCount = particles.length;
+    const phaseClusters = clusters.filter(c => c.type === phase).length;
+    const totalNodes = clusters.reduce((s,c)=>s+c.mass(),0);
+    const done = (freeCount === 0 && clusters.length === 1);
+
+    statsEl.innerHTML =
+      `particles: <b>${freeCount}</b> &nbsp;` +
+      `clusters: <b>${clusters.length}</b> (<span style="color:${phase==='square'?COLOR.square:COLOR.hex}">${phase}</span>: ${phaseClusters}) &nbsp;` +
+      `nodes: <b>${totalNodes}</b>`;
+
+    // ----------------- Render -----------------
+    ctx.clearRect(0,0,canvas.clientWidth, canvas.clientHeight);
+
+    // subtle background grid hinting active lattice spacing (optional)
+    drawLatticeBackdrop(ctx, phase, SETTINGS.a, 0.05);
+
+    for (const p of particles) p.draw(ctx);
+    for (const c of clusters) c.draw(ctx);
+
+    // goal badge
+    const goal = document.getElementById('goalPill');
+    goal.style.borderColor = done ? 'var(--ok)' : '#2a355f';
+    goal.style.color = done ? 'var(--ok)' : 'var(--fg)';
+    goal.textContent = done ? 'Complete: single crystal' : 'Goal: single crystal across canvas';
+
+    if (!paused) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  // ----------------- Visual helpers -----------------
+  function drawLatticeBackdrop(ctx, type, a, alpha=0.05) {
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    if (type === 'square') {
+      for (let x=0; x<W; x+=a) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y=0; y<H; y+=a) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+    } else {
+      // draw faint hex/triangular guide
+      const h = Math.sqrt(3) * a / 2;
+      for (let y=-h; y<=H+h; y+=h) {
+        ctx.moveTo(0, y);
+        let x = 0, step = a;
+        while (x <= W + a) {
+          ctx.lineTo(x, y);
+          x += step;
+        }
+      }
+      // angled lines
+      for (let y=-H; y<=H; y+=h) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y+W*Math.tan(Math.PI/6));
+      }
+    }
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+})();
+</script>
+</body>
+</html>
