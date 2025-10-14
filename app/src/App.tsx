@@ -1,23 +1,44 @@
-import { Routes, Route } from 'react-router-dom'
-import Home from './pages/Home'
-import About from './pages/About'
-import History from './history/History'
-import AdminLayout from './admin/AdminLayout'
-import AdminHome from './admin/AdminHome'
-import StyleGuide from './admin/StyleGuide'
+import { Routes, Route, Link, NavLink } from 'react-router-dom'
+import Home from './pages/Home.tsx'
+import History from './history/History.tsx'
+import StyleGuide from './admin/StyleGuide.tsx'
+import About from './pages/About.tsx'
+import MobileFullscreen from './pages/MobileFullscreen.tsx'
+
+function TopNav() {
+  return (
+    <header className="hw-topnav">
+      <div className="container container--wide hw-topnav__inner">
+        <Link to="/" className="hw-brand">Harvard‑Westlake</Link>
+        <nav className="hw-nav">
+          <NavLink to="/" end className={({ isActive }) => `hw-nav__link${isActive ? ' active' : ''}`}>Home</NavLink>
+          <NavLink to="/about" className={({ isActive }) => `hw-nav__link${isActive ? ' active' : ''}`}>About</NavLink>
+          <NavLink to="/admin" className={({ isActive }) => `hw-nav__link${isActive ? ' active' : ''}`}>Style Guide</NavLink>
+          <NavLink to="/mobile" className={({ isActive }) => `hw-nav__link${isActive ? ' active' : ''}`}>Mobile Fullscreen</NavLink>
+        </nav>
+      </div>
+    </header>
+  )
+}
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="about" element={<About />} />
-      <Route path="history" element={<History />} />
-      <Route path="admin" element={<AdminLayout />}>
-        <Route index element={<AdminHome />} />
-        <Route path="style-guide" element={<StyleGuide />} />
-      </Route>
-      <Route path="*" element={<Home />} />
-    </Routes>
+    <>
+      <TopNav />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="about" element={<About />} />
+        <Route path="admin" element={<StyleGuide />} />
+        <Route path="mobile" element={<MobileFullscreen />} />
+        <Route path="history" element={<History />} />
+        <Route path="*" element={<Home />} />
+      </Routes>
+      <footer className="hw-footer">
+        <div className="container container--wide">
+          <div className="muted">© Harvard‑Westlake · Demo UI</div>
+        </div>
+      </footer>
+    </>
   )
 }
  

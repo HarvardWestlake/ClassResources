@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chocolate History — Timeline Map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../../math/widgets/shared/styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+      body { background:#f8f9fa; }
+      .layout { display:grid; grid-template-columns: 1fr 380px; gap:1rem; height: calc(100vh - 80px); }
+      .map-panel { position:relative; background:#fff; border-radius:12px; border:1px solid rgba(0,0,0,.06); box-shadow:0 4px 10px rgba(0,0,0,.05); overflow:hidden; }
+      #map { width:100%; height:100%; }
+      .timeline-panel { background:#fff; border-radius:12px; border:1px solid rgba(0,0,0,.06); box-shadow:0 4px 10px rgba(0,0,0,.05); padding:1rem; overflow:auto; }
+      .event { padding:1rem; border-radius:10px; border:1px solid rgba(0,0,0,.05); margin-bottom:0.75rem; cursor:pointer; transition:.2s; }
+      .event:hover { background:#f4f6f8; }
+      .event.active { border-color:#E60000; box-shadow:0 2px 10px rgba(230,0,0,.12); }
+      .event .year { font-weight:700; color:#000; }
+      .event .place { font-weight:600; color:#333; }
+      .event .desc { color:#555; margin-top:.25rem; }
+      .controls { display:grid; gap:0.5rem; margin-bottom:1rem; }
+      .controls input, .controls button { padding:.65rem .75rem; border-radius:8px; border:1px solid rgba(0,0,0,.12); font:inherit; }
+      .controls button { background:#E60000; color:#fff; border:none; cursor:pointer; }
+      .controls button:hover { background:#cc0000; }
+      .legend { position:absolute; bottom:12px; left:12px; background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:10px; padding:.5rem .75rem; box-shadow:0 4px 10px rgba(0,0,0,.08); }
+      .legend .swatch { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:middle; }
+      .legend .row { margin:4px 0; color:#333; }
+      .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+      .topbar .title { font-size:1.3rem; font-weight:700; }
+      .note { font-size:.9rem; color:#666; }
+      .back-link { display:inline-flex; align-items:center; gap:.5rem; margin-bottom:1rem; }
+      @media (max-width: 960px) {
+        .layout { grid-template-columns: 1fr; height:auto; }
+        .map-panel { height:60vh; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <a class="back-link" href="../../index.html">← Back to History Widgets</a>
+      <div class="topbar">
+        <div class="title">Chocolate History — Scroll Timeline Map</div>
+        <div class="note">Scroll the timeline or click events to highlight places.</div>
+      </div>
+      <div class="layout">
+        <div class="map-panel">
+          <div id="map"></div>
+          <div class="legend">
+            <div class="row"><span class="swatch" style="background:#99d6ff;"></span>Highlighted Country</div>
+            <div class="row"><span class="swatch" style="background:#ffd166;"></span>Event Country</div>
+            <div class="row"><span class="swatch" style="background:#ef476f;"></span>User Input Marker</div>
+          </div>
+        </div>
+        <div class="timeline-panel">
+          <div class="controls">
+            <input id="inputText" placeholder="Country (e.g., Philippines) or coords (lat,lon)" />
+            <button id="addBtn">Add to Map</button>
+          </div>
+          <div id="events"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+      // Minimal world polygons via unpkg CDN of geojson (simplified for size)
+      // Using geojson from geojson-world (Small, permissive). Fallback if fetch fails.
+      const WORLD_GEOJSON_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+      const WORLD_TSV_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.tsv';
+
+      // Event data: year label, place/country, coordinates for focus, description
+      const EVENTS = [
+        {
+          id: '3300-bce',
+          label: 'c. 3300 BCE',
+          place: 'Ecuador (Santa Ana–La Florida)',
+          country: 'Ecuador',
+          coords: [-0.65, -79.33], // approx in northwestern Ecuador
+          description: 'Earliest cacao domestication in northwestern South America (~5,400 years ago).'
+        },
+        {
+          id: '1670-ph',
+          label: '1670',
+          place: 'Philippines (Manila)',
+          country: 'Philippines',
+          coords: [14.5995, 120.9842],
+          description: 'Cacao arrives via the Manila–Acapulco galleons; first cultivated in Asia.'
+        },
+        {
+          id: '1828-nl',
+          label: '1828',
+          place: 'Netherlands',
+          country: 'Netherlands',
+          coords: [52.3702, 4.8952], // Amsterdam approx
+          description: 'Van Houten patents the hydraulic cocoa press; “Dutching” follows; low-fat powder enables eating chocolate.'
+        }
+      ];
+
+      // Utility: country name normalization
+      function normalizeName(name) {
+        return name.trim().toLowerCase();
+      }
+
+      // Build UI list
+      const eventsEl = document.getElementById('events');
+      function renderEvents() {
+        eventsEl.innerHTML = '';
+        EVENTS.forEach((ev, idx) => {
+          const item = document.createElement('div');
+          item.className = 'event' + (idx === 0 ? ' active' : '');
+          item.dataset.eventId = ev.id;
+          item.innerHTML = `
+            <div class="year">${ev.label}</div>
+            <div class="place">${ev.place}</div>
+            <div class="desc">${ev.description}</div>
+          `;
+          item.addEventListener('click', () => focusEvent(ev.id, true));
+          eventsEl.appendChild(item);
+        });
+      }
+
+      // Leaflet map setup
+      const map = L.map('map', {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([20, 0], 2);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 6,
+        minZoom: 1,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      let countryLayer = null;
+      let highlightLayer = null;
+      let userMarkerLayer = L.layerGroup().addTo(map);
+      let eventOverlayLayer = null;
+
+      // Style helpers
+      function baseCountryStyle() {
+        return { color: '#888', weight: 0.6, fillColor: '#f2f2f2', fillOpacity: 0.8 };
+      }
+      function eventCountryStyle() {
+        return { color: '#cc8c00', weight: 1, fillColor: '#ffd166', fillOpacity: 0.9 };
+      }
+      function highlightedStyle() {
+        return { color: '#1976d2', weight: 1.2, fillColor: '#99d6ff', fillOpacity: 0.6 };
+      }
+
+      // Load and render world countries
+      // Using world-atlas TopoJSON; convert to GeoJSON
+      let countryNameIndex = new Map(); // normalized name -> feature
+      function topoToGeoCountries(topo) {
+        // Minimal TopoJSON to GeoJSON conversion using topojson-client CDN
+        // We dynamically import to keep file standalone without bundling.
+        return new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js';
+          s.onload = () => {
+            try {
+              const objects = topo.objects.countries || topo.objects.ne_110m_admin_0_countries || Object.values(topo.objects)[0];
+              const geo = window.topojson.feature(topo, objects);
+              resolve(geo);
+            } catch (e) { reject(e); }
+          };
+          s.onerror = () => reject(new Error('Failed to load topojson-client'));
+          document.head.appendChild(s);
+        });
+      }
+
+      function labelForFeature(feat) {
+        const props = feat.properties || {};
+        return props.name || props.NAME || props.admin || props.sovereignt || 'Unknown';
+      }
+
+      function buildNameIndex(geojson) {
+        countryNameIndex.clear();
+        geojson.features.forEach(f => {
+          const n = normalizeName(labelForFeature(f));
+          if (!countryNameIndex.has(n)) countryNameIndex.set(n, f);
+        });
+      }
+
+      function addCountriesLayer(geojson) {
+        if (countryLayer) map.removeLayer(countryLayer);
+        countryLayer = L.geoJSON(geojson, {
+          style: baseCountryStyle,
+          onEachFeature: (feature, layer) => {
+            const name = labelForFeature(feature);
+            layer.bindTooltip(name, { sticky: true });
+            layer.on('click', () => highlightFeature(feature, true));
+          }
+        }).addTo(map);
+      }
+
+      function clearHighlightLayer() {
+        if (highlightLayer) {
+          map.removeLayer(highlightLayer);
+          highlightLayer = null;
+        }
+      }
+
+      function highlightFeature(feature, fly) {
+        clearHighlightLayer();
+        highlightLayer = L.geoJSON(feature, { style: highlightedStyle }).addTo(map);
+        if (fly) {
+          try { map.fitBounds(highlightLayer.getBounds(), { maxZoom: 5, padding: [30, 30] }); } catch {}
+        }
+      }
+
+      function highlightCountryByName(name, fly, withPopup) {
+        const feature = countryNameIndex.get(normalizeName(name));
+        if (!feature) return false;
+        highlightFeature(feature, fly);
+        if (withPopup) {
+          try {
+            const center = L.geoJSON(feature).getBounds().getCenter();
+            const popup = L.popup({autoClose: true, closeOnClick: true})
+              .setLatLng(center)
+              .setContent(`<b>${name}</b>`);
+            popup.openOn(map);
+          } catch {}
+        }
+        return true;
+      }
+
+      function emphasizeEventCountryByName(name) {
+        // Restyle the event country (thin overlay) so others remain visible
+        const feature = countryNameIndex.get(normalizeName(name));
+        if (!feature) return;
+        if (eventOverlayLayer) { map.removeLayer(eventOverlayLayer); eventOverlayLayer = null; }
+        eventOverlayLayer = L.geoJSON(feature, { style: eventCountryStyle }).addTo(map);
+      }
+
+      // Event focus
+      function focusEvent(eventId, fromClick) {
+        const idx = EVENTS.findIndex(e => e.id === eventId);
+        if (idx < 0) return;
+        document.querySelectorAll('.event').forEach((el, i) => el.classList.toggle('active', i === idx));
+        const ev = EVENTS[idx];
+        // Prefer country polygon if available; otherwise just fly to coords
+        const success = highlightCountryByName(ev.country, true, false);
+        if (!success && Array.isArray(ev.coords)) {
+          map.setView([ev.coords[0], ev.coords[1]], 4);
+        }
+        // Add a subtle overlay to mark event country distinctly
+        emphasizeEventCountryByName(ev.country);
+        // Add a marker with popup for context
+        const marker = L.circleMarker([ev.coords[0], ev.coords[1]], { radius: 6, color: '#cc8c00', weight: 2, fillColor: '#ffd166', fillOpacity: 1 });
+        marker.bindPopup(`<b>${ev.label} — ${ev.place}</b><br/>${ev.description}`);
+        marker.addTo(map).openPopup();
+      }
+
+      // Scroll handling
+      function onScrollHighlight() {
+        const cards = Array.from(document.querySelectorAll('.event'));
+        let bestIdx = 0;
+        let bestScore = -Infinity;
+        const viewportTop = window.scrollY;
+        const viewportBottom = viewportTop + window.innerHeight;
+        cards.forEach((el, i) => {
+          const rect = el.getBoundingClientRect();
+          // score based on intersection with middle of timeline panel viewport
+          const center = rect.top + rect.height / 2;
+          const distance = Math.abs(center - (window.innerHeight * 0.35));
+          const score = -distance;
+          if (score > bestScore) { bestScore = score; bestIdx = i; }
+        });
+        const ev = EVENTS[bestIdx];
+        if (ev) focusEvent(ev.id, false);
+      }
+
+      // User input: country or coordinates
+      function tryParseCoords(text) {
+        const m = text.trim().match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+        if (!m) return null;
+        const lat = parseFloat(m[1]);
+        const lon = parseFloat(m[2]);
+        if (!isFinite(lat) || !isFinite(lon)) return null;
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+        return [lat, lon];
+      }
+
+      function addUserInput(text) {
+        if (!text) return;
+        const coords = tryParseCoords(text);
+        if (coords) {
+          const [lat, lon] = coords;
+          const marker = L.circleMarker([lat, lon], { radius: 6, color: '#a3002c', weight: 2, fillColor: '#ef476f', fillOpacity: 1 });
+          marker.bindPopup(`<b>User marker</b><br/>(${lat.toFixed(4)}, ${lon.toFixed(4)})`);
+          marker.addTo(userMarkerLayer).openPopup();
+          map.setView([lat, lon], 5);
+          return;
+        }
+        // Otherwise treat as country name
+        const ok = highlightCountryByName(text, true, true);
+        if (!ok) {
+          alert('Could not find a country named "' + text + '". Try coordinates like "14.6,120.98".');
+        }
+      }
+
+      // Wire input
+      document.getElementById('addBtn').addEventListener('click', () => {
+        const val = (document.getElementById('inputText').value || '').trim();
+        addUserInput(val);
+      });
+      document.getElementById('inputText').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          addUserInput((e.target.value || '').trim());
+        }
+      });
+
+      // Simple TSV parse (expects head with id and name)
+      function parseTSV(text) {
+        const lines = text.trim().split(/\r?\n/);
+        if (lines.length === 0) return [];
+        const headers = lines[0].split('\t');
+        return lines.slice(1).map(line => {
+          const cols = line.split('\t');
+          const obj = {};
+          headers.forEach((h, i) => obj[h] = cols[i]);
+          return obj;
+        });
+      }
+
+      // Init
+      renderEvents();
+
+      // Fetch TopoJSON and names TSV, then render
+      Promise.all([
+        fetch(WORLD_GEOJSON_URL).then(r => r.json()),
+        fetch(WORLD_TSV_URL).then(r => r.text())
+      ])
+        .then(([topo, tsvText]) => Promise.all([topoToGeoCountries(topo), Promise.resolve(parseTSV(tsvText))]))
+        .then(([geo, rows]) => {
+          const idToName = new Map();
+          rows.forEach(row => { if (row.id && row.name) idToName.set(String(row.id), row.name); });
+          geo.features.forEach(f => {
+            if (!f.properties) f.properties = {};
+            // Assign name via id lookup if missing
+            if (!f.properties.name && f.id != null) {
+              const name = idToName.get(String(f.id));
+              if (name) f.properties.name = name;
+            }
+          });
+          buildNameIndex(geo);
+          addCountriesLayer(geo);
+          // Focus first event
+          focusEvent(EVENTS[0].id, true);
+        })
+        .catch(err => {
+          console.error('Failed to load world data', err);
+          alert('Failed to load world map data. Please check your connection.');
+        });
+
+      // Scroll listener on the timeline panel only
+      const timelinePanel = document.querySelector('.timeline-panel');
+      let scrollThrottle = false;
+      timelinePanel.addEventListener('scroll', () => {
+        if (scrollThrottle) return;
+        scrollThrottle = true;
+        requestAnimationFrame(() => {
+          onScrollHighlight();
+          scrollThrottle = false;
+        });
+      });
+    </script>
+  </body>
+  </html>
+
+
