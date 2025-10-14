@@ -550,8 +550,8 @@ a.link:hover { text-decoration: underline; }
 .grid-3 { grid-template-columns: repeat(3,minmax(0,1fr)); }
 /* Responsive columns */
 @media (min-width: 768px) {
-  .grid-2@md { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .grid-3@md { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid-2\@md { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid-3\@md { grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 .col-span-2 { grid-column: span 2; }
 
@@ -582,6 +582,15 @@ a.link:hover { text-decoration: underline; }
 .btn--sm { min-height: 36px; padding: .35rem .7rem; font-size: var(--step--1); }
 .btn--lg { min-height: 48px; padding: .75rem 1.25rem; font-size: var(--step-0); }
 .btn--block { width: 100%; }
+
+/* Uppercase variant with yellow text on hover */
+.btn--caps {
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.btn--caps:hover {
+  color: var(--hw-gold);
+}
 
 /* Badges */
 .badge { display:inline-block; padding: .25rem .55rem; border-radius: 999px; font-size: var(--step--1); font-weight: 700; }
@@ -707,4 +716,308 @@ input, select, textarea { min-width: 0; }
   .page { padding-block: .75rem; }
   .panel { padding: .75rem; border-radius: 6px; }
   .container, .container--wide, .container--narrow { width: min(100%, 100% - 1rem); }
+}
+
+/* Right-side decorative background for panels (gold + grey bands) */
+.panel--right-decor{
+  position: relative;
+  overflow: hidden;
+  background: var(--hw-gray-100);
+}
+.panel--right-decor::before{
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 1.2rem;
+  width: 180px;
+  height: 20px;
+  background: var(--hw-gold);
+  transform: translate(0, -50%) skewX(-20deg);
+  transition: transform .45s ease, opacity .45s ease;
+  pointer-events: none;
+}
+.panel--right-decor::after{
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: .35rem;
+  width: 140px;
+  height: 8px;
+  background: #343434;
+  opacity: .55;
+  transform: translate(0, -50%) skewX(-20deg);
+  transition: transform .45s ease, opacity .45s ease;
+  pointer-events: none;
+}
+html.no-touch .panel--right-decor:hover::before{ transform: translate(45%, -50%) skewX(-20deg); }
+html.no-touch .panel--right-decor:hover::after{ transform: translate(15%, -50%) skewX(-20deg); }
+
+@media (prefers-reduced-motion: reduce){
+  .panel--right-decor::before,
+  .panel--right-decor::after{ transition: none; }
+}
+
+/* ----------------------------------------------------------------
+   Custom Button v2 (Style Guide demo)
+   Matches provided visuals: red base → grey on hover, with
+   gold-bordered chevron swapping sides and a plus puck.
+------------------------------------------------------------------- */
+.custom-button--v2{
+  --btn-red: var(--hw-red, #c8102e);
+  --btn-yellow: var(--hw-gold, #f0b323);
+  --btn-grey: #343434;
+  /* Chevron geometry + timing */
+  --chev-grey-right: 2.2rem;            /* anchor from right (center line before hover) */
+  --rect-grey-right: 1.2rem;            /* anchor from right (center line before hover) */
+  --chev-yellow-right: calc(var(--chev-grey-right) + 0.45rem); /* 3/4 closer to grey */
+  --chev-grey-size: calc(33px * 1.4);   /* overdraw size for grey diamond (10% larger) */
+  --chev-yellow-size: 44px;             /* larger so yellow overdraws beneath grey */
+  --chev-anim-duration: 1.2s;           /* slower animation per request */
+  --chev-gap: .25rem;                   /* yellow-to-grey gap (yellow slightly left) */
+  --chev-left-target: 26%;              /* final grey center from left (≈ 74% of the way left) */
+
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.9rem;
+  padding:.95rem 1.6rem 1rem 1.6rem;
+  min-height:3.2rem;
+  background:var(--btn-red);
+  color:#fff;
+  border:0;
+  text-transform:uppercase;
+  font-weight: var(--hw-font-weight-bold, 700);
+  letter-spacing:.02em;
+  line-height:1;
+  position:relative;
+  overflow:hidden;
+  pointer-events:auto;
+  transition: transform .3s ease, opacity .3s ease;
+}
+.custom-button--v2 .txt{ position:relative; top: 1px; z-index:3; text-shadow: 0 1px 0 rgba(0,0,0,.1); text-align:center; font-size: var(--step-0); }
+
+/* Plus puck */
+.custom-button--v2 .plus-icon{
+  width:1.4rem; height:1.4rem; position:absolute; right: .75rem; z-index:4; flex:0 0 1.4rem;
+}
+.custom-button--v2 .plus-icon:before,
+.custom-button--v2 .plus-icon:after{
+  content:""; position:absolute; left:50%; top:50%;
+  width:1.2rem; height:.22rem; background:#fff; transform:translate(-50%,-50%);
+}
+.custom-button--v2 .plus-icon:after{ transform:translate(-50%,-50%) rotate(90deg); }
+
+/* Chevron decorator container */
+.custom-button--v2 .decorator{ position:absolute; inset:0; z-index:2; pointer-events:none; }
+
+/* Three-piece chevron setup (right side by default) */
+.custom-button--v2 .decorator::before,
+.custom-button--v2 .decorator::after{
+  transition:
+    transform var(--chev-anim-duration) ease,
+    opacity var(--chev-anim-duration) ease,
+    background .3s ease,
+    left var(--chev-anim-duration) ease,
+    right var(--chev-anim-duration) ease,
+    width var(--chev-anim-duration) ease,
+    height .3s ease;
+}
+
+/* Three-piece chevron setup (right side by default) */
+.custom-button--v2 .decorator .chev-rect{
+  transition:
+    left var(--chev-anim-duration) ease,
+    width var(--chev-anim-duration) ease,
+    height .3s ease,
+    background 0s linear 0s;
+}
+/* When leaving hover, delay the rectangle's color flip to avoid a grey flash */
+.custom-button--v2:not(:hover) .decorator .chev-rect{
+  transition:
+    left var(--chev-anim-duration) ease,
+    width var(--chev-anim-duration) ease,
+    height .3s ease,
+    background 0s linear var(--chev-anim-duration);
+}
+/* Yellow diamond (overdraw beneath) */
+.custom-button--v2 .decorator::before{
+  content:""; position:absolute; z-index:1; top:50%;
+  left: calc(100% - var(--chev-yellow-right) - (var(--chev-yellow-size) / 2));
+  width: var(--chev-yellow-size); height: var(--chev-yellow-size); background: var(--btn-yellow);
+  transform: translateY(-50%) rotate(45deg);
+}
+/* Grey diamond (overdraw above yellow) */
+.custom-button--v2 .decorator::after{
+  content:""; position:absolute; z-index:2; top:50%;
+  left: calc(100% - var(--chev-grey-right) - (var(--chev-grey-size) / 2));
+  width: var(--chev-grey-size); height: var(--chev-grey-size); background: var(--btn-grey);
+  transform: translateY(-50%) rotate(45deg);
+}
+/* Grey rectangle: full button height; left edge at grey diamond center */
+.custom-button--v2 .decorator .chev-rect{
+  position:absolute; z-index:0; top:0; height: 100%;
+  left: calc(100% - (var(--rect-grey-right) + (var(--chev-grey-size) / 2)));
+  width: calc(var(--chev-grey-right) + (var(--chev-grey-size) / 2));
+  background: var(--btn-grey);
+}
+
+/* Hover: keep base red; pieces shift to left; left fill is red */
+.custom-button--v2:hover{ background: var(--btn-red); }
+
+/* === Independent stretch bar (separate speed) =================== */
+.custom-button--v2 .decorator .stretch-bar{
+  position:absolute; top:0; bottom:0; right:0; width: 30px; background: var(--btn-grey);
+  z-index: 1; /* sits above base but below diamonds */
+  transition: width var(--chev-anim-duration) ease;
+}
+.custom-button--v2:hover .decorator .stretch-bar{ width: 72%; }
+/* Diamonds slide to left (slower); grey turns red on hover */
+.custom-button--v2:hover .decorator::before{
+  left: calc(var(--chev-left-target) - (var(--chev-grey-size) / 2) - var(--chev-gap));
+}
+.custom-button--v2:hover .decorator::after{
+  left: calc(var(--chev-left-target) - (var(--chev-grey-size) / 2));
+}
+/* Rectangle switches to left side, spans from left edge to grey center, full height, red */
+.custom-button--v2:hover .decorator .chev-rect{
+  left: 0;
+  width: var(--chev-left-target);
+  height: 100%;
+  background: var(--btn-red);
+}
+
+/* Motion preferences */
+@media (prefers-reduced-motion: reduce){
+  .custom-button--v2,
+  .custom-button--v2 .decorator::before,
+  .custom-button--v2 .decorator::after{ transition:none; }
+}
+
+/* Style Guide scoping: limit all buttons to max 300px without breaking layout */
+.styleguide .btn,
+.styleguide .btn--outline,
+.styleguide .btn--ghost,
+.styleguide .custom-button--v2,
+.styleguide button,
+.styleguide a.btn{
+  max-width: 300px;
+}
+
+/* === Site overrides (per request) === */
+/* Background: #f2f0ec; Remove borders and border-radius on header, main panels, and buttons */
+body { background: #f2f0ec; }
+
+/* Header (top nav) – keep bottom border, remove side borders */
+.hw-topnav { border-bottom: 1px solid var(--hw-border); }
+.hw-nav__link { border-radius: 0; }
+
+/* Remove left/right borders on header and footer, and strip container chrome within them */
+.hw-topnav, .hw-footer { border-left: none; border-right: none; }
+.hw-topnav .container, .hw-footer .container { background: transparent; box-shadow: none; border-radius: 0; }
+
+/* Main page panels – no borders or rounded corners */
+.panel { border: none; border-radius: 0; box-shadow: none; }
+
+/* Some containers previously added radius; normalize */
+.container { border-radius: 0; }
+
+/* Ensure main page wrappers show grey with lion-olive image on the right */
+.page {
+  background:
+    url('./assets/lion-olive.webp') right center / min(45vw, 700px) auto no-repeat,
+    #f2f0ec;
+}
+
+/* Buttons – no borders or rounded corners */
+.btn, .btn--outline, .btn--ghost { border: none; border-radius: 0; }
+.input-group .btn { border-radius: 0; }
+.widget-action-button { border-radius: 0; }
+
+/* Red uppercase header utility */
+.red { color: #bf2b34 !important; text-transform: uppercase; }
+
+/* === Widgets layout (Home pages) – match static index spacing (no radius) === */
+.widgets-page h1 {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.widgets-page h2 {
+  color: #000;
+  margin: 2rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--hw-red);
+}
+.widgets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+  padding: 1rem;
+}
+.widget-card {
+  display: block;
+  background: #ffffff;
+  border-radius: 0; /* square corners */
+  padding: 1.75rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+.widget-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  border-color: rgba(230, 0, 0, 0.2);
+}
+.widget-card .title-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+.widget-card h3 {
+  color: #000000;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.widget-card p {
+  color: #666;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+.widget-card .function {
+  font-family: 'Times New Roman', serif;
+  font-style: italic;
+  color: #000000;
+  font-weight: 600;
+  font-size: 1.1rem;
+  background: #f8f9fa;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0;
+  text-align: center;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  margin-top: 0.5rem;
+}
+.widget-card:hover .function {
+  background: var(--hw-gold);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #000000;
+}
+.widget-card .button {
+  display: inline-block;
+  background-color: var(--hw-red);
+  color: #ffffff;
+  padding: 0.6rem 1.25rem;
+  text-decoration: none;
+  border-radius: 0;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.widget-card:hover .button {
+  background-color: #cc0000;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(230, 0, 0, 0.2);
 }

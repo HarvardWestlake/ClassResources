@@ -1,8 +1,53 @@
 export default function StyleGuide() {
   return (
     <main className="page">
-      <div className="container">
+      <div className="container styleguide">
         <h1 className="h2">Style Guide</h1>
+
+        {/* Homepage Layout (Header, Sections, Modules) */}
+        <section className="panel">
+          <h2 className="h5 eyebrow">Homepage Layout</h2>
+          <p className="muted">Demonstrates the homepage header, section headings, and module grid using shared classes.</p>
+          <div className="widgets-page">
+            <h1 className="h1">Class Resources (Demo)</h1>
+
+            <h2>Subjects</h2>
+            <div className="widgets-grid">
+              <a className="widget-card" href="#">
+                <div className="title-row">
+                  <h3>Math</h3>
+                </div>
+                <p>Interactive math learning widgets and explorations.</p>
+                <span className="button">Open</span>
+              </a>
+              <a className="widget-card" href="#">
+                <div className="title-row">
+                  <h3>Code</h3>
+                </div>
+                <p>Programming visualizations, data structures, and crypto demos.</p>
+                <span className="button">Open</span>
+              </a>
+              <a className="widget-card" href="#">
+                <div className="title-row">
+                  <h3>Economics</h3>
+                </div>
+                <p>Micro and macro interactive widgets.</p>
+                <span className="button">Open</span>
+              </a>
+            </div>
+
+            <h2>Admin</h2>
+            <div className="widgets-grid">
+              <a className="widget-card" href="#">
+                <div className="title-row">
+                  <h3>Style Guide</h3>
+                </div>
+                <p>UI components, tokens, and patterns used across the app.</p>
+                <span className="button">Open</span>
+              </a>
+            </div>
+          </div>
+        </section>
 
         {/* Typography */}
         <section className="panel">
@@ -25,6 +70,15 @@ export default function StyleGuide() {
                 use HW red.
               </p>
               <p className="eyebrow">Eyebrow – small uppercase label</p>
+
+            <div className="divider" />
+            <div className="stack-sm">
+              <div className="h6">Red uppercase heading utility (.red)</div>
+              <div className="h1 red">H1 – Red Uppercase</div>
+              <div className="h2 red">H2 – Red Uppercase</div>
+              <div className="h3 red">H3 – Red Uppercase</div>
+              <div className="h4 red">H4 – Red Uppercase</div>
+            </div>
             </div>
           </div>
         </section>
@@ -36,9 +90,16 @@ export default function StyleGuide() {
             <button className="btn">Primary</button>
             <button className="btn btn--outline">Outline</button>
             <button className="btn btn--ghost">Ghost</button>
+            <button className="btn btn--caps">All Caps</button>
             <button className="btn btn--sm">Small</button>
             <button className="btn btn--lg">Large</button>
             <button className="btn" disabled>Disabled</button>
+            {/* Custom v2 demo (Style Guide only) */}
+            <button className="custom-button custom-button--v2" style={{ width: '100%' }}>
+              <span className="decorator"><span className="chev-rect" /><span className="stretch-bar" /></span>
+              <span className="txt">Dive In</span>
+              <span className="plus-icon"></span>
+            </button>
           </div>
         </section>
 

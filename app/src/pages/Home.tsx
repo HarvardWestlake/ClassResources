@@ -3,33 +3,61 @@ import { Link } from 'react-router-dom'
 export default function Home() {
   return (
     <main className="page">
-      <div className="container">
+      <div className="container widgets-page">
         <h1 className="h1">Class Resources</h1>
-        <div className="grid grid-2@md gap-lg">
-          <aside className="panel">
-            <h2 className="h5 eyebrow">Quick links</h2>
-            <ul className="list-plain">
-              <li><Link className="link" to="/about">About</Link></li>
-              <li><Link className="link" to="/admin">Admin · Style Guide</Link></li>
-              <li><a className="link" href="/static/math/index.html">Math (legacy)</a></li>
-              <li><a className="link" href="/static/code/index.html">Code (legacy)</a></li>
-              <li><a className="link" href="/static/econ/index.html">Economics (legacy)</a></li>
-              <li><a className="link" href="/static/stats/index.html">Statistics (legacy)</a></li>
-            </ul>
-          </aside>
 
-          <section className="panel">
-            <p className="lead">
-              Welcome! This homepage uses shared site styles aligned to the HW brand guide.
-            </p>
-            <div className="divider" />
-            <div className="legend">
-              <h3 className="h6">Swatches</h3>
-              <p><span className="swatch swatch--black" /> Black</p>
-              <p><span className="swatch swatch--red" /> Red (186C)</p>
-              <p><span className="swatch swatch--gold" /> Gold (124C)</p>
+        <h2>Subjects</h2>
+        <div className="widgets-grid">
+          <a className="widget-card" href="/static/math/index.html">
+            <div className="title-row">
+              <h3>Math</h3>
             </div>
-          </section>
+            <p>Interactive math learning widgets and explorations.</p>
+            <span className="button">Open</span>
+          </a>
+
+          <a className="widget-card" href="/static/code/index.html">
+            <div className="title-row">
+              <h3>Code</h3>
+            </div>
+            <p>Programming visualizations, data structures, and crypto demos.</p>
+            <span className="button">Open</span>
+          </a>
+
+          <a className="widget-card" href="/static/econ/index.html">
+            <div className="title-row">
+              <h3>Economics</h3>
+            </div>
+            <p>Micro and macro interactive widgets.</p>
+            <span className="button">Open</span>
+          </a>
+
+          <a className="widget-card" href="/static/chem/crystallization/crystallization.html">
+            <div className="title-row">
+              <h3>Chemistry</h3>
+            </div>
+            <p>Hands-on chemistry demos and visualizations.</p>
+            <span className="button">Open</span>
+          </a>
+
+          <a className="widget-card" href="/static/stats/index.html">
+            <div className="title-row">
+              <h3>Statistics</h3>
+            </div>
+            <p>Stats tools, visualizations, and calculators.</p>
+            <span className="button">Open</span>
+          </a>
+        </div>
+
+        <h2>Admin</h2>
+        <div className="widgets-grid">
+          <Link className="widget-card" to="/admin">
+            <div className="title-row">
+              <h3>Style Guide</h3>
+            </div>
+            <p>UI components, tokens, and patterns used across the app.</p>
+            <span className="button">Open</span>
+          </Link>
         </div>
       </div>
     </main>
