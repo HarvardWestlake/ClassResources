@@ -22,6 +22,16 @@
   </head>
   <body>
     <div class="container">
+      <button class="open-main-menu open-menu-js" title="Open Menu" style="position:absolute; top:12px; right:12px; z-index:10;">
+        <span class="txt" aria-hidden="true">Menu</span>
+        <span class="txt v2" aria-hidden="true">Close</span>
+        <span class="hamb-icon"></span>
+      </button>
+      <nav id="mainMenu" class="panel" aria-label="Main" style="position:absolute; top:48px; right:12px; display:none; min-width:180px;">
+        <a class="back-link" href="/">Home</a>
+        <a class="back-link" href="/">Topics</a>
+        <a class="back-link" href="/">Recent</a>
+      </nav>
       <h1>Class Resources</h1>
       <h2>Explore by Subject</h2>
       <div class="widgets-grid">
@@ -60,8 +70,26 @@
           <p>Hands-on inference tools, including permutation tests, visual summaries, and charts.</p>
           <span class="button">Browse Stats</span>
         </a>
+        <a href="static/history/index.html" class="widget-card">
+          <div class="title-row" style="text-align:center">
+            <h3>History</h3>
+          </div>
+          <p>Interactive timelines and maps for world histories, starting with chocolate.</p>
+          <span class="button">Browse History</span>
+        </a>
       </div>
     </div>
+    <script>
+      (function(){
+        const btn = document.querySelector('.open-main-menu.open-menu-js');
+        const menu = document.getElementById('mainMenu');
+        if (!btn || !menu) return;
+        btn.addEventListener('click', () => {
+          const visible = menu.style.display !== 'none';
+          menu.style.display = visible ? 'none' : 'block';
+        });
+      })();
+    </script>
   </body>
 </html>
 

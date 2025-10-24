@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2D Crystal Lattice Growth – Temperature Controlled</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #121933;
+    --fg: #e9edf7;
+    --muted: #a8b2d1;
+    --accent: #7dd3fc; /* cyan */
+    --blue: #3b82f6;   /* square clusters */
+    --amber: #f59e0b;  /* hex clusters */
+    --violet: #a78bfa; /* rect clusters */
+    --free: #94a3b8;   /* free particles */
+    --ok: #22c55e;
+    --warn: #f97316;
+  }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: radial-gradient(1200px 800px at 70% 10%, #162042 0%, var(--bg) 55%, #050914 100%);
+    color: var(--fg);
+    font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    overflow: hidden;
+  }
+  #ui {
+    position: absolute; inset: 16px 16px auto 16px;
+    background: color-mix(in oklab, var(--panel) 92%, black 8%);
+    border: 1px solid color-mix(in oklab, var(--panel) 70%, white 10%);
+    box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    border-radius: 12px;
+    padding: 12px 14px;
+    backdrop-filter: blur(6px);
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 10px 16px;
+    align-items: center;
+  }
+  #ui h1 {
+    grid-column: 1 / -1;
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: 0.2px;
+  }
+  .row {
+    display: contents;
+  }
+  label {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  input[type="range"] {
+    width: 260px;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 999px;
+    background: #0d1531; border: 1px solid #23305f;
+    color: var(--fg); font-weight: 600;
+    letter-spacing: .2px;
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px; border-radius: 999px; font-size: 12px;
+    border: 1px solid #2a355f; background: #0a1330; color: var(--muted);
+  }
+  button {
+    appearance: none; border: 1px solid #27325e; background: #0d173b; color: var(--fg);
+    padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600;
+  }
+  button:hover { border-color: #3751a5; }
+  #stats {
+    position: absolute; right: 16px; bottom: 16px;
+    background: #0d1531cc; border: 1px solid #23305f; border-radius: 10px;
+    padding: 8px 10px; font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+  #canvas {
+    position: absolute; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+  }
+  .legend { display: inline-flex; gap: 10px; align-items: center; }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .sq { background: var(--blue); }
+  .hx { background: var(--amber); }
+  .rc { background: var(--violet); }
+  .fr { background: var(--free); }
+  .notice {
+    font-size: 12px; color: var(--muted);
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <h1>Crystal Lattice Growth (2D) – Temperature Controlled</h1>
+
+  <div class="row">
+    <label for="temp">Temperature</label>
+    <input id="temp" type="range" min="0" max="100" value="42" step="1" />
+    <div class="pill">
+      <span id="phaseLabel">Phase: <strong>Hexagonal</strong></span>
+      <span class="tag" id="bindLabel" title="Binding probability per encounter">p(bind)</span>
+      <span class="tag" id="speedLabel" title="Random drift scale">drift</span>
+    </div>
+    <div class="legend">
+      <span class="swatch fr"></span> free
+      <span class="swatch sq"></span> square
+      <span class="swatch hx"></span> hex
+      <span class="swatch rc"></span> rect
+    </div>
+  </div>
+
+  <div class="row">
+    <label>&nbsp;</label>
+    <div style="display:flex; gap:8px;">
+      <button id="resetBtn" title="Restart with new random positions">Reset</button>
+      <button id="joltBtn" title="Kick everything a bit">Jolt</button>
+      <button id="pauseBtn">Pause</button>
+    </div>
+    <div class="pill" id="goalPill">Goal: single crystal across canvas</div>
+  </div>
+
+  <div class="notice">
+    Tip: lower temperatures favor <strong>hexagonal</strong> ordering; higher temperatures favor <strong>square</strong>. Clusters drift, collide, and sometimes fuse when lattice sites line up.
+  </div>
+</div>
+
+<div id="stats"></div>
+
+<script src="crystallization.js"></script>
+</body>
+</html>
