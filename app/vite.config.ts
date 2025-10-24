@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import type { ViteDevServer } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -9,7 +10,7 @@ const here = fileURLToPath(new URL('.', import.meta.url))
 function serveExternalPublicStatic() {
   return {
     name: 'serve-external-public-static',
-    configureServer(server) {
+    configureServer(server: ViteDevServer) {
       server.middlewares.use((req, res, next) => {
         if (!req.url || !req.url.startsWith('/static/')) return next()
         const urlNoQuery = req.url.split('?')[0]
