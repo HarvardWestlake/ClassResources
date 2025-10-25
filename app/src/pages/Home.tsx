@@ -32,7 +32,7 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
-          <a className="widget-card" href="/static/chem/crystallization/crystallization.html">
+          <a className="widget-card" href="/static/chem/index.html">
             <div className="title-row">
               <h3>Chemistry</h3>
             </div>
@@ -45,6 +45,14 @@ export default function Home() {
               <h3>Statistics</h3>
             </div>
             <p>Stats tools, visualizations, and calculators.</p>
+            <span className="button">Open</span>
+          </a>
+
+          <a className="widget-card" href="/static/history/index.html">
+            <div className="title-row">
+              <h3>History</h3>
+            </div>
+            <p>Interactive timelines and maps for world histories.</p>
             <span className="button">Open</span>
           </a>
         </div>

@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>World Timeline — 2D/3D Map (Three.js)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <style>
+    :root{
+      --bg: #0c0f14;
+      --panel: #11151c;
+      --ink: #e8ecf1;
+      --muted: #93a0b4;
+      --accent: #4fb4ff;
+      --accent-2: #ff7a59;
+      --ok: #24c08b;
+      --warn: #ffbe55;
+      --error:#ff5d6c;
+      --radius: 12px;
+      --shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      overflow-x:hidden;
+    }
+    a{color:var(--accent); text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    /* Header (sticky timeline + controls) */
+    header#topbar{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(4px);
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .bar{
+      display:flex; gap:.5rem; align-items:center;
+      padding: .75rem 1rem .25rem 1rem;
+    }
+    .spacer{flex:1}
+    .toggles{
+      display:flex; gap:.25rem;
+      background: var(--panel);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 999px; padding: .25rem;
+      box-shadow: var(--shadow);
+    }
+    .toggles button{
+      border:0; background:transparent; color:var(--muted);
+      padding:.5rem .9rem; border-radius:999px;
+      cursor:pointer; font-weight:600;
+    }
+    .toggles button.active{
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+      color:var(--ink);
+    }
+    .btn{
+      border:1px solid rgba(255,255,255,.12);
+      background: var(--panel);
+      color:var(--ink);
+      padding:.55rem .8rem; border-radius: 10px;
+      cursor:pointer; font-weight:600;
+      box-shadow: var(--shadow);
+    }
+    .btn:disabled{opacity:.6; cursor:not-allowed}
+    #fileInput{display:none}
+
+    .timeline{
+      padding: .5rem 1rem 1rem 1rem;
+    }
+    .timeline .labels{
+      display:flex; align-items:center; justify-content:space-between;
+      font-size:.9rem; color:var(--muted);
+      margin-top:.45rem;
+    }
+    .timeline .labels .current{
+      font-weight:700; color:var(--ink);
+    }
+    input[type="range"]{
+      width:100%;
+      appearance:none; height:6px; border-radius:999px;
+      background:linear-gradient(90deg, var(--accent), var(--accent-2));
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      appearance:none; width:18px; height:18px; border-radius:50%;
+      background: white; border:2px solid var(--panel); box-shadow:0 0 0 4px rgba(79,180,255,.25);
+      cursor:pointer;
+    }
+    input[type="range"]::-moz-range-thumb{
+      width:18px; height:18px; border:none; border-radius:50%;
+      background:white; box-shadow:0 0 0 4px rgba(79,180,255,.25); cursor:pointer;
+    }
+
+    /* Map area */
+    #mapSection{
+      position:relative;
+      width:100%;
+      height: min(70vh, 820px);
+      min-height: 420px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    #map{
+      position:absolute; inset:0;
+    }
+    #tooltip{
+      position:absolute; pointer-events:none;
+      transform: translate(-50%,-140%);
+      background: rgba(14,18,24,.9);
+      border: 1px solid rgba(255,255,255,.08);
+      padding:.45rem .6rem; border-radius:8px; font-size:.85rem;
+      color: var(--ink); white-space:nowrap;
+      box-shadow:var(--shadow);
+    }
+    #tooltip.hidden{display:none}
+
+    /* Details panel */
+    #details{
+      display:block; padding: 1.2rem 1rem 2rem 1rem;
+      max-width: 1100px; margin: 0 auto;
+    }
+    #details h2{
+      margin:0 0 .75rem 0; font-size:1.1rem; color:var(--muted); font-weight:600;
+    }
+    .cards{
+      display:grid; gap: .9rem;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .card{
+      background: var(--panel);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius);
+      padding: .9rem;
+      box-shadow: var(--shadow);
+    }
+    .card h3{ margin:.1rem 0 .25rem 0; font-size:1.06rem}
+    .meta{
+      display:flex; gap:.5rem; flex-wrap:wrap; margin:.35rem 0 .65rem 0;
+      color:var(--muted); font-size:.9rem;
+    }
+    .pill{
+      background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08);
+      padding:.15rem .5rem; border-radius: 999px; font-size:.8rem; color:var(--muted);
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:6px; padding:.05rem .35rem; font-size:.78rem;
+      color:var(--muted);
+    }
+    footer{
+      color:var(--muted);
+      font-size:.85rem; text-align:center; padding: 1.5rem 1rem 2.5rem 1rem;
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      *{scroll-behavior:auto}
+    }
+  </style>
+</head>
+<body>
+  <header id="topbar" role="banner">
+    <div class="bar">
+      <div class="toggles" role="tablist" aria-label="View mode">
+        <button id="btn2D" class="active" role="tab" aria-selected="true" aria-controls="map">2D Map</button>
+        <button id="btn3D" role="tab" aria-selected="false" aria-controls="map">3D Globe</button>
+      </div>
+
+      <button id="playBtn" class="btn" title="Space to play/pause timeline">▶ Play</button>
+
+      <div class="spacer"></div>
+
+      <label class="btn" for="fileInput" title="Load events JSON">Load Events JSON</label>
+      <input id="fileInput" type="file" accept="application/json" />
+    </div>
+
+    <div class="timeline" role="region" aria-label="Timeline controls">
+      <input id="timeline" type="range" min="0" max="100" step="86400000" value="0" aria-label="Timeline slider" />
+      <div class="labels">
+        <span id="minLbl">—</span>
+        <span id="currentLbl" class="current">—</span>
+        <span id="maxLbl">—</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="mapSection" role="region" aria-label="Global map">
+      <div id="map"></div>
+      <div id="tooltip" class="hidden"></div>
+    </section>
+
+    <section id="details" role="region" aria-label="Event details">
+      <h2 id="summary">0 events highlighted</h2>
+      <div id="events" class="cards"></div>
+    </section>
+  </main>
+
+  <footer>
+    Keyboard: <span class="kbd">Space</span> play/pause · <span class="kbd">1</span>/<span class="kbd">2</span> switch 2D/3D · Click markers for details · Drag to pan/rotate, wheel to zoom.
+  </footer>
+
+  <!-- Three.js (ESM) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/",
+        "topojson-client": "https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/+esm"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { feature, mesh } from 'topojson-client';
+
+    // ---------- DOM ----------
+    const mapEl = document.getElementById('map');
+    const tooltip = document.getElementById('tooltip');
+    const btn2D = document.getElementById('btn2D');
+    const btn3D = document.getElementById('btn3D');
+    const playBtn = document.getElementById('playBtn');
+    const tl = document.getElementById('timeline');
+    const minLbl = document.getElementById('minLbl');
+    const maxLbl = document.getElementById('maxLbl');
+    const currentLbl = document.getElementById('currentLbl');
+    const detailsWrap = document.getElementById('events');
+    const summaryH2 = document.getElementById('summary');
+    const fileInput = document.getElementById('fileInput');
+
+    // ---------- Sizing ----------
+    const DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    const R = 1; // earth radius in world units
+    const PLANE_W = Math.PI * 2 * R;
+    const PLANE_H = Math.PI * R;
+
+    // ---------- Renderer ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(DPR);
+    renderer.setSize(mapEl.clientWidth, mapEl.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    mapEl.appendChild(renderer.domElement);
+
+    // ---------- Scenes & Cameras ----------
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x0b0f16, 6, 14);
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x0b0f16, 0.9);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(5, 3, 5);
+    scene.add(hemi, dir);
+
+    // 3D camera + controls
+    const camera3D = new THREE.PerspectiveCamera(45, mapEl.clientWidth / mapEl.clientHeight, 0.01, 100);
+    camera3D.position.set(0, 1.7, 2.7);
+    const controls3D = new OrbitControls(camera3D, renderer.domElement);
+    controls3D.enableDamping = true;
+    controls3D.minDistance = 1.6;
+    controls3D.maxDistance = 8;
+    controls3D.zoomSpeed = 0.6;
+
+    // 2D camera (orthographic) + controls
+    const aspect = mapEl.clientWidth / mapEl.clientHeight;
+    const frustumSize = 3.4; // somewhat zoomed in by default
+    const camera2D = new THREE.OrthographicCamera(
+      ( -frustumSize * aspect ) / 2,
+      ( +frustumSize * aspect ) / 2,
+      frustumSize / 2, -frustumSize / 2, -10, 10
+    );
+    camera2D.position.set(0, 0, 3);
+    camera2D.lookAt(0,0,0);
+    const controls2D = new OrbitControls(camera2D, renderer.domElement);
+    controls2D.enableRotate = false;
+    controls2D.enableDamping = true;
+    controls2D.zoomSpeed = 0.8;
+    controls2D.minZoom = 0.6;
+    controls2D.maxZoom = 8;
+
+    let activeCamera = camera2D;
+    let activeControls = controls2D;
+
+    // ---------- Groups ----------
+    const groupGlobe = new THREE.Group();
+    const groupMap = new THREE.Group();
+    scene.add(groupGlobe, groupMap);
+    groupGlobe.visible = false; // 2D default
+
+    // ---------- Base geometry (earth sphere + map plane) ----------
+    // Start with a placeholder texture; we'll build a map texture at runtime
+    const placeholderCanvas = (()=>{ const c=document.createElement('canvas'); c.width=2; c.height=1; const x=c.getContext('2d'); x.fillStyle='#0b0f16'; x.fillRect(0,0,2,1); return c; })();
+    const placeholderTexture = new THREE.CanvasTexture(placeholderCanvas);
+    placeholderTexture.colorSpace = THREE.SRGBColorSpace;
+
+    // Globe
+    const globeGeom = new THREE.SphereGeometry(R, 128, 64);
+    const globeMat = new THREE.MeshStandardMaterial({ map: placeholderTexture, roughness: 1 });
+    const globeMesh = new THREE.Mesh(globeGeom, globeMat);
+    globeMesh.name = 'earthGlobe';
+    groupGlobe.add(globeMesh);
+
+    // Thin glow ring to help silhouette
+    const globeOutline = new THREE.Mesh(
+      new THREE.SphereGeometry(R*1.002, 64, 32),
+      new THREE.MeshBasicMaterial({ color: 0x4fb4ff, wireframe: true, transparent: true, opacity: 0.08 })
+    );
+    globeOutline.renderOrder = 2;
+    groupGlobe.add(globeOutline);
+
+    // Plane (2D equirectangular)
+    const planeGeom = new THREE.PlaneGeometry(PLANE_W, PLANE_H, 2, 2);
+    const planeMat = new THREE.MeshBasicMaterial({ map: placeholderTexture });
+    const planeMesh = new THREE.Mesh(planeGeom, planeMat);
+    planeMesh.name = 'earthPlane';
+    groupMap.add(planeMesh);
+
+    // Subtle grid overlay (lat/long graticule)
+    const grid = new THREE.GridHelper(PLANE_H, 12, 0x335577, 0x223344);
+    grid.rotation.x = Math.PI/2; // make it face camera (since Three's grid is XZ plane)
+    grid.position.z = 0.001;
+    grid.material.opacity = 0.15;
+    grid.material.transparent = true;
+    groupMap.add(grid);
+
+    // Starfield background (very light)
+    const stars = (() => {
+      const g = new THREE.BufferGeometry();
+      const N = 2000;
+      const P = new Float32Array(N * 3);
+      for (let i=0; i<N; i++){
+        const r = 20 + Math.random()*20;
+        const theta = Math.random()*Math.PI*2;
+        const phi = Math.acos(2*Math.random()-1);
+        P[i*3+0] = r * Math.sin(phi)*Math.cos(theta);
+        P[i*3+1] = r * Math.cos(phi);
+        P[i*3+2] = r * Math.sin(phi)*Math.sin(theta);
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(P,3));
+      const m = new THREE.PointsMaterial({ size: 0.03, transparent:true, opacity:0.5 });
+      const mesh = new THREE.Points(g,m);
+      return mesh;
+    })();
+    scene.add(stars);
+
+    // ---------- World map texture (countries, borders, labels) ----------
+    async function buildAndApplyMapTexture(){
+      const W = 4096, H = 2048;
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      // Background ocean
+      ctx.fillStyle = '#0b0f16';
+      ctx.fillRect(0,0,W,H);
+
+      // Fetch datasets
+      const [topoCountries, topoLand, namesGeo] = await Promise.all([
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(r=>r.json()),
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json').then(r=>r.json()),
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/processed/country-names-110m.json').then(r=>r.json()).catch(()=> null)
+      ]);
+
+      const idToName = new Map();
+      if (namesGeo && namesGeo.features){
+        for (const f of namesGeo.features){
+          const id = +f.id;
+          const name = f.properties && (f.properties.name || f.properties.NAME || f.properties.ADMIN || f.properties.admin);
+          if (Number.isFinite(id) && name) idToName.set(id, String(name));
+        }
+      }
+
+      const land = feature(topoLand, topoLand.objects.land);
+      const countriesFC = feature(topoCountries, topoCountries.objects.countries);
+      const borders = mesh(topoCountries, topoCountries.objects.countries, (a,b)=>a!==b);
+
+      function proj(lon, lat){
+        const x = (lon + 180) / 360 * W;
+        const y = (90 - lat) / 180 * H;
+        return [x,y];
+      }
+
+      function moveOrLine(ctx, x, y, prev){
+        if (!prev) { ctx.moveTo(x,y); return [x,y]; }
+        const dx = Math.abs(x - prev[0]);
+        if (dx > W * 0.5) { ctx.moveTo(x,y); } else { ctx.lineTo(x,y); }
+        return [x,y];
+      }
+
+      function drawPolygonRings(rings){
+        ctx.beginPath();
+        for (const ring of rings){
+          let prev = null;
+          for (let i=0; i<ring.length; i++){
+            const [lon, lat] = ring[i];
+            const [x,y] = proj(lon, lat);
+            prev = moveOrLine(ctx, x, y, prev);
+          }
+          // close ring
+        }
+      }
+
+      function drawMultiPolygon(coords){
+        // coords: Array<Polygon> | Array<Array<Polygon>> depending on type
+        if (!Array.isArray(coords)) return;
+        // MultiPolygon -> [ [rings...] , ... ]; Polygon -> [rings...]
+        if (coords.length && Array.isArray(coords[0][0])){
+          // Either Polygon (rings) or MultiPolygon (polygons)
+          const isMulti = Array.isArray(coords[0][0][0]);
+          if (isMulti){
+            for (const poly of coords){
+              drawPolygonRings(poly);
+            }
+          } else {
+            drawPolygonRings(coords);
+          }
+        }
+      }
+
+      function drawMultiLineString(coords){
+        ctx.beginPath();
+        for (const line of coords){
+          let prev = null;
+          for (let i=0; i<line.length; i++){
+            const [lon, lat] = line[i];
+            const [x,y] = proj(lon, lat);
+            prev = moveOrLine(ctx, x, y, prev);
+          }
+        }
+      }
+
+      function polygonCentroidAndArea(ring){
+        // Compute centroid in projected space with seam unwrapping
+        let area = 0, cx = 0, cy = 0;
+        let x0, y0, x1, y1;
+        let prev;
+        for (let i=0; i<ring.length; i++){
+          const [lon, lat] = ring[i];
+          let [x, y] = proj(lon, lat);
+          if (prev){
+            // unwrap seam
+            const dx = x - prev[0];
+            if (dx > W*0.5) x -= W; else if (dx < -W*0.5) x += W;
+          }
+          prev = [x, y];
+          ring[i]._px = x; ring[i]._py = y; // stash
+        }
+        for (let i=0, n=ring.length, j=n-1; i<n; j=i++){
+          x0 = ring[j]._px; y0 = ring[j]._py;
+          x1 = ring[i]._px; y1 = ring[i]._py;
+          const f = x0*y1 - x1*y0;
+          area += f;
+          cx += (x0 + x1) * f;
+          cy += (y0 + y1) * f;
+        }
+        area *= 0.5;
+        if (area === 0) return {area:0, cx:0, cy:0};
+        cx = cx / (6*area); cy = cy / (6*area);
+        // wrap back into [0,W)
+        cx = ((cx % W) + W) % W;
+        return {area: Math.abs(area), cx, cy};
+      }
+
+      function featureLabel(feature){
+        const type = feature.geometry.type;
+        const coords = feature.geometry.coordinates;
+        let best = {area:0, cx:0, cy:0};
+        if (type === 'Polygon'){
+          const outer = coords[0];
+          const r = outer.map(p=>[p[0], p[1]]);
+          const res = polygonCentroidAndArea(r);
+          best = res;
+        } else if (type === 'MultiPolygon'){
+          for (const poly of coords){
+            const outer = poly[0];
+            const r = outer.map(p=>[p[0], p[1]]);
+            const res = polygonCentroidAndArea(r);
+            if (res.area > best.area) best = res;
+          }
+        }
+        return best;
+      }
+
+      // Draw land
+      ctx.fillStyle = '#16202a';
+      if (land.type === 'MultiPolygon' || land.type === 'Polygon'){
+        drawMultiPolygon(land.coordinates);
+      } else if (land.type === 'GeometryCollection'){
+        for (const g of land.geometries){
+          if (g.type === 'Polygon' || g.type === 'MultiPolygon') drawMultiPolygon(g.coordinates);
+        }
+      }
+      ctx.fill();
+
+      // Draw borders
+      if (borders && borders.type === 'MultiLineString'){
+        ctx.strokeStyle = 'rgba(148, 176, 210, 0.6)';
+        ctx.lineWidth = 1.2;
+        drawMultiLineString(borders.coordinates);
+        ctx.stroke();
+      }
+
+      // Draw country labels
+      ctx.font = '600 26px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial';
+      ctx.fillStyle = 'rgba(220,230,240,0.85)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const f of countriesFC.features){
+        const id = +f.id;
+        const name = (f.properties && (f.properties.name || f.properties.NAME)) || idToName.get(id);
+        if (!name) continue;
+        const {area, cx, cy} = featureLabel(f);
+        if (area < 400) continue; // skip tiny areas
+        // simple label placement
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.7)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.fillText(name, cx, cy);
+        ctx.restore();
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      globeMat.map = tex; globeMat.needsUpdate = true;
+      planeMat.map = tex; planeMat.needsUpdate = true;
+      renderer.render(scene, activeCamera);
+    }
+
+    // ---------- Utilities ----------
+    const d2r = THREE.MathUtils.degToRad;
+    const r2d = THREE.MathUtils.radToDeg;
+
+    function llToVector3(lat, lon, radius=R){
+      // lat,lon in degrees -> 3D sphere
+      const phi = d2r(90 - lat);
+      const theta = d2r(lon + 180);
+      const x = -radius * Math.sin(phi) * Math.cos(theta);
+      const z =  radius * Math.sin(phi) * Math.sin(theta);
+      const y =  radius * Math.cos(phi);
+      return new THREE.Vector3(x,y,z);
+    }
+    function xyzToLL(v){
+      const r = Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z) || 1;
+      const phi = Math.acos(THREE.MathUtils.clamp(v.y / r, -1, 1));
+      let theta = Math.atan2(v.z, -v.x);
+      let lon = r2d(theta) - 180;
+      let lat = 90 - r2d(phi);
+      if (lon < -180) lon += 360;
+      if (lon > 180) lon -= 360;
+      return {lat, lon};
+    }
+    function llToPlane(lat, lon){
+      // Map to equirectangular plane centered at (0,0,0) in XY space
+      const x = d2r(lon) * R;
+      const y = d2r(lat) * R;
+      return new THREE.Vector3(x, y, 0.001); // slight offset to avoid z-fighting
+    }
+    function fmtDate(ms){
+      const d = new Date(ms);
+      return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'2-digit' });
+    }
+    function clamp(n, min, max){ return Math.min(max, Math.max(min, n)); }
+
+    // ---------- Raycasting / Interaction ----------
+    const raycaster = new THREE.Raycaster();
+    const mouseNDC = new THREE.Vector2();
+    let hoverObj = null;
+
+    const pickables3D = [];
+    const pickables2D = [];
+
+    function setMouse(e){
+      const rect = renderer.domElement.getBoundingClientRect();
+      const x = ( (e.clientX - rect.left) / rect.width ) * 2 - 1;
+      const y = -(( (e.clientY - rect.top) / rect.height ) * 2 - 1);
+      mouseNDC.set(x,y);
+    }
+
+    function intersectsAt(ndc, objects){
+      raycaster.setFromCamera(ndc, activeCamera);
+      return raycaster.intersectObjects(objects, true);
+    }
+
+    renderer.domElement.addEventListener('mousemove', (e)=>{
+      setMouse(e);
+      const list = (is3D() ? pickables3D : pickables2D);
+      // check markers first
+      let inter = intersectsAt(mouseNDC, list)[0];
+      if (inter && inter.object && inter.object.userData.eventId){
+        const ev = state.eventsById.get(inter.object.userData.eventId);
+        showTooltip(e.clientX, e.clientY, ev.title);
+        setHover(inter.object);
+        return;
+      }
+      // else show lat/lon when hovering base
+      const base = is3D() ? [globeMesh] : [planeMesh];
+      inter = intersectsAt(mouseNDC, base)[0];
+      if (inter){
+        let text = '';
+        if (is3D()){
+          const ll = xyzToLL(inter.point);
+          text = `Lat ${ll.lat.toFixed(2)}°, Lon ${ll.lon.toFixed(2)}°`;
+        } else {
+          // convert XY back to lat/lon
+          const lon = r2d(inter.point.x / R);
+          const lat = r2d(inter.point.y / R);
+          text = `Lat ${lat.toFixed(2)}°, Lon ${lon.toFixed(2)}°`;
+        }
+        showTooltip(e.clientX, e.clientY, text);
+        setHover(null);
+      } else {
+        hideTooltip();
+        setHover(null);
+      }
+    });
+
+    renderer.domElement.addEventListener('mouseleave', ()=>{
+      hideTooltip(); setHover(null);
+    });
+
+    renderer.domElement.addEventListener('click', (e)=>{
+      setMouse(e);
+      const list = (is3D() ? pickables3D : pickables2D);
+      let inter = intersectsAt(mouseNDC, list)[0];
+      if (inter && inter.object && inter.object.userData.eventId){
+        const id = inter.object.userData.eventId;
+        selectEvent(id, {fly:true});
+        return;
+      }
+      // else: click on map -> produce a brief "ping"
+      const base = is3D() ? [globeMesh] : [planeMesh];
+      inter = intersectsAt(mouseNDC, base)[0];
+      if (inter){
+        const p = inter.point.clone();
+        addPing(p, is3D());
+      }
+    });
+
+    function setHover(obj){
+      if (hoverObj === obj) return;
+      if (hoverObj && hoverObj.material) {
+        hoverObj.material.emissiveIntensity = 0.4;
+        hoverObj.scale.setScalar(1);
+      }
+      hoverObj = obj;
+      if (hoverObj && hoverObj.material){
+        hoverObj.material.emissiveIntensity = 0.9;
+        hoverObj.scale.setScalar(1.4);
+      }
+    }
+
+    function showTooltip(clientX, clientY, text){
+      tooltip.textContent = text;
+      tooltip.classList.remove('hidden');
+      const rect = mapEl.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      tooltip.style.left = x + 'px';
+      tooltip.style.top = y + 'px';
+    }
+    function hideTooltip(){ tooltip.classList.add('hidden'); }
+
+    // ---------- Pings ----------
+    const pings = [];
+    function addPing(position, isOnSphere){
+      const geom = isOnSphere
+        ? new THREE.RingGeometry(0.02, 0.023, 48)
+        : new THREE.RingGeometry(0.04, 0.045, 48);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent:true, opacity: .9, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(geom, mat);
+      ring.position.copy(position);
+      if (isOnSphere){
+        ring.lookAt(position.clone().multiplyScalar(1.1)); // face outward
+      }
+      ring.userData.birth = performance.now();
+      scene.add(ring);
+      pings.push(ring);
+    }
+
+    // ---------- Data & Markers ----------
+    const state = {
+      events: [],             // array of { id, title, dateMs, endMs?, lat, lon, country?, description? }
+      eventsById: new Map(),
+      markerById: new Map(),  // id -> { m3D, m2D }
+      minTime: 0,
+      maxTime: 0,
+      bandMs: 0,
+      playing: false,
+      lastTick: 0
+    };
+
+    // starter sample data (replace later with your JSON)
+    const sample = {
+      events: [
+        { id:'philly-1776', title:'US Declaration of Independence', date:'1776-07-04', lat:39.9489, lon:-75.1500, country:'USA', description:'Adoption of the Declaration at Philadelphia.' },
+        { id:'bastille-1789', title:'Storming of the Bastille', date:'1789-07-14', lat:48.8566, lon:2.3522, country:'France', description:'French Revolution flashpoint in Paris.' },
+        { id:'sarajevo-1914', title:'Assassination in Sarajevo', date:'1914-06-28', lat:43.8563, lon:18.4131, country:'Bosnia and Herzegovina', description:'Event that precipitated WWI.' },
+        { id:'hiroshima-1945', title:'Atomic bombing of Hiroshima', date:'1945-08-06', lat:34.3853, lon:132.4553, country:'Japan', description:'First nuclear weapon used in war.' },
+        { id:'apollo11-1969', title:'Apollo 11 (Mission Control)', date:'1969-07-20', lat:29.5502, lon:-95.0970, country:'USA', description:'Moon landing monitored from Houston.' },
+        { id:'berlinwall-1989', title:'Fall of the Berlin Wall', date:'1989-11-09', lat:52.5163, lon:13.3777, country:'Germany', description:'Borders open; reunification follows.' },
+        { id:'lehman-2008', title:'Lehman Brothers collapse', date:'2008-09-15', lat:40.7069, lon:-74.0113, country:'USA', description:'Bankruptcy marking the 2008 crisis.' }
+      ]
+    };
+
+    // Parse & load events
+    function toMs(d){ return (d instanceof Date) ? d.getTime() : new Date(d).getTime(); }
+    function normalizeEvents(input){
+      return (input.events || []).map(e=>{
+        const dateMs = e.date ? toMs(e.date) : (e.start ? toMs(e.start) : NaN);
+        const endMs = e.end ? toMs(e.end) : (e.date ? toMs(e.date) : NaN);
+        return {
+          id: String(e.id || `${e.title}-${dateMs}`),
+          title: e.title || '(untitled)',
+          dateMs,
+          endMs,
+          lat: +e.lat, lon: +e.lon,
+          country: e.country || '',
+          description: e.description || '',
+          color: e.color || null
+        };
+      }).filter(e=>Number.isFinite(e.dateMs) && Number.isFinite(e.lat) && Number.isFinite(e.lon));
+    }
+
+    function computeSpan(evts){
+      const min = Math.min(...evts.map(e=>Math.min(e.dateMs, e.endMs)));
+      const max = Math.max(...evts.map(e=>Math.max(e.dateMs, e.endMs)));
+      return {min, max};
+    }
+
+    function setEvents(raw){
+      clearMarkers();
+
+      state.events = normalizeEvents(raw);
+      state.eventsById = new Map(state.events.map(e=>[e.id, e]));
+      const span = computeSpan(state.events);
+      state.minTime = span.min;
+      state.maxTime = span.max;
+
+      // Highlight band width: ~2% of range or at least 30 days
+      const days = Math.max(30, Math.round((state.maxTime - state.minTime)/(1000*60*60*24*50)));
+      state.bandMs = days * 86400000;
+
+      // Build markers
+      for (const e of state.events){
+        const { m3D, m2D } = createMarkersForEvent(e);
+        state.markerById.set(e.id, { m3D, m2D });
+      }
+
+      // Update timeline UI
+      tl.min = String(state.minTime);
+      tl.max = String(state.maxTime);
+      tl.step = String(86400000); // 1 day
+      tl.value = String(state.minTime);
+      minLbl.textContent = fmtDate(state.minTime);
+      maxLbl.textContent = fmtDate(state.maxTime);
+      currentLbl.textContent = fmtDate(+tl.value);
+
+      // Initial highlight
+      applyTimeline(+tl.value, {focusFirst:true});
+    }
+
+    function clearMarkers(){
+      // remove old marker meshes
+      for (const {m3D, m2D} of state.markerById.values()){
+        groupGlobe.remove(m3D);
+        groupMap.remove(m2D);
+      }
+      state.markerById.clear();
+      pickables3D.length = 0;
+      pickables2D.length = 0;
+    }
+
+    function markerMaterial(hex){
+      const color = new THREE.Color(hex || 0x4fb4ff);
+      return new THREE.MeshStandardMaterial({
+        color,
+        emissive: color.clone().multiplyScalar(0.3),
+        emissiveIntensity: 0.4,
+        roughness: 0.8,
+        metalness: 0.05
+      });
+    }
+
+    function createMarkersForEvent(e){
+      // 3D: small sphere + thin ring under it (optional)
+      const geomS = new THREE.SphereGeometry(0.02, 24, 24);
+      const matS = markerMaterial(e.color);
+      const m3D = new THREE.Mesh(geomS, matS);
+      m3D.userData.eventId = e.id;
+      m3D.position.copy(llToVector3(e.lat, e.lon, R+0.001));
+      m3D.lookAt(new THREE.Vector3(0,0,0));
+      groupGlobe.add(m3D);
+      pickables3D.push(m3D);
+
+      // 2D: same sphere placed on plane
+      const m2D = new THREE.Mesh(geomS.clone(), markerMaterial(e.color));
+      m2D.userData.eventId = e.id;
+      m2D.position.copy(llToPlane(e.lat, e.lon));
+      groupMap.add(m2D);
+      pickables2D.push(m2D);
+
+      return { m3D, m2D };
+    }
+
+    // ---------- Timeline behavior ----------
+    tl.addEventListener('input', (e)=>{
+      const ms = +e.target.value;
+      currentLbl.textContent = fmtDate(ms);
+      applyTimeline(ms, {focusFirst:false});
+    });
+    tl.addEventListener('change', (e)=>{
+      const ms = +e.target.value;
+      applyTimeline(ms, {focusFirst:true});
+    });
+
+    function applyTimeline(ms, {focusFirst}={}){
+      const activeIds = [];
+      const outOfBandOpacity = 0.35;
+
+      for (const e of state.events){
+        const inBand = (ms >= (e.dateMs - state.bandMs)) && (ms <= (e.endMs + state.bandMs));
+        const mk = state.markerById.get(e.id);
+        if (!mk) continue;
+        for (const m of [mk.m3D, mk.m2D]){
+          if (!m) continue;
+          m.material.opacity = inBand ? 1.0 : outOfBandOpacity;
+          m.material.transparent = !inBand;
+          m.scale.setScalar(inBand ? 1.2 : 0.9);
+          m.material.emissiveIntensity = inBand ? 0.8 : 0.25;
+        }
+        if (inBand) activeIds.push(e.id);
+      }
+
+      renderEventCards(activeIds, ms);
+
+      if (focusFirst && activeIds.length){
+        // Focus on the closest event by time
+        const closest = activeIds.map(id => state.eventsById.get(id))
+          .sort((a,b)=>Math.abs(a.dateMs-ms)-Math.abs(b.dateMs-ms))[0];
+        flyTo(closest.lat, closest.lon);
+      }
+    }
+
+    function renderEventCards(ids, ms){
+      detailsWrap.innerHTML = '';
+      const evts = ids.map(id=>state.eventsById.get(id))
+                      .sort((a,b)=>a.dateMs-b.dateMs);
+      summaryH2.textContent = `${evts.length} event${evts.length!==1?'s':''} highlighted — ${fmtDate(ms)}`;
+
+      for (const e of evts){
+        const el = document.createElement('article');
+        el.className = 'card';
+        el.innerHTML = `
+          <h3>${e.title}</h3>
+          <div class="meta">
+            <span class="pill">${fmtDate(e.dateMs)}${(e.endMs && e.endMs !== e.dateMs) ? ' — '+fmtDate(e.endMs):''}</span>
+            <span class="pill">${e.country || 'Lat '+e.lat.toFixed(2)+', Lon '+e.lon.toFixed(2)}</span>
+          </div>
+          <p>${e.description || ''}</p>
+          <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+            <button class="btn" data-action="focus">Focus</button>
+            <button class="btn" data-action="highlight">Highlight</button>
+          </div>
+        `;
+        el.querySelector('[data-action="focus"]').addEventListener('click', ()=>{
+          selectEvent(e.id, {fly:true});
+        });
+        el.querySelector('[data-action="highlight"]').addEventListener('click', ()=>{
+          highlightEvent(e.id);
+        });
+        detailsWrap.appendChild(el);
+      }
+    }
+
+    function selectEvent(id, {fly}={}){
+      highlightEvent(id);
+      if (fly){
+        const e = state.eventsById.get(id);
+        if (e) flyTo(e.lat, e.lon);
+      }
+    }
+
+    function highlightEvent(id){
+      for (const [eid, mk] of state.markerById.entries()){
+        const on = eid === id;
+        for (const m of [mk.m3D, mk.m2D]){
+          m.material.emissiveIntensity = on ? 1.2 : 0.3;
+          m.scale.setScalar(on ? 1.7 : 1.0);
+        }
+      }
+      // Also nudge timeline to this event's date
+      const e = state.eventsById.get(id);
+      if (e){
+        tl.value = String(e.dateMs);
+        currentLbl.textContent = fmtDate(e.dateMs);
+        applyTimeline(e.dateMs, {focusFirst:false});
+      }
+    }
+
+    // ---------- Camera moves ----------
+    function is3D(){ return groupGlobe.visible; }
+
+    function flyTo(lat, lon){
+      if (is3D()){
+        // Place camera above target point on orbit and look at center
+        const targetPos = llToVector3(lat, lon, R);
+        const camDist = controls3D.getDistance ? controls3D.getDistance() : 2.4;
+        const camPos = llToVector3(lat, lon, Math.max(1.4, camDist));
+        // animate a short tween
+        animateCamera(camera3D.position.clone(), camPos, 600, (v)=>{
+          camera3D.position.copy(v);
+          camera3D.lookAt(0,0,0);
+          controls3D.update();
+        });
+        // small ping
+        addPing(targetPos.clone().multiplyScalar(1.001), true);
+      } else {
+        // 2D: pan target to this XY position
+        const p = llToPlane(lat, lon);
+        const t0 = new THREE.Vector3(controls2D.target.x, controls2D.target.y, controls2D.target.z);
+        const t1 = new THREE.Vector3(p.x, p.y, 0);
+        animateCamera(t0, t1, 500, (v)=>{
+          controls2D.target.copy(v);
+          camera2D.position.z = 3;
+          controls2D.update();
+        });
+        addPing(p, false);
+      }
+    }
+
+    function animateCamera(fromV, toV, dur, onUpdate){
+      const start = performance.now();
+      function step(now){
+        const t = clamp((now - start)/dur, 0, 1);
+        const k = t<.5 ? 2*t*t : -1+(4-2*t)*t; // easeInOutQuad
+        const v = fromV.clone().lerp(toV, k);
+        onUpdate(v);
+        if (t<1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // ---------- Play/Pause ----------
+    playBtn.addEventListener('click', togglePlay);
+    document.addEventListener('keydown', (e)=>{
+      if (e.code === 'Space'){ e.preventDefault(); togglePlay(); }
+      if (e.key === '1'){ setMode2D(); }
+      if (e.key === '2'){ setMode3D(); }
+    });
+    function togglePlay(){
+      state.playing = !state.playing;
+      playBtn.textContent = state.playing ? '⏸ Pause' : '▶ Play';
+      state.lastTick = performance.now();
+    }
+
+    // ---------- 2D / 3D Toggle ----------
+    btn2D.addEventListener('click', setMode2D);
+    btn3D.addEventListener('click', setMode3D);
+
+    function setMode2D(){
+      groupMap.visible = true;
+      groupGlobe.visible = false;
+      btn2D.classList.add('active'); btn3D.classList.remove('active');
+      btn2D.setAttribute('aria-selected','true'); btn3D.setAttribute('aria-selected','false');
+      activeCamera = camera2D; activeControls = controls2D;
+      // Reset to true top-down view, origin centered, and zero rotation
+      controls2D.reset();
+      controls2D.enableRotate = false;
+      controls2D.target.set(0,0,0);
+      camera2D.position.set(0,0,3);
+      camera2D.up.set(0,1,0);
+      camera2D.lookAt(0,0,0);
+      controls2D.update();
+      renderer.setAnimationLoop(loop);
+    }
+    function setMode3D(){
+      groupMap.visible = false;
+      groupGlobe.visible = true;
+      btn3D.classList.add('active'); btn2D.classList.remove('active');
+      btn3D.setAttribute('aria-selected','true'); btn2D.setAttribute('aria-selected','false');
+      activeCamera = camera3D; activeControls = controls3D;
+      renderer.setAnimationLoop(loop);
+    }
+
+    // ---------- Loading external JSON via file input ----------
+    fileInput.addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if (!file) return;
+      try{
+        const text = await file.text();
+        const json = JSON.parse(text);
+        setEvents(json);
+      }catch(err){
+        alert('Failed to parse JSON: ' + err.message);
+      }
+    });
+
+    // ---------- Resize ----------
+    window.addEventListener('resize', onResize);
+    function onResize(){
+      const w = mapEl.clientWidth, h = mapEl.clientHeight;
+      renderer.setSize(w, h);
+      camera3D.aspect = w/h; camera3D.updateProjectionMatrix();
+
+      const aspect = w/h;
+      const frustum = frustumSize;
+      camera2D.left = -frustum*aspect/2;
+      camera2D.right = frustum*aspect/2;
+      camera2D.top = frustum/2;
+      camera2D.bottom = -frustum/2;
+      camera2D.updateProjectionMatrix();
+    }
+
+    // ---------- Render loop ----------
+    function loop(now){
+      // timeline autoplay
+      if (state.playing){
+        const dt = (now - state.lastTick) || 16;
+        state.lastTick = now;
+        const speed = Math.max(1, (state.maxTime - state.minTime) / (1000*60*20)); // ~20s from min->max
+        let v = +tl.value + dt*speed;
+        if (v > state.maxTime) v = state.minTime;
+        tl.value = String(v);
+        currentLbl.textContent = fmtDate(v);
+        applyTimeline(v, {focusFirst:false});
+      }
+
+      // ping effects
+      for (let i=pings.length-1; i>=0; i--){
+        const ring = pings[i];
+        const age = (now - ring.userData.birth) / 1000; // seconds
+        const s = 1 + age*2;
+        ring.scale.setScalar(s);
+        ring.material.opacity = Math.max(0, 0.9 - age*0.9);
+        if (age > 1){
+          scene.remove(ring);
+          ring.geometry.dispose();
+          ring.material.dispose();
+          pings.splice(i,1);
+        }
+      }
+
+      activeControls.update();
+      renderer.render(scene, activeCamera);
+    }
+
+    // ---------- Public API ----------
+    window.timelineMap = {
+      /**
+       * Replace events completely.
+       * @param {{events: Array<{id?:string, title:string, date?:string, start?:string, end?:string, lat:number, lon:number, country?:string, description?:string, color?:string}>}} json
+       */
+      setEvents: (json)=> setEvents(json),
+      /**
+       * Highlight (and optionally fly to) an event by id.
+       */
+      highlightEvent: (id, opts={fly:true}) => selectEvent(id, opts),
+      /**
+       * Select a date on the timeline (number ms or ISO string).
+       */
+      selectDate: (t) => {
+        const ms = (typeof t === 'number') ? t : Date.parse(t);
+        tl.value = String(ms);
+        currentLbl.textContent = fmtDate(ms);
+        applyTimeline(ms, {focusFirst:false});
+      },
+      /**
+       * Fly camera to a coordinate.
+       */
+      flyTo: (lat, lon) => flyTo(lat, lon),
+      /**
+       * Toggle view mode: "2d" | "3d"
+       */
+      setMode: (mode) => mode==='3d' ? setMode3D() : setMode2D(),
+      /**
+       * Access current events (normalized)
+       */
+      getEvents: ()=> [...state.events]
+    };
+
+    // ---------- Bootstrap ----------
+    setEvents(sample);
+    setMode2D();   // default: 2D
+    // Build and apply a realistic world map texture, then start loop
+    buildAndApplyMapTexture().catch(console.error).finally(()=>{
+      renderer.setAnimationLoop(loop);
+    });
+  </script>
+</body>
+</html>
