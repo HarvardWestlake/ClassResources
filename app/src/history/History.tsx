@@ -1,28 +1,50 @@
+import { Link } from 'react-router-dom'
+
 export default function History() {
   return (
-    <div className="container">
-      <h1>History of Chocolate</h1>
-      <div className="panel" style={{ textAlign: 'left' }}>
-        <p>
-          Chocolate traces its origins to the ancient civilizations of Mesoamerica, where
-          cacao trees were first cultivated. The Olmec, Maya, and Aztec peoples consumed
-          cacao as a bitter beverage, often flavored with spices and used in rituals and
-          trade. Cacao beans were so valued that they were even used as currency by the Aztecs.
-        </p>
-        <p>
-          In the 16th century, cacao was brought to Europe by Spanish explorers. Over time,
-          sugar and milk were added to the drink, and technological advances in the 18th and
-          19th centuries—such as the cocoa press and conching—transformed chocolate into the
-          solid forms we know today. By the 20th century, chocolate had become a global
-          confectionery staple, with diverse styles from dark bars to milk chocolate and pralines.
-        </p>
-        <p>
-          Today, chocolate is both a beloved treat and a focus of ethical sourcing and
-          sustainability efforts. From bean to bar, its story connects agriculture, culture,
-          technology, and global trade.
-        </p>
+    <main className="page">
+      <div className="container widgets-page">
+        <h1 className="h1">History</h1>
+
+        <div className="widgets-grid">
+          <Link className="widget-card" to="/history/world">
+            <div className="title-row">
+              <h3>3D World — Select Countries</h3>
+              <div className="function">In‑app 3D globe with selectable countries</div>
+            </div>
+            <p>Explore a fully interactive 3D world. Click countries to select them; list updates live.</p>
+            <span className="button">Open In‑App</span>
+          </Link>
+
+          <a className="widget-card" href="/static/history/widgets/chocolate-history/chocolate-history.html">
+            <div className="title-row">
+              <h3>Chocolate: A Global History</h3>
+              <div className="function">Origins → Columbian Exchange → Industry → Globalization</div>
+            </div>
+            <p>Explore cacao's journey from Mesoamerican ritual drink to a global commodity. Switch between comprehensive, formative, and animated map views.</p>
+            <span className="button">Launch Widget</span>
+          </a>
+
+          <a className="widget-card" href="/static/history/widgets/chocolate-history/timeline-map.html">
+            <div className="title-row">
+              <h3>Chocolate: Timeline Map</h3>
+              <div className="function">Scroll the timeline to highlight places worldwide</div>
+            </div>
+            <p>Interactive world map with a scroll-driven timeline. Includes Ecuador (c. 3300 BCE), Manila (1670), and the Netherlands (1828). Add your own countries or coordinates.</p>
+            <span className="button">Open Timeline Map</span>
+          </a>
+
+          <a className="widget-card" href="/static/history/widgets/history-map/history-map.html">
+            <div className="title-row">
+              <h3>World Timeline — 2D/3D Map</h3>
+              <div className="function">Switch between 2D map and 3D globe with a time slider</div>
+            </div>
+            <p>Explore global events on a labeled world map with borders. Toggle between flat and globe views, highlight events over time, and fly to locations.</p>
+            <span className="button">Open 2D/3D Map</span>
+          </a>
+        </div>
       </div>
-    </div>
+    </main>
   )
 }
 

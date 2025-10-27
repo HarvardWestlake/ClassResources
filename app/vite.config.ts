@@ -40,6 +40,15 @@ function serveExternalPublicStatic() {
 export default defineConfig({
   base: '/',
   plugins: [react(), serveExternalPublicStatic()],
+  resolve: {
+    alias: {
+      three: path.resolve(here, 'node_modules/three')
+    },
+    dedupe: ['three']
+  },
+  optimizeDeps: {
+    include: ['three', 'three/webgpu', 'three/tsl', 'globe.gl', 'three-globe', 'three-render-objects']
+  },
   build: {
     outDir: '../public',
     emptyOutDir: false,
