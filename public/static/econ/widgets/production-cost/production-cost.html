@@ -456,6 +456,10 @@ input[type="password"]:focus, select:focus, textarea:focus {
             <label for="k">Coordination friction k (affects peak L*) <span class="muted" id="kVal"></span></label>
             <input type="range" id="k" min="0.02" max="0.5" step="0.01" value="0.08" />
           </div>
+          <div class="control">
+            <label for="c">Congestion drag c (eventual fall in Q) <span class="muted" id="cVal"></span></label>
+            <input type="range" id="c" min="0" max="0.06" step="0.002" value="0.02" />
+          </div>
         </div>
 
         <div class="panel controls">
@@ -497,7 +501,7 @@ input[type="password"]:focus, select:focus, textarea:focus {
         <canvas id="productionCanvas" aria-label="Production function chart"></canvas>
         <canvas id="costCanvas" aria-label="Cost function chart" style="display:none;"></canvas>
         <div id="linkedHint" class="alert alert-info" style="display:none;">
-          <strong>Linked view:</strong> Drag the Labor slider or click an event. The vertical line on the Production chart maps to the dot on the Cost chart using <em>MC = w/MPL</em>. The minimum of MC occurs exactly where MPL peaks (at L* = 1/k).
+          <strong>Linked view:</strong> Drag the Labor slider or click an event. The vertical line on the Production chart maps to the dot on the Cost chart using <em>MC = w/MPL</em>. The minimum of MC occurs near the peak of MPL.
         </div>
 
         <div class="info">
@@ -1052,14 +1056,20 @@ function setExplanation(){
   const title = el('explainTitle');
   const body = el('explainBody');
   const P = state.params;
-  const Lstar = 1 / P.k;
+  // Estimate peak L* numerically due to congestion term
+  let Lstar = 0, best = -Infinity;
+  for (let Ls=0; Ls<=P.Lmax; Ls+=0.1){
+    const m = MPL(Ls, P.a, P.b, P.k, P.c);
+    if (m > best){ best = m; Lstar = Ls; }
+  }
 
   if (state.mode === 'tech'){
     title.textContent = 'Technical view';
     body.innerHTML = `
-      <p><strong>Production (Phase 1):</strong> We posit a smooth labor‑only production technology with a hump‑shaped marginal product:
-      <code>MPL(L) = a + b·L·e^{-kL}</code>. This yields a total product
-      <code>Q(L) = aL + b [ 1/k² − e^{-kL}(L/k + 1/k²) ]</code>. MPL increases for small L (team specialization), peaks at <code>L* = 1/k</code>, and then declines (coordination limits).</p>
+      <p><strong>Production (Phase 1):</strong> We posit a labor‑only production technology with teamwork gains at first and congestion later:
+      <code>MPL(L) = a + b·L·e^{-kL} − cL</code>. This integrates to
+      <code>Q(L) = aL − (c/2)L² + b [ 1/k² − e^{-kL}(L/k + 1/k²) ]</code>.
+      MPL increases for small L, peaks around <code>L* ≈ ${formatNum(Lstar)}</code>, and can turn negative at very high L, causing total product to eventually fall.</p>
       <p><strong>Cost (Phase 2):</strong> With wage <code>w</code> and fixed cost <code>F</code>, total cost is <code>C(L) = F + wL</code>.
       The cost–output curve is drawn parametrically as <code>(Q(L), C(L))</code>.
       The key duality is <strong>MC(Q) = w / MPL(L)</strong>. Thus MC falls initially (while MPL rises up to L*) and rises thereafter.</p>
@@ -1092,9 +1102,9 @@ function setExplanation(){
    ============================== */
 function updateReadouts(){
   const P = state.params;
-  const Q = Q_of_L(P.L, P.a, P.b, P.k);
+  const Q = Q_of_L(P.L, P.a, P.b, P.k, P.c);
   const C = C_of_L(P.L, P.w, P.F);
-  const mpl = MPL(P.L, P.a, P.b, P.k);
+  const mpl = MPL(P.L, P.a, P.b, P.k, P.c);
   const mc = MC_from_MPL(mpl, P.w);
   const ac = AC(C, Q);
   const pi = TR_of_Q(Q, P.p) - C;
@@ -1107,7 +1117,13 @@ function updateReadouts(){
   el('readAC').textContent = isFinite(ac) ? `$${formatNum(ac)} per unit` : '—';
   el('readP').textContent = `$${formatNum(P.p)} per unit`;
   el('readPi').textContent = isFinite(pi) ? `$${formatNum(pi)}` : '—';
-  el('readLStar').textContent = `${formatNum(1/P.k)}`;
+  // Recompute L* for readout
+  let Lstar = 0, best = -Infinity;
+  for (let Ls=0; Ls<=P.Lmax; Ls+=0.1){
+    const m = MPL(Ls, P.a, P.b, P.k, P.c);
+    if (m > best){ best = m; Lstar = Ls; }
+  }
+  el('readLStar').textContent = `${formatNum(Lstar)}`;
 }
 
 /* ==============================
