@@ -1,0 +1,1146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Interactive Production & Cost Demo</title>
+<style>
+/* === Your stylesheet (verbatim) === */
+/* Common styles for all widgets */
+body {
+  font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  color: #E60000;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.back-link:hover {
+  color: #cc0000;
+  text-decoration: underline;
+}
+
+h1 {
+  color: #000000;
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.controls-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+}
+
+.control.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control label {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+  color: #000000;
+  font-size: 0.9rem;
+}
+
+.control input[type="range"] {
+  width: 100%;
+  margin: 0.15rem 0;
+  -webkit-appearance: none;
+  background: #f8f9fa;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #E60000;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.control input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.control input[type="checkbox"] {
+  margin: 0;
+}
+
+.legend,
+.info {
+  font-size: 0.9rem;
+  background: #f8f9fa;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.legend {
+  margin-bottom: 0;
+  display: inline-block;
+}
+
+.legend h3,
+.info h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #000000;
+  font-weight: 600;
+}
+
+.legend p,
+.info p {
+  margin: 0.1rem 0;
+  color: #000000;
+}
+
+.swatch {
+  display: inline-block;
+  width: 24px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.swatch.parent { background: #666; }
+.swatch.trans { background: #E60000; }
+.swatch.axis { background: #F0B800; }
+.swatch.asymptote { background: #F0B800; }
+
+.chartarea {
+  flex: 1 1 400px;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+canvas {
+  max-width: 100%;
+  height: 300px;
+}
+
+/* Common styles for action buttons within widgets */
+.widget-action-button {
+  display: inline-block; 
+  padding: 0.65rem 1rem; 
+  background: #E60000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem; 
+  min-width: 120px; 
+  line-height: 1.2; 
+}
+
+.widget-action-button:hover {
+  background: #cc0000;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.widget-action-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  body {
+    padding: 0.25rem;
+  }
+  .container {
+    padding: 0.5rem;
+  }
+  .controls-container {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex: 1 1 100%;
+    align-items: center;
+    order: 1;
+  }
+  .chartarea {
+    order: 2;
+    padding: 0.5rem;
+    width: calc(100% - 1rem);
+    margin: 0 auto;
+  }
+  .controls {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+  }
+  .info {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+    margin-bottom: 0.5rem;
+  }
+  .legend {
+    width: calc(100% - 1rem);
+    max-width: 500px;
+    margin-top: 0.5rem;
+    order: 3;
+    text-align: left;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+  canvas {
+    height: 250px;
+  }
+} 
+
+/* === Shared UI Components (App-wide) === */
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1rem;
+  background: #E60000;
+  color: #fff;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+.btn:hover {
+  background: #cc0000;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(230,0,0,0.2);
+}
+.btn:disabled {
+  background: #ccc;
+  border-color: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.btn-outline {
+  background: transparent;
+  color: #E60000;
+  border-color: #E60000;
+}
+.btn-outline:hover {
+  background: #E60000;
+  color: #fff;
+}
+.btn-link {
+  background: transparent;
+  color: #E60000;
+  border: none;
+  padding: 0;
+}
+.btn-link:hover {
+  text-decoration: underline;
+  transform: none;
+  box-shadow: none;
+}
+.btn-sm { padding: 0.35rem 0.7rem; font-size: 0.9rem; }
+.btn-lg { padding: 0.75rem 1.25rem; font-size: 1.05rem; }
+.btn-block { width: 100%; }
+
+/* Panels */
+.panel {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.badge-primary { background: #E60000; color: #fff; }
+.badge-neutral { background: #e9ecef; color: #000; }
+.badge-accent { background: #F0B800; color: #000; }
+
+/* Alerts */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+  border-left: 4px solid transparent;
+}
+.alert-info { background: #e7f3ff; color: #084298; border-left-color: #0d6efd; }
+.alert-success { background: #e6f4ea; color: #0f5132; border-left-color: #198754; }
+.alert-warning { background: #fff4e5; color: #664d03; border-left-color: #f6c343; }
+.alert-danger { background: #fdecea; color: #842029; border-left-color: #dc3545; }
+
+/* Forms */
+.input, .select, .textarea,
+input[type="text"], input[type="number"], input[type="email"],
+input[type="password"], select, textarea {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #fff;
+  color: #000;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+}
+.input:focus, .select:focus, .textarea:focus,
+input[type="text"]:focus, input[type="number"]:focus, input[type="email"]:focus,
+input[type="password"]:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #E60000;
+  box-shadow: 0 0 0 3px rgba(230,0,0,0.12);
+}
+.is-invalid { border-color: #dc3545 !important; }
+.helper-text { color: #6c757d; font-size: 0.85rem; }
+.error-text { color: #dc3545; font-size: 0.85rem; }
+
+/* Tables */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.table th, .table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f3f5;
+}
+.table thead th { background: #f8f9fa; font-weight: 600; }
+.table tbody tr:nth-child(even) { background: #fcfcfc; }
+.table-sm th, .table-sm td { padding: 0.4rem 0.5rem; }
+
+/* Layout Utilities */
+.grid { display: grid; gap: 0.75rem; }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.center { display: grid; place-items: center; }
+.spacer { height: 1rem; }
+.divider { border-top: 1px solid #e9ecef; margin: 0.75rem 0; }
+.muted { color: #6c757d; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Production Function ↔ Cost Function — Interactive Demo</h1>
+
+    <!-- Phase controls -->
+    <div class="panel" role="group" aria-label="Chart phase selection" style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
+      <button id="btnPhaseProduction" class="btn btn-outline btn-sm">Phase 1: Production (Q vs L)</button>
+      <button id="btnPhaseCost" class="btn btn-outline btn-sm">Phase 2: Cost (C vs Q)</button>
+      <button id="btnPhaseLinked" class="btn btn-outline btn-sm" title="Show both charts together with a live mapping">Linked View (clever bridge)</button>
+    </div>
+
+    <div class="controls-container">
+      <!-- Sidebar: controls -->
+      <aside class="sidebar">
+        <div class="panel">
+          <div class="control inline" style="gap:0.35rem; flex-wrap:wrap;">
+            <span class="badge badge-neutral">Explanation Mode:</span>
+            <button id="btnModeTech" class="btn btn-sm btn-outline">Technical</button>
+            <button id="btnModeSimple" class="btn btn-sm btn-outline">Simple</button>
+            <button id="btnModeAnimated" class="btn btn-sm btn-outline">Animated</button>
+          </div>
+          <div id="animatedToolbar" class="grid grid-2" style="display:none; margin-top:0.5rem;">
+            <button class="btn btn-sm" data-ev="hire5">Hire +5 workers</button>
+            <button class="btn btn-sm" data-ev="layoff5">Lay off −5</button>
+            <button class="btn btn-sm" data-ev="train">Training boost</button>
+            <button class="btn btn-sm" data-ev="wageUp">Wage ↑</button>
+            <button class="btn btn-sm" data-ev="machine">New machine (F ↑)</button>
+            <button class="btn btn-sm" data-ev="priceUp">Price ↑</button>
+          </div>
+        </div>
+
+        <div class="panel controls">
+          <div class="control">
+            <label for="labor">Labor (L) <span class="muted" id="laborVal"></span></label>
+            <input type="range" id="labor" min="0" max="80" step="1" value="12" />
+          </div>
+          <div class="control">
+            <label for="dL">ΔL (marginal change, workers) <span class="muted" id="dLVal"></span></label>
+            <input type="range" id="dL" min="0.1" max="5" step="0.1" value="1" />
+          </div>
+          <div class="control">
+            <label for="a">Base productivity a (MPL baseline) <span class="muted" id="aVal"></span></label>
+            <input type="range" id="a" min="0.2" max="3" step="0.05" value="0.8" />
+          </div>
+          <div class="control">
+            <label for="b">Teamwork boost b (MPL hump) <span class="muted" id="bVal"></span></label>
+            <input type="range" id="b" min="0" max="6" step="0.1" value="2.2" />
+          </div>
+          <div class="control">
+            <label for="k">Coordination friction k (affects peak L*) <span class="muted" id="kVal"></span></label>
+            <input type="range" id="k" min="0.02" max="0.5" step="0.01" value="0.08" />
+          </div>
+        </div>
+
+        <div class="panel controls">
+          <div class="control">
+            <label for="wage">Wage per worker w ($) <span class="muted" id="wageVal"></span></label>
+            <input type="range" id="wage" min="5" max="80" step="1" value="22" />
+          </div>
+          <div class="control">
+            <label for="fixed">Fixed cost F ($) <span class="muted" id="fixedVal"></span></label>
+            <input type="range" id="fixed" min="0" max="600" step="10" value="120" />
+          </div>
+          <div class="control">
+            <label for="price">Price per unit p ($) <span class="muted" id="priceVal"></span></label>
+            <input type="range" id="price" min="5" max="120" step="1" value="45" />
+          </div>
+          <div class="control inline">
+            <input type="checkbox" id="linkToggle" checked />
+            <label for="linkToggle" style="margin:0;">Link charts (show MC = w/MPL bridge)</label>
+          </div>
+          <div class="control inline">
+            <input type="checkbox" id="showRightAxis" checked />
+            <label for="showRightAxis" style="margin:0;">In Cost view: show per‑unit (MC, AC, p) on right axis</label>
+          </div>
+          <div class="control">
+            <button id="btnReset" class="btn btn-sm btn-outline btn-block">Reset to defaults</button>
+          </div>
+        </div>
+
+        <div class="legend">
+          <h3>Legend</h3>
+          <p><span class="swatch parent"></span>Primary curve (Total Product or Total Cost)</p>
+          <p><span class="swatch trans"></span>Marginal concepts (MPL segment, MC/AC curves)</p>
+          <p><span class="swatch axis"></span>Axes, guide lines, and optimum markers</p>
+        </div>
+      </aside>
+
+      <!-- Charts -->
+      <section class="chartarea" style="display:flex; flex-direction:column; gap:0.5rem;">
+        <canvas id="productionCanvas" aria-label="Production function chart"></canvas>
+        <canvas id="costCanvas" aria-label="Cost function chart" style="display:none;"></canvas>
+        <div id="linkedHint" class="alert alert-info" style="display:none;">
+          <strong>Linked view:</strong> Drag the Labor slider or click an event. The vertical line on the Production chart maps to the dot on the Cost chart using <em>MC = w/MPL</em>. The minimum of MC occurs exactly where MPL peaks (at L* = 1/k).
+        </div>
+
+        <div class="info">
+          <h3 id="explainTitle">What you’re seeing</h3>
+          <div id="explainBody"></div>
+          <div class="divider"></div>
+          <div class="grid grid-3">
+            <div><strong>Current L:</strong> <span id="readL">–</span></div>
+            <div><strong>Output Q(L):</strong> <span id="readQ">–</span></div>
+            <div><strong>Cost C(L):</strong> <span id="readC">–</span></div>
+            <div><strong>MPL(L):</strong> <span id="readMPL">–</span></div>
+            <div><strong>MC at Q:</strong> <span id="readMC">–</span></div>
+            <div><strong>AC at Q:</strong> <span id="readAC">–</span></div>
+            <div><strong>Price p:</strong> <span id="readP">–</span></div>
+            <div><strong>Profit π(L):</strong> <span id="readPi">–</span></div>
+            <div><strong>Peak MPL at L*:</strong> <span id="readLStar">–</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+/* ==============================
+   Model & math helpers
+   ============================== */
+
+/**
+ * We build a smooth, S-shaped Total Product of Labor (TPL) by specifying MPL directly:
+ *   MPL(L) = a + b * L * exp(-k L)
+ * This rises at first (specialization) then falls (congestion). Q(L) is the integral of MPL.
+ *
+ * From calculus:
+ * ∫ L e^{-kL} dL = -e^{-kL} (L/k + 1/k^2) + C
+ * So with Q(0) = 0, we get:
+ * Q(L) = a L + b [ 1/k^2 - e^{-kL} (L/k + 1/k^2) ]
+ */
+function MPL(L, a, b, k, c) {
+  // Marginal product includes a congestion drag term (−c·L) so MPL can become negative at high L
+  return a + b * L * Math.exp(-k * L) - c * L;
+}
+function Q_of_L(L, a, b, k, c) {
+  // Integral of MPL from 0 to L: aL − (c/2)L^2 + b[ 1/k^2 − e^{−kL}(L/k + 1/k^2) ]
+  const e = Math.exp(-k * L);
+  return a * L - 0.5 * c * L * L + b * ( (1/(k*k)) - e * (L / k + 1/(k*k)) );
+}
+function C_of_L(L, w, F) {
+  return F + w * L; // variable cost = wL, fixed cost = F
+}
+function TR_of_Q(Q, p) { return p * Q; }
+function MC_from_MPL(mpl, w) { return w / Math.max(mpl, 1e-9); } // avoid div by 0
+function AC(C, Q) { return Q > 0 ? C / Q : NaN; }
+
+function clamp(x, lo, hi){ return Math.min(hi, Math.max(lo, x)); }
+
+const state = {
+  phase: 'production',        // 'production' | 'cost' | 'linked'
+  mode: 'tech',               // 'tech' | 'simple' | 'animated'
+  params: {
+    L: 12, dL: 1,
+    a: 0.8, b: 2.2, k: 0.08, c: 0.02,  // production shape (c = congestion drag)
+    w: 22, F: 120, p: 45,     // cost & price
+    Lmax: 80
+  },
+  flags: {
+    linkCharts: true,
+    showRightAxis: true
+  }
+};
+
+/* ==============================
+   DOM helpers & wiring
+   ============================== */
+const el = (id) => document.getElementById(id);
+
+const productionCanvas = el('productionCanvas');
+const costCanvas = el('costCanvas');
+const ctxP = productionCanvas.getContext('2d');
+const ctxC = costCanvas.getContext('2d');
+
+function setActiveButton(btn, group){
+  group.forEach(b => b.classList.remove('badge-primary'));
+  btn.classList.add('badge-primary');
+}
+function setOutlineActive(btn, group){
+  group.forEach(b => b.classList.remove('btn'));
+  group.forEach(b => b.classList.add('btn-outline'));
+  btn.classList.remove('btn-outline');
+  btn.classList.add('btn');
+}
+
+function formatNum(x){
+  if (!isFinite(x)) return '—';
+  const abs = Math.abs(x);
+  const opts = abs >= 1000 ? {maximumFractionDigits: 0} :
+               abs >= 100 ? {maximumFractionDigits: 1} :
+               {maximumFractionDigits: 2};
+  return x.toLocaleString(undefined, opts);
+}
+
+/* ==============================
+   UI: Sliders, buttons, events
+   ============================== */
+function wireControls(){
+  // Phase buttons
+  const phaseBtns = [el('btnPhaseProduction'), el('btnPhaseCost'), el('btnPhaseLinked')];
+  phaseBtns.forEach((b, i) => b.addEventListener('click', () => {
+    state.phase = (i===0?'production':(i===1?'cost':'linked'));
+    updatePhaseVisibility();
+    drawAll();
+  }));
+
+  // Mode buttons
+  const modeBtns = [el('btnModeTech'), el('btnModeSimple'), el('btnModeAnimated')];
+  modeBtns.forEach((b, i) => b.addEventListener('click', () => {
+    state.mode = (i===0?'tech':(i===1?'simple':'animated'));
+    updateModeUI();
+    drawAll();
+  }));
+
+  // Animated toolbar events
+  el('animatedToolbar').querySelectorAll('button[data-ev]').forEach(btn => {
+    btn.addEventListener('click', () => runEvent(btn.getAttribute('data-ev')));
+  });
+
+  // Sliders
+  const bind = (id, key, fmt=(v)=>v) => {
+    const inp = el(id);
+    const lab = el(id + 'Val');
+    const update = () => {
+      state.params[key] = parseFloat(inp.value);
+      lab.textContent = `= ${fmt(state.params[key])}`;
+      drawAll();
+    };
+    inp.addEventListener('input', update);
+    update();
+  };
+
+  bind('labor', 'L', v => v.toFixed(0) + ' workers');
+  bind('dL', 'dL', v => v.toFixed(1));
+  bind('a', 'a', v => v.toFixed(2));
+  bind('b', 'b', v => v.toFixed(2));
+  bind('k', 'k', v => v.toFixed(2));
+  bind('c', 'c', v => v.toFixed(3));
+  bind('wage', 'w', v => `$${v.toFixed(0)}`);
+  bind('fixed', 'F', v => `$${v.toFixed(0)}`);
+  bind('price', 'p', v => `$${v.toFixed(0)}`);
+
+  // Toggles
+  el('linkToggle').addEventListener('change', () => { state.flags.linkCharts = el('linkToggle').checked; drawAll(); });
+  el('showRightAxis').addEventListener('change', () => { state.flags.showRightAxis = el('showRightAxis').checked; drawAll(); });
+
+  // Reset
+  el('btnReset').addEventListener('click', () => {
+    Object.assign(state.params, { L:12, dL:1, a:0.8, b:2.2, k:0.08, c:0.02, w:22, F:120, p:45 });
+    ['labor','dL','a','b','k','c','wage','fixed','price'].forEach(id => el(id).value = state.params[id==='wage'?'w':(id==='fixed'?'F':(id==='price'?'p':id))]);
+    // force refresh labels
+    ['labor','dL','a','b','k','c','wage','fixed','price'].forEach(id => el(id).dispatchEvent(new Event('input')));
+    drawAll();
+  });
+
+  // Resize
+  window.addEventListener('resize', () => {
+    fitCanvas(productionCanvas);
+    fitCanvas(costCanvas);
+    drawAll();
+  });
+
+  updatePhaseVisibility();
+  updateModeUI();
+}
+
+function updatePhaseVisibility(){
+  const p = state.phase;
+  productionCanvas.style.display = (p === 'production' || p === 'linked') ? 'block' : 'none';
+  costCanvas.style.display       = (p === 'cost'       || p === 'linked') ? 'block' : 'none';
+  el('linkedHint').style.display = (p === 'linked') ? 'block' : 'none';
+
+  // Phase button styling
+  const buttons = [el('btnPhaseProduction'), el('btnPhaseCost'), el('btnPhaseLinked')];
+  setOutlineActive((p==='production'?buttons[0]:(p==='cost'?buttons[1]:buttons[2])), buttons);
+}
+
+function updateModeUI(){
+  const showAnim = (state.mode === 'animated');
+  el('animatedToolbar').style.display = showAnim ? 'grid' : 'none';
+
+  // Mode button styling
+  const buttons = [el('btnModeTech'), el('btnModeSimple'), el('btnModeAnimated')];
+  setOutlineActive((state.mode==='tech'?buttons[0]:(state.mode==='simple'?buttons[1]:buttons[2])), buttons);
+
+  // Explanation text
+  setExplanation();
+}
+
+/* ==============================
+   Animation: Market events
+   ============================== */
+function animateParam(key, to, ms=800){
+  const from = state.params[key];
+  const steps = Math.max(12, Math.floor(ms/16));
+  let t = 0;
+  const tick = () => {
+    t++;
+    const u = (1 - Math.cos(Math.PI * Math.min(1, t/steps))) / 2; // smoothstep
+    state.params[key] = from + u * (to - from);
+    drawAll();
+    if (t < steps) requestAnimationFrame(tick);
+    else { state.params[key] = to; drawAll(); }
+  };
+  requestAnimationFrame(tick);
+}
+
+function runEvent(ev){
+  const P = state.params;
+  if (ev === 'hire5') animateParam('L', clamp(P.L + 5, 0, P.Lmax));
+  if (ev === 'layoff5') animateParam('L', clamp(P.L - 5, 0, P.Lmax));
+  if (ev === 'wageUp') animateParam('w', clamp(P.w * 1.25, 5, 120));
+  if (ev === 'priceUp') animateParam('p', clamp(P.p * 1.2, 5, 200));
+  if (ev === 'machine') animateParam('F', clamp(P.F + 80, 0, 1000));
+  if (ev === 'train'){
+    animateParam('b', clamp(P.b * 1.25, 0, 8));
+    animateParam('k', clamp(P.k * 0.9, 0.02, 0.5)); // peak shifts right (higher L* = 1/k)
+  }
+}
+
+/* ==============================
+   Canvas drawing
+   ============================== */
+function fitCanvas(canvas){
+  // Make canvas crisp on HiDPI displays
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.max(300, Math.floor(rect.width * dpr));
+  canvas.height = Math.max(220, Math.floor(rect.height * dpr));
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
+}
+
+function clear(ctx, canvas){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawAxes(ctx, dims, labels, scales, opts={}){
+  const {x, y, w, h} = dims;
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Axes
+  ctx.strokeStyle = '#F0B800';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(0, h); ctx.lineTo(w, h);
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#000';
+  ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText(labels.x, w - 4 - ctx.measureText(labels.x).width, h + 18);
+  ctx.save();
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText(labels.y, -h + 6, -10);
+  ctx.restore();
+
+  // Ticks
+  ctx.fillStyle = '#000';
+  ctx.textAlign = 'center';
+  const xTicks = 6, yTicks = 6;
+  for (let i=1;i<=xTicks;i++){
+    const t = i/xTicks;
+    const X = t * w;
+    ctx.beginPath();
+    ctx.moveTo(X, h); ctx.lineTo(X, h-4);
+    ctx.strokeStyle = '#F0B800';
+    ctx.stroke();
+    const v = t * scales.xMax;
+    ctx.fillText(formatNum(v), X, h + 14);
+  }
+  ctx.textAlign = 'right';
+  for (let i=1;i<=yTicks;i++){
+    const t = i/yTicks;
+    const Y = h - t * h;
+    ctx.beginPath();
+    ctx.moveTo(0, Y); ctx.lineTo(4, Y);
+    ctx.strokeStyle = '#F0B800';
+    ctx.stroke();
+    const v = t * scales.yMax;
+    ctx.fillText(formatNum(v), -6, Y+4);
+  }
+
+  ctx.restore();
+}
+
+function drawRightAxis(ctx, dims, yMaxRight, label='Per‑unit ($/unit)'){
+  const {x, y, w, h} = dims;
+  ctx.save();
+  ctx.translate(x, y);
+  // Right axis line
+  ctx.strokeStyle = '#F0B800';
+  ctx.beginPath();
+  ctx.moveTo(w, 0); ctx.lineTo(w, h);
+  ctx.stroke();
+
+  // Ticks & labels
+  ctx.fillStyle = '#000';
+  ctx.textAlign = 'left';
+  ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  const ticks = 5;
+  for (let i=1;i<=ticks;i++){
+    const t = i/ticks;
+    const Y = h - t * h;
+    ctx.beginPath();
+    ctx.moveTo(w, Y); ctx.lineTo(w-4, Y);
+    ctx.stroke();
+    const v = t * yMaxRight;
+    ctx.fillText(formatNum(v), w + 6, Y+4);
+  }
+  // Right label
+  ctx.save();
+  ctx.translate(w + 40, h/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText(label, -ctx.measureText(label).width/2, 0);
+  ctx.restore();
+  ctx.restore();
+}
+
+function poly(ctx, pts, color, width=2){
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  for (let i=0;i<pts.length;i++){
+    const [x,y] = pts[i];
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+
+function dot(ctx, x, y, r=3, color='#E60000'){
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function dashed(ctx, x1,y1,x2,y2, color='#F0B800'){
+  ctx.save();
+  ctx.setLineDash([4,4]);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ==============================
+   Chart-specific drawing
+   ============================== */
+function drawProduction(){
+  fitCanvas(productionCanvas);
+  const ctx = ctxP, cv = productionCanvas;
+  clear(ctx, cv);
+
+  const P = state.params;
+  const margin = {l: 46, r: 12, t: 8, b: 28};
+  const dims = {x: margin.l, y: margin.t, w: cv.clientWidth - margin.l - margin.r, h: cv.clientHeight - margin.t - margin.b};
+
+  // Build data
+  const Lmax = P.Lmax;
+  const step = 0.5;
+  let Qmax = 0;
+  for (let L=0; L<=Lmax; L+=step) Qmax = Math.max(Qmax, Q_of_L(L, P.a, P.b, P.k, P.c));
+
+  drawAxes(ctx, dims, getLabels('production'), {xMax: Lmax, yMax: Qmax*1.05});
+
+  // Scale helpers
+  const xOfL = (L) => dims.x + (L / Lmax) * dims.w;
+  const yOfQ = (Q) => dims.y + dims.h - (Q / (Qmax*1.05)) * dims.h;
+
+  // TP curve
+  const pts = [];
+  for (let L=0; L<=Lmax; L+=step){
+    pts.push([ xOfL(L), yOfQ(Q_of_L(L, P.a, P.b, P.k, P.c)) ]);
+  }
+  poly(ctx, pts, '#666', 2);
+
+  // Current point & marginal segment
+  const L = clamp(P.L, 0, Lmax);
+  const Q = Q_of_L(L, P.a, P.b, P.k, P.c);
+  const dL = P.dL;
+  const Q2 = Q_of_L(Math.min(L + dL, Lmax), P.a, P.b, P.k, P.c);
+  const mpl = MPL(L, P.a, P.b, P.k, P.c);
+  const ap = L > 0 ? Q / L : NaN;
+
+  const x = xOfL(L), y = yOfQ(Q);
+  dot(ctx, x, y, 3.2, '#E60000');
+
+  // MPL segment (secant approximation for ΔL)
+  ctx.strokeStyle = '#E60000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(xOfL(L), yOfQ(Q));
+  ctx.lineTo(xOfL(L + dL), yOfQ(Q2));
+  ctx.stroke();
+
+  // AP guide (line from origin to (L,Q))
+  dashed(ctx, xOfL(0), yOfQ(0), x, y, '#E60000');
+
+  // Peak MPL at L* = 1/k
+  // Numerically estimate argmax MPL (peak productivity) since congestion changes closed form
+  let Lstar = 0, best = -Infinity;
+  for (let Ls=0; Ls<=Lmax; Ls+=0.1){
+    const m = MPL(Ls, P.a, P.b, P.k, P.c);
+    if (m > best){ best = m; Lstar = Ls; }
+  }
+  if (Lstar <= Lmax){
+    const xs = xOfL(Lstar);
+    dashed(ctx, xs, dims.y, xs, dims.y + dims.h, '#F0B800');
+  }
+
+  // Optional linked mapping: show MC = w/MPL as a callout
+  if (state.flags.linkCharts){
+    const mc = MC_from_MPL(mpl, P.w);
+    // small text box
+    ctx.fillStyle = 'rgba(230,0,0,0.08)';
+    ctx.fillRect(x-46, y-40, 92, 36);
+    ctx.strokeStyle = '#E60000';
+    ctx.strokeRect(x-46, y-40, 92, 36);
+    ctx.fillStyle = '#000';
+    ctx.font = '12px system-ui';
+    ctx.fillText(`MPL ≈ ${formatNum(mpl)}`, x-40, y-22);
+    ctx.fillText(`MC = w/MPL ≈ ${formatNum(mc)}`, x-40, y-8);
+  }
+}
+
+function drawCost(){
+  fitCanvas(costCanvas);
+  const ctx = ctxC, cv = costCanvas;
+  clear(ctx, cv);
+
+  const P = state.params;
+  const margin = {l: 46, r: state.flags.showRightAxis ? 64 : 12, t: 8, b: 28};
+  const dims = {x: margin.l, y: margin.t, w: cv.clientWidth - margin.l - margin.r, h: cv.clientHeight - margin.t - margin.b};
+
+  // Build data (parametric in L)
+  const Lmax = P.Lmax;
+  const step = 0.5;
+  let Qmax = 0, Cmax = 0;
+  const arr = [];
+  for (let L=0; L<=Lmax; L+=step){
+    const Q = Q_of_L(L, P.a, P.b, P.k, P.c);
+    const C = C_of_L(L, P.w, P.F);
+    arr.push({L,Q,C});
+    Qmax = Math.max(Qmax, Q);
+    Cmax = Math.max(Cmax, C);
+  }
+
+  drawAxes(ctx, dims, getLabels('cost'), {xMax: Qmax*1.05, yMax: Cmax*1.1});
+
+  // Scale helpers
+  const xOfQ = (Q) => dims.x + (Q / (Qmax*1.05)) * dims.w;
+  const yOfC = (C) => dims.y + dims.h - (C / (Cmax*1.1)) * dims.h;
+
+  // Total cost curve (C vs Q)
+  const pts = arr.map(o => [ xOfQ(o.Q), yOfC(o.C) ]);
+  poly(ctx, pts, '#666', 2);
+
+  // TR line (through origin with slope p)
+  const TRend = {Q: Qmax*1.05, C: TR_of_Q(Qmax*1.05, P.p)};
+  poly(ctx, [ [xOfQ(0), yOfC(0)], [xOfQ(TRend.Q), yOfC(TRend.C)] ], '#0B7', 2); // revenue line
+
+  // Per-unit overlays (MC, AC, price) on right axis
+  let yMaxRight = 0;
+  if (state.flags.showRightAxis){
+    const perPtsMC = [], perPtsAC = [];
+    for (let i=0;i<arr.length;i++){
+      const {L,Q} = arr[i];
+      const mpl = MPL(L, P.a, P.b, P.k, P.c);
+      const mc = MC_from_MPL(mpl, P.w);
+      const ac = AC(C_of_L(L,P.w,P.F), Q);
+      yMaxRight = Math.max(yMaxRight, mc, ac, P.p);
+    }
+    yMaxRight = Math.max(1, yMaxRight*1.1);
+    drawRightAxis(ctx, dims, yMaxRight);
+
+    const yR = (v) => dims.y + dims.h - (v / yMaxRight) * dims.h;
+
+    // MC(Q)
+    const mcPts = arr.map(({L,Q}) => [ xOfQ(Q), yR( MC_from_MPL(MPL(L,P.a,P.b,P.k, P.c), P.w) ) ]);
+    poly(ctx, mcPts, '#E60000', 2);
+
+    // AC(Q)
+    const acPts = arr.map(({L,Q}) => [ xOfQ(Q), yR( AC(C_of_L(L,P.w,P.F), Q) ) ]);
+    poly(ctx, acPts, '#AE0000', 1.5);
+
+    // Price p
+    poly(ctx, [ [xOfQ(0), yR(P.p)], [xOfQ(Qmax*1.05), yR(P.p)] ], '#0B7', 1.5);
+  }
+
+  // Current marker (based on current L)
+  const L = clamp(P.L, 0, Lmax);
+  const Q = Q_of_L(L, P.a, P.b, P.k, P.c);
+  const C = C_of_L(L, P.w, P.F);
+  const mpl = MPL(L, P.a, P.b, P.k, P.c);
+  const mc = MC_from_MPL(mpl, P.w);
+  const ac = AC(C, Q);
+
+  dot(ctx, xOfQ(Q), yOfC(C), 3.2, '#E60000');
+
+  // Profit-max point where MC ~ p
+  let Lbest = 0, bestGap = Infinity;
+  for (let Lc=0; Lc<=Lmax; Lc += 0.25){
+    const gap = Math.abs(MC_from_MPL(MPL(Lc,P.a,P.b,P.k, P.c), P.w) - P.p);
+    if (gap < bestGap){ bestGap = gap; Lbest = Lc; }
+  }
+  const Qstar = Q_of_L(Lbest,P.a,P.b,P.k, P.c);
+  const Cstar = C_of_L(Lbest,P.w,P.F);
+  // Show vertical guide at Q*
+  dashed(ctx, xOfQ(Qstar), dims.y, xOfQ(Qstar), dims.y + dims.h, '#F0B800');
+
+  // Profit area (TR - TC) shaded at Q*
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,180,120,0.08)';
+  ctx.beginPath();
+  ctx.moveTo(xOfQ(0), yOfC(0));
+  ctx.lineTo(xOfQ(Qstar), yOfC(TR_of_Q(Qstar,P.p)));
+  ctx.lineTo(xOfQ(Qstar), yOfC(Cstar));
+  ctx.lineTo(xOfQ(0), yOfC(0));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ==============================
+   Labels & explanations
+   ============================== */
+function getLabels(which){
+  const simple = (state.mode === 'simple');
+  if (which === 'production'){
+    return {
+      x: simple ? 'Workers' : 'Labor (L)',
+      y: simple ? 'Total Output' : 'Total Product (Q)'
+    };
+  }
+  return {
+    x: simple ? 'Total Output' : 'Quantity (Q)',
+    y: simple ? 'Total Spending' : 'Total Cost (C)'
+  };
+}
+
+function setExplanation(){
+  const title = el('explainTitle');
+  const body = el('explainBody');
+  const P = state.params;
+  const Lstar = 1 / P.k;
+
+  if (state.mode === 'tech'){
+    title.textContent = 'Technical view';
+    body.innerHTML = `
+      <p><strong>Production (Phase 1):</strong> We posit a smooth labor‑only production technology with a hump‑shaped marginal product:
+      <code>MPL(L) = a + b·L·e^{-kL}</code>. This yields a total product
+      <code>Q(L) = aL + b [ 1/k² − e^{-kL}(L/k + 1/k²) ]</code>. MPL increases for small L (team specialization), peaks at <code>L* = 1/k</code>, and then declines (coordination limits).</p>
+      <p><strong>Cost (Phase 2):</strong> With wage <code>w</code> and fixed cost <code>F</code>, total cost is <code>C(L) = F + wL</code>.
+      The cost–output curve is drawn parametrically as <code>(Q(L), C(L))</code>.
+      The key duality is <strong>MC(Q) = w / MPL(L)</strong>. Thus MC falls initially (while MPL rises up to L*) and rises thereafter.</p>
+      <p>In the Cost view, we overlay per‑unit measures on the right axis: marginal cost MC(Q), average cost AC(Q) = C/Q, and price p (the horizontal MR in perfect competition). Profit maximization occurs near MC = p.</p>
+    `;
+  } else if (state.mode === 'simple'){
+    title.textContent = 'Plain‑English view';
+    body.innerHTML = `
+      <p>At first, adding workers helps everyone specialize, so each extra worker adds <em>more</em> output than the last. After a point (around <strong>L* ≈ ${formatNum(Lstar)}</strong> workers), the work area gets crowded and coordination gets harder, so each extra worker adds <em>less</em> than the last.</p>
+      <p>On the cost side, paying each worker a wage means the cost of making one more unit depends on how much that next worker can produce. When workers are very effective (early on), the <strong>extra cost per unit</strong> (marginal cost) is low. When they’re less effective later, marginal cost gets higher. That’s why the marginal cost curve first dips then rises.</p>
+      <p>Price shows your dollars earned per unit. Where the “extra cost per unit” (MC) meets the price line is the sweet spot for output.</p>
+    `;
+  } else {
+    title.textContent = 'Animated relationships';
+    body.innerHTML = `
+      <p>Use the event buttons (hire, training, wage change, new machine, price change) to see how the curves shift. Examples:</p>
+      <ul>
+        <li><strong>Hire +5 workers:</strong> moves you along the same production curve; in Cost view the dot moves along the same cost curve.</li>
+        <li><strong>Training boost:</strong> raises the “teamwork hump” (b) and pushes the peak to the right (lower k), so MPL rises earlier and MC falls at first.</li>
+        <li><strong>Wage ↑:</strong> lifts MC everywhere (MC = w/MPL) and steepens the cost curve.</li>
+        <li><strong>New machine (F ↑):</strong> shifts total cost up by a constant but leaves MC unchanged.</li>
+        <li><strong>Price ↑:</strong> rotates the revenue line upward, increasing the profit‑maximizing output where MC meets price.</li>
+      </ul>
+    `;
+  }
+}
+
+/* ==============================
+   Dashboard readouts
+   ============================== */
+function updateReadouts(){
+  const P = state.params;
+  const Q = Q_of_L(P.L, P.a, P.b, P.k);
+  const C = C_of_L(P.L, P.w, P.F);
+  const mpl = MPL(P.L, P.a, P.b, P.k);
+  const mc = MC_from_MPL(mpl, P.w);
+  const ac = AC(C, Q);
+  const pi = TR_of_Q(Q, P.p) - C;
+
+  el('readL').textContent = `${formatNum(P.L)} workers`;
+  el('readQ').textContent = `${formatNum(Q)} units`;
+  el('readC').textContent = `$${formatNum(C)}`;
+  el('readMPL').textContent = `${formatNum(mpl)} units/worker`;
+  el('readMC').textContent = `$${formatNum(mc)} per unit`;
+  el('readAC').textContent = isFinite(ac) ? `$${formatNum(ac)} per unit` : '—';
+  el('readP').textContent = `$${formatNum(P.p)} per unit`;
+  el('readPi').textContent = isFinite(pi) ? `$${formatNum(pi)}` : '—';
+  el('readLStar').textContent = `${formatNum(1/P.k)}`;
+}
+
+/* ==============================
+   Main draw orchestrator
+   ============================== */
+function drawAll(){
+  drawProduction();
+  drawCost();
+  updateReadouts();
+
+  // In single-phase views, hide the other canvas
+  if (state.phase === 'production'){
+    costCanvas.style.visibility = 'hidden';
+    productionCanvas.style.visibility = 'visible';
+  } else if (state.phase === 'cost'){
+    productionCanvas.style.visibility = 'hidden';
+    costCanvas.style.visibility = 'visible';
+  } else {
+    productionCanvas.style.visibility = 'visible';
+    costCanvas.style.visibility = 'visible';
+  }
+}
+
+/* ==============================
+   Init
+   ============================== */
+function init(){
+  wireControls();
+  fitCanvas(productionCanvas);
+  fitCanvas(costCanvas);
+  drawAll();
+}
+init();
+</script>
+</body>
+</html>
