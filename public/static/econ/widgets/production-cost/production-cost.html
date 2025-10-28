@@ -327,8 +327,8 @@ canvas {
   font-weight: 600;
 }
 .badge-primary { background: #E60000; color: #fff; }
-.badge-neutral { background: #e9ecef; color: #000; }
-.badge-accent { background: #F0B800; color: #000; }
+.badge-neutral { background: #e9ecef; color: #222; }
+.badge-accent { background: #F0B800; color: #222; }
 
 /* Alerts */
 .alert {
@@ -351,7 +351,7 @@ input[type="password"], select, textarea {
   border: 1px solid #dee2e6;
   border-radius: 6px;
   background: #fff;
-  color: #000;
+  color: #222;
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
 }
 .input:focus, .select:focus, .textarea:focus,
@@ -448,18 +448,21 @@ input[type="password"]:focus, select:focus, textarea:focus {
             <label for="a">Base productivity a (MPL baseline) <span class="muted" id="aVal"></span></label>
             <input type="range" id="a" min="0.2" max="3" step="0.05" value="0.8" />
           </div>
-          <div class="control">
-            <label for="b">Teamwork boost b (MPL hump) <span class="muted" id="bVal"></span></label>
-            <input type="range" id="b" min="0" max="6" step="0.1" value="2.2" />
-          </div>
-          <div class="control">
-            <label for="k">Coordination friction k (affects peak L*) <span class="muted" id="kVal"></span></label>
-            <input type="range" id="k" min="0.02" max="0.5" step="0.01" value="0.08" />
-          </div>
-          <div class="control">
-            <label for="c">Congestion drag c (eventual fall in Q) <span class="muted" id="cVal"></span></label>
-            <input type="range" id="c" min="0" max="0.06" step="0.002" value="0.02" />
-          </div>
+          <details>
+            <summary class="btn btn-link" style="text-align:left;">Extra variables</summary>
+            <div class="control">
+              <label for="b">Teamwork boost b (MPL hump) <span class="muted" id="bVal"></span></label>
+              <input type="range" id="b" min="0" max="6" step="0.1" value="2.2" />
+            </div>
+            <div class="control">
+              <label for="k">Coordination friction k (affects peak L*) <span class="muted" id="kVal"></span></label>
+              <input type="range" id="k" min="0.02" max="0.5" step="0.01" value="0.08" />
+            </div>
+            <div class="control">
+              <label for="c">Congestion drag c (eventual fall in Q) <span class="muted" id="cVal"></span></label>
+              <input type="range" id="c" min="0" max="0.06" step="0.002" value="0.02" />
+            </div>
+          </details>
         </div>
 
         <div class="panel controls">
@@ -622,20 +625,29 @@ function wireControls(){
     drawAll();
   }));
 
-  // Animated toolbar events
-  el('animatedToolbar').querySelectorAll('button[data-ev]').forEach(btn => {
-    btn.addEventListener('click', () => runEvent(btn.getAttribute('data-ev')));
-  });
+  // Animated toolbar events (guard if toolbar not present)
+  const toolbar = el('animatedToolbar');
+  if (toolbar) {
+    toolbar.querySelectorAll('button[data-ev]').forEach(btn => {
+      btn.addEventListener('click', () => runEvent(btn.getAttribute('data-ev')));
+    });
+  }
 
   // Sliders
   const bind = (id, key, fmt=(v)=>v) => {
     const inp = el(id);
     const lab = el(id + 'Val');
+    if (!inp || !lab) {
+      console.warn('Missing control for', id);
+      return;
+    }
     const update = () => {
       state.params[key] = parseFloat(inp.value);
       lab.textContent = `= ${fmt(state.params[key])}`;
       drawAll();
     };
+    // If binding labor, reflect ΔL in the input's displayed tooltip for clarity
+    if (key === 'L') inp.title = 'Labor (affected by ΔL for marginal segment)';
     inp.addEventListener('input', update);
     update();
   };
@@ -758,7 +770,7 @@ function drawAxes(ctx, dims, labels, scales, opts={}){
   ctx.stroke();
 
   // Labels
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = '#222';
   ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
   ctx.fillText(labels.x, w - 4 - ctx.measureText(labels.x).width, h + 18);
   ctx.save();
@@ -767,7 +779,7 @@ function drawAxes(ctx, dims, labels, scales, opts={}){
   ctx.restore();
 
   // Ticks
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = '#222';
   ctx.textAlign = 'center';
   const xTicks = 6, yTicks = 6;
   for (let i=1;i<=xTicks;i++){
@@ -806,7 +818,7 @@ function drawRightAxis(ctx, dims, yMaxRight, label='Per‑unit ($/unit)'){
   ctx.stroke();
 
   // Ticks & labels
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = '#222';
   ctx.textAlign = 'left';
   ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
   const ticks = 5;
@@ -828,7 +840,7 @@ function drawRightAxis(ctx, dims, yMaxRight, label='Per‑unit ($/unit)'){
   ctx.restore();
 }
 
-function poly(ctx, pts, color, width=2){
+function poly(ctx, pts, color, width=4){
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.beginPath();
@@ -886,7 +898,7 @@ function drawProduction(){
   for (let L=0; L<=Lmax; L+=step){
     pts.push([ xOfL(L), yOfQ(Q_of_L(L, P.a, P.b, P.k, P.c)) ]);
   }
-  poly(ctx, pts, '#666', 2);
+  poly(ctx, pts, '#666', 4);
 
   // Current point & marginal segment
   const L = clamp(P.L, 0, Lmax);
@@ -898,14 +910,6 @@ function drawProduction(){
 
   const x = xOfL(L), y = yOfQ(Q);
   dot(ctx, x, y, 3.2, '#E60000');
-
-  // MPL segment (secant approximation for ΔL)
-  ctx.strokeStyle = '#E60000';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(xOfL(L), yOfQ(Q));
-  ctx.lineTo(xOfL(L + dL), yOfQ(Q2));
-  ctx.stroke();
 
   // AP guide (line from origin to (L,Q))
   dashed(ctx, xOfL(0), yOfQ(0), x, y, '#E60000');
@@ -922,18 +926,58 @@ function drawProduction(){
     dashed(ctx, xs, dims.y, xs, dims.y + dims.h, '#F0B800');
   }
 
-  // Optional linked mapping: show MC = w/MPL as a callout
+  // Optional linked mapping: show MC = w/MPL as a callout (uses secant MPL over ΔL)
   if (state.flags.linkCharts){
-    const mc = MC_from_MPL(mpl, P.w);
-    // small text box
-    ctx.fillStyle = 'rgba(230,0,0,0.08)';
-    ctx.fillRect(x-46, y-40, 92, 36);
-    ctx.strokeStyle = '#E60000';
-    ctx.strokeRect(x-46, y-40, 92, 36);
-    ctx.fillStyle = '#000';
+    const x2 = xOfL(L + dL), y2 = yOfQ(Q2);
+    const mplSecant = (Q2 - Q) / Math.max(1e-9, dL);
+    const mc = MC_from_MPL(mplSecant, P.w);
+    // Text metrics for dynamic box sizing
     ctx.font = '12px system-ui';
-    ctx.fillText(`MPL ≈ ${formatNum(mpl)}`, x-40, y-22);
-    ctx.fillText(`MC = w/MPL ≈ ${formatNum(mc)}`, x-40, y-8);
+    const line1 = `MPL ≈ ${formatNum(mplSecant)}`;
+    const line2 = `MC = w/MPL ≈ ${formatNum(mc)}`;
+    const textW = Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width);
+    const pad = 8;
+    const boxW = Math.max(92, Math.ceil(textW) + pad * 2);
+    const boxH = 36;
+    const leftX = Math.min(x, x2), rightX = Math.max(x, x2);
+    const topY = Math.min(y, y2), bottomY = Math.max(y, y2);
+    // Prefer up-left placement
+    let bx = leftX - boxW - 6;
+    let by = topY - boxH - 6;
+    // If off the left edge, flip to right of the segment
+    if (bx < dims.x + 2) bx = rightX + 6;
+    // If off the top edge, flip below the segment
+    if (by < dims.y + 2) by = bottomY + 6;
+    // Final clamp within plot area
+    bx = Math.max(dims.x + 2, Math.min(bx, dims.x + dims.w - boxW - 2));
+    by = Math.max(dims.y + 2, Math.min(by, dims.y + dims.h - boxH - 2));
+    // Background: solid white underlay to fully mask chart, then translucent pink overlay
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx, by, boxW, boxH);
+    ctx.fillStyle = 'rgba(230,0,0,0.12)';
+    ctx.fillRect(bx, by, boxW, boxH);
+    // Text
+    ctx.fillStyle = '#222';
+    ctx.fillText(line1, bx + pad, by + 14);
+    ctx.fillText(line2, bx + pad, by + 28);
+  }
+
+  // MPL secant over ΔL with ΔQ/ΔL markers (draw last for visibility)
+  const x2 = xOfL(L + dL), y2 = yOfQ(Q2);
+  ctx.strokeStyle = '#E60000';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  // ΔL horizontal and ΔQ vertical markers at the rectangle corners
+  dashed(ctx, x, y, x2, y, '#F0B800');
+  dashed(ctx, x2, y, x2, y2, '#F0B800');
+
+  // Update the labor label to show L and L+ΔL as a quick reference
+  const laborLabel = document.querySelector('label[for="labor"] .muted');
+  if (laborLabel){
+    laborLabel.textContent = `= ${formatNum(P.L)} → ${formatNum(P.L + P.dL)} workers`;
   }
 }
 
@@ -967,11 +1011,11 @@ function drawCost(){
 
   // Total cost curve (C vs Q)
   const pts = arr.map(o => [ xOfQ(o.Q), yOfC(o.C) ]);
-  poly(ctx, pts, '#666', 2);
+  poly(ctx, pts, '#666', 4);
 
   // TR line (through origin with slope p)
   const TRend = {Q: Qmax*1.05, C: TR_of_Q(Qmax*1.05, P.p)};
-  poly(ctx, [ [xOfQ(0), yOfC(0)], [xOfQ(TRend.Q), yOfC(TRend.C)] ], '#0B7', 2); // revenue line
+  poly(ctx, [ [xOfQ(0), yOfC(0)], [xOfQ(TRend.Q), yOfC(TRend.C)] ], '#0B7', 4); // revenue line
 
   // Per-unit overlays (MC, AC, price) on right axis
   let yMaxRight = 0;
@@ -991,14 +1035,14 @@ function drawCost(){
 
     // MC(Q)
     const mcPts = arr.map(({L,Q}) => [ xOfQ(Q), yR( MC_from_MPL(MPL(L,P.a,P.b,P.k, P.c), P.w) ) ]);
-    poly(ctx, mcPts, '#E60000', 2);
+    poly(ctx, mcPts, '#E60000', 4);
 
     // AC(Q)
     const acPts = arr.map(({L,Q}) => [ xOfQ(Q), yR( AC(C_of_L(L,P.w,P.F), Q) ) ]);
-    poly(ctx, acPts, '#AE0000', 1.5);
+    poly(ctx, acPts, '#AE0000', 3);
 
     // Price p
-    poly(ctx, [ [xOfQ(0), yR(P.p)], [xOfQ(Qmax*1.05), yR(P.p)] ], '#0B7', 1.5);
+    poly(ctx, [ [xOfQ(0), yR(P.p)], [xOfQ(Qmax*1.05), yR(P.p)] ], '#0B7', 3);
   }
 
   // Current marker (based on current L)
@@ -1109,7 +1153,8 @@ function updateReadouts(){
   const ac = AC(C, Q);
   const pi = TR_of_Q(Q, P.p) - C;
 
-  el('readL').textContent = `${formatNum(P.L)} workers`;
+  // Show L + ΔL readout to reflect the marginal change setting
+  el('readL').textContent = `${formatNum(P.L)} workers (ΔL=${formatNum(P.dL)})`;
   el('readQ').textContent = `${formatNum(Q)} units`;
   el('readC').textContent = `$${formatNum(C)}`;
   el('readMPL').textContent = `${formatNum(mpl)} units/worker`;
