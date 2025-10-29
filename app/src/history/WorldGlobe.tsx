@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Globe, { type GlobeInstance } from 'globe.gl'
 
+// ---------------- Types ----------------
+
 // GeoJSON feature for country polygons
 type CountryFeature = {
   type: 'Feature'
@@ -44,32 +46,83 @@ type RingItem = {
   altitude: number
 }
 
+// Events system
+type EventBase = {
+  id: string
+  title: string
+  dateStart: string // ISO date (YYYY-MM-DD)
+  dateEnd?: string // ISO date (YYYY-MM-DD)
+  color: string
+  description: string // plain text
+  media?: { imageDataUrl?: string; imageUrl?: string; caption?: string }
+  impactKm: number
+}
+
+type PointEvent = EventBase & {
+  type: 'point'
+  location: { lat: number; lon: number }
+}
+
+type PathEvent = EventBase & {
+  type: 'path'
+  start: { lat: number; lon: number }
+  end: { lat: number; lon: number }
+}
+
+type EventSpec = PointEvent | PathEvent
+
+// Export structure keyed by date
+type StoryExport = {
+  version: 'story/v1'
+  meta: { title: string; exportedAt: string }
+  settings: { impactUnit: 'km' }
+  timeline: Record<string, Array<{
+    id: string
+    type: 'point' | 'path'
+    title: string
+    dateStart: string
+    dateEnd?: string
+    color: string
+    description: string
+    impactKm: number
+    location?: { lat: number; lon: number }
+    start?: { lat: number; lon: number }
+    end?: { lat: number; lon: number }
+    media?: { imageDataUrl?: string; imageUrl?: string; caption?: string }
+  }>>
+}
+
+// ---------------- Constants ----------------
+
 const MODERN_URL = '/static/data/history/world_modern.geojson'
 const EARTH_RADIUS_KM = 6371
+
+// ---------------- Component ----------------
 
 export default function WorldGlobe() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const globeInstanceRef = useRef<GlobeInstance | null>(null)
+
+  // Data caches/refs for globe layers
   const countriesCacheRef = useRef<CountryFeature[] | null>(null)
   const countriesRef = useRef<CountryFeature[]>([])
   const circleFeaturesRef = useRef<CountryFeature[]>([])
   const ringItemsRef = useRef<RingItem[]>([])
+  const arrowsRef = useRef<ArrowSpec[]>([])
   const reapplyRef = useRef<() => void>(() => {})
 
   const [selectedNames, setSelectedNames] = useState<string[]>([])
 
-  // Circles state + form inputs
+  // Legacy Circle & Arrow UI (kept in teacher mode)
   const [circles, setCircles] = useState<CircleSpec[]>([])
   const [latInput, setLatInput] = useState<string>('0')
   const [lngInput, setLngInput] = useState<string>('0')
-  const [radiusInput, setRadiusInput] = useState<string>('250') // km (smaller by default)
-  const [thicknessInput, setThicknessInput] = useState<string>('100') // km (thicker by default)
+  const [radiusInput, setRadiusInput] = useState<string>('250')
+  const [thicknessInput, setThicknessInput] = useState<string>('100')
   const [colorInput, setColorInput] = useState<string>('#e53935')
   const [animateInput, setAnimateInput] = useState<boolean>(true)
 
-  // Arrows state + form inputs
-  const [arrows, setArrows] = useState<ArrowSpec[]>([])
-  const arrowsRef = useRef<ArrowSpec[]>([])
+  const [arrowsState, setArrowsState] = useState<ArrowSpec[]>([])
   const [aStartLat, setAStartLat] = useState<string>('0')
   const [aStartLng, setAStartLng] = useState<string>('0')
   const [aEndLat, setAEndLat] = useState<string>('0')
@@ -77,6 +130,28 @@ export default function WorldGlobe() {
   const [aStrokePx, setAStrokePx] = useState<string>('8')
   const [aColor, setAColor] = useState<string>('#1976d2')
   const [aAnimMs, setAAnimMs] = useState<string>('2000')
+
+  // Events system state
+  const [teacherMode, setTeacherMode] = useState<boolean>(true)
+  const [storyTitle, setStoryTitle] = useState<string>('Untitled Story')
+  const [events, setEvents] = useState<EventSpec[]>([])
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10))
+
+  // Event form state
+  const [evType, setEvType] = useState<'point' | 'path'>('point')
+  const [evTitle, setEvTitle] = useState<string>('')
+  const [evDateStart, setEvDateStart] = useState<string>(new Date().toISOString().slice(0, 10))
+  const [evDateEnd, setEvDateEnd] = useState<string>('')
+  const [evImpactKm, setEvImpactKm] = useState<string>('100')
+  const [evColor, setEvColor] = useState<string>('#e53935')
+  const [evDesc, setEvDesc] = useState<string>('')
+  const [evImageDataUrl, setEvImageDataUrl] = useState<string>('')
+  const [evLat, setEvLat] = useState<string>('0')
+  const [evLon, setEvLon] = useState<string>('0')
+  const [evEndLat, setEvEndLat] = useState<string>('0')
+  const [evEndLon, setEvEndLon] = useState<string>('0')
+
+  // ---------------- Globe bootstrap ----------------
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -190,29 +265,12 @@ export default function WorldGlobe() {
       const src = arrowsRef.current || []
       const render = src.flatMap(a => {
         const altitude = a.altitude ?? 0.12
-        const base: ArrowSpec = {
-          ...a,
-          altitude,
-          animMs: 0,
-          initialGap: 0,
-          dashLength: 1,
-          dashGap: 0,
-          strokePx: a.strokePx
-        }
-        const overlay: ArrowSpec = {
-          ...a,
-          altitude,
-          animMs: a.animMs || 2000,
-          initialGap: a.initialGap ?? Math.random(),
-          dashLength: 0.25,
-          dashGap: 0.9,
-          strokePx: Math.max(1, Math.round(a.strokePx * 0.7))
-        }
+        const base: ArrowSpec = { ...a, altitude, animMs: 0, initialGap: 0, dashLength: 1, dashGap: 0, strokePx: a.strokePx }
+        const overlay: ArrowSpec = { ...a, altitude, animMs: a.animMs || 2000, initialGap: a.initialGap ?? Math.random(), dashLength: 0.25, dashGap: 0.9, strokePx: Math.max(1, Math.round(a.strokePx * 0.7)) }
         return [base, overlay]
       })
       globe
         .arcsData(render)
-        .arcsMerge(true)
         .arcStartLat('startLat' as any)
         .arcStartLng('startLng' as any)
         .arcEndLat('endLat' as any)
@@ -225,6 +283,7 @@ export default function WorldGlobe() {
         .arcDashInitialGap('initialGap' as any)
         .arcDashAnimateTime('animMs' as any)
         .arcsTransitionDuration(0)
+      ;(globe as any).arcsMerge?.(true)
     }
 
     function applyRings() {
@@ -280,96 +339,274 @@ export default function WorldGlobe() {
     }
   }, [])
 
-  // Build a geodesic ring for a given radius (static polygons only)
+  // ---------------- Geometry builders ----------------
+
   function computeRing(lat: number, lng: number, radiusKm: number, segments = 64): [number, number][] {
     const toRad = (deg: number) => deg * Math.PI / 180
     const toDeg = (rad: number) => rad * 180 / Math.PI
 
     const φ1 = toRad(lat)
     const λ1 = toRad(lng)
-    const δ = Math.max(radiusKm, 0.001) / EARTH_RADIUS_KM // angular distance
+    const δ = Math.max(radiusKm, 0.001) / EARTH_RADIUS_KM
 
-    const ring: [number, number][] = [] // [lon, lat]
+    const ring: [number, number][] = []
     for (let i = 0; i < segments; i++) {
-      const bearingDeg = (i / segments) * 360
-      const θ = toRad(bearingDeg)
-
-      const sinφ1 = Math.sin(φ1)
-      const cosφ1 = Math.cos(φ1)
-      const sinδ = Math.sin(δ)
-      const cosδ = Math.cos(δ)
-
+      const θ = toRad((i / segments) * 360)
+      const sinφ1 = Math.sin(φ1), cosφ1 = Math.cos(φ1)
+      const sinδ = Math.sin(δ), cosδ = Math.cos(δ)
       const sinφ2 = sinφ1 * cosδ + cosφ1 * sinδ * Math.cos(θ)
       const φ2 = Math.asin(Math.min(1, Math.max(-1, sinφ2)))
-
       const y = Math.sin(θ) * sinδ * cosφ1
       const x = cosδ - sinφ1 * Math.sin(φ2)
       let λ2 = λ1 + Math.atan2(y, x)
-
-      // normalize to [-π, π]
       λ2 = ((λ2 + Math.PI) % (2 * Math.PI)) - Math.PI
-
-      const lat2 = toDeg(φ2)
-      const lon2 = toDeg(λ2)
-      ring.push([lon2, lat2])
+      ring.push([toDeg(λ2), toDeg(φ2)])
     }
     if (ring.length) ring.push(ring[0])
     return ring
   }
 
-  // Create a donut polygon (ring) around (lat,lng) with outer radius and thickness (static)
   function makeCircleFeature(lat: number, lng: number, radiusKm: number, color: string, thicknessKm: number, segments = 64): CountryFeature {
     const outer = computeRing(lat, lng, Math.max(radiusKm, 0.001), segments)
     const innerRadius = Math.max(radiusKm - Math.max(thicknessKm, 0), 0.001)
     let inner = computeRing(lat, lng, innerRadius, segments)
-    // Reverse inner ring for hole winding
     inner = [...inner].reverse()
+    return { type: 'Feature', properties: { __circle: true, __circleColor: color }, geometry: { type: 'Polygon', coordinates: [outer, inner] } }
+  }
 
-    return {
-      type: 'Feature',
-      properties: { __circle: true, __circleColor: color },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [outer, inner]
+  // ---------------- Utility mapping ----------------
+
+  function kmToDeg(km: number): number { return km / 111 }
+  function clamp(n: number, min: number, max: number): number { return Math.min(max, Math.max(min, n)) }
+  function impactToDonutThicknessKm(impactKm: number): number { return clamp(impactKm * 0.18, 30, 600) }
+  function impactToArrowStrokePx(impactKm: number): number { return clamp(Math.round(impactKm / 25), 2, 24) }
+
+  // ---------------- Legacy Circle/Arrow UI integration ----------------
+
+  useEffect(() => {
+    const staticCircles = circles.filter(c => !c.animate)
+    const circlePolys = staticCircles.map(c => makeCircleFeature(c.lat, c.lng, c.radiusKm, c.color, c.thicknessKm))
+    circleFeaturesRef.current = circlePolys
+
+    // Animated circles -> GPU rings
+    const rings: RingItem[] = circles
+      .filter(c => c.animate)
+      .map(c => {
+        const maxRadiusDeg = Math.max(0.05, kmToDeg(c.radiusKm))
+        const repeatMs = 2000
+        const speedDegPerSec = maxRadiusDeg / (repeatMs / 1000)
+        return { lat: c.lat, lng: c.lng, color: c.color, maxRadiusDeg, repeatMs, speedDegPerSec, altitude: 0.004 }
+      })
+
+    // Merge with event-driven rings later; set for now
+    ringItemsRef.current = [...rings]
+    reapplyRef.current()
+  }, [circles])
+
+  useEffect(() => {
+    // Merge legacy arrows into arrowsRef; events will add on top later
+    arrowsRef.current = [...arrowsState]
+    reapplyRef.current()
+  }, [arrowsState])
+
+  // ---------------- Events: build render layers from selected date ----------------
+
+  useEffect(() => {
+    const date = selectedDate
+    const T = (s: string) => new Date(s + (s.length === 10 ? 'T00:00:00Z' : '')).getTime()
+
+    const active = events.filter(e => {
+      const t = T(date)
+      const a = T(e.dateStart)
+      const b = e.dateEnd ? T(e.dateEnd) : a
+      return t >= a && t <= b
+    })
+
+    // Build donuts and rings for point events; endpoint rings + arcs for path events
+    const eventDonuts: CountryFeature[] = []
+    const eventRings: RingItem[] = []
+    const eventArrows: ArrowSpec[] = []
+
+    for (const e of active) {
+      if (e.type === 'point') {
+        const r = e.impactKm
+        const thick = impactToDonutThicknessKm(r)
+        eventDonuts.push(makeCircleFeature(e.location.lat, e.location.lon, r, e.color, thick))
+        const maxRadiusDeg = Math.max(0.05, kmToDeg(r))
+        const repeatMs = 2000
+        const speedDegPerSec = maxRadiusDeg / (repeatMs / 1000)
+        eventRings.push({ lat: e.location.lat, lng: e.location.lon, color: e.color, maxRadiusDeg, repeatMs, speedDegPerSec, altitude: 0.004 })
+      } else {
+        const strokePx = impactToArrowStrokePx(e.impactKm)
+        eventArrows.push({
+          id: `evt-arrow-${e.id}`,
+          startLat: e.start.lat,
+          startLng: e.start.lon,
+          endLat: e.end.lat,
+          endLng: e.end.lon,
+          color: e.color,
+          strokePx,
+          animMs: 2000,
+          altitude: 0.12,
+          initialGap: Math.random()
+        })
+        // Endpoint rings (both ends)
+        const maxRadiusDeg = Math.max(0.05, kmToDeg(e.impactKm))
+        const repeatMs = 2000
+        const speedDegPerSec = maxRadiusDeg / (repeatMs / 1000)
+        eventRings.push({ lat: e.start.lat, lng: e.start.lon, color: e.color, maxRadiusDeg, repeatMs, speedDegPerSec, altitude: 0.004 })
+        eventRings.push({ lat: e.end.lat, lng: e.end.lon, color: e.color, maxRadiusDeg, repeatMs, speedDegPerSec, altitude: 0.004 })
       }
+    }
+
+    // Merge with legacy layers
+    const legacyRings = ringItemsRef.current.filter(r => true)
+    const legacyArrows = arrowsState
+    const legacyDonuts = circleFeaturesRef.current.filter(f => true)
+
+    circleFeaturesRef.current = [...legacyDonuts, ...eventDonuts]
+    ringItemsRef.current = [...legacyRings, ...eventRings]
+    arrowsRef.current = [...legacyArrows, ...eventArrows]
+
+    reapplyRef.current()
+  }, [events, selectedDate, arrowsState])
+
+  // ---------------- Event helpers: import/export ----------------
+
+  function buildExport(): StoryExport {
+    const timeline: StoryExport['timeline'] = {}
+    for (const e of events) {
+      const key = e.dateStart
+      const entry = {
+        id: e.id,
+        type: e.type,
+        title: e.title,
+        dateStart: e.dateStart,
+        dateEnd: e.dateEnd,
+        color: e.color,
+        description: e.description,
+        impactKm: e.impactKm,
+        ...(e.type === 'point'
+          ? { location: { lat: e.location.lat, lon: e.location.lon } }
+          : { start: { lat: e.start.lat, lon: e.start.lon }, end: { lat: e.end.lat, lon: e.end.lon } }),
+        media: e.media
+      }
+      if (!timeline[key]) timeline[key] = []
+      timeline[key].push(entry)
+    }
+    return {
+      version: 'story/v1',
+      meta: { title: storyTitle || 'Untitled Story', exportedAt: new Date().toISOString() },
+      settings: { impactUnit: 'km' },
+      timeline
     }
   }
 
-  // Static circles rebuild (only non-animated remain as polygons)
-  useEffect(() => {
-    const staticCircles = circles.filter(c => !c.animate)
-    circleFeaturesRef.current = staticCircles.map(c => makeCircleFeature(c.lat, c.lng, c.radiusKm, c.color, c.thicknessKm))
-    reapplyRef.current()
-  }, [circles])
+  function downloadExport() {
+    const data = buildExport()
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(storyTitle || 'story').replace(/\s+/g, '_')}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
 
-  // Animated circles -> GPU rings
-  useEffect(() => {
-    const toDeg = (km: number) => km / 111 // approx degrees per km
-    const items: RingItem[] = circles
-      .filter(c => c.animate)
-      .map(c => {
-        const maxRadiusDeg = Math.max(0.05, toDeg(c.radiusKm))
-        const repeatMs = 2000 // default 2s loop
-        const speedDegPerSec = maxRadiusDeg / (repeatMs / 1000)
-        return {
-          lat: c.lat,
-          lng: c.lng,
-          color: c.color,
-          maxRadiusDeg,
-          repeatMs,
-          speedDegPerSec,
-          altitude: 0.004
+  async function handleImportFile(file: File) {
+    try {
+      const text = await file.text()
+      const json = JSON.parse(text) as StoryExport
+      const out: EventSpec[] = []
+      const timeline = json?.timeline || {}
+      for (const [dateKey, arr] of Object.entries(timeline)) {
+        for (const raw of arr) {
+          if (raw.type === 'point' && raw.location) {
+            out.push({
+              id: raw.id || `${dateKey}-pt-${Math.random().toString(36).slice(2, 8)}`,
+              type: 'point',
+              title: raw.title || '',
+              dateStart: raw.dateStart || dateKey,
+              dateEnd: raw.dateEnd,
+              color: raw.color || '#e53935',
+              description: raw.description || '',
+              media: raw.media,
+              impactKm: Number(raw.impactKm) || 1,
+              location: { lat: Number(raw.location.lat), lon: Number(raw.location.lon) }
+            })
+          } else if (raw.type === 'path' && raw.start && raw.end) {
+            out.push({
+              id: raw.id || `${dateKey}-path-${Math.random().toString(36).slice(2, 8)}`,
+              type: 'path',
+              title: raw.title || '',
+              dateStart: raw.dateStart || dateKey,
+              dateEnd: raw.dateEnd,
+              color: raw.color || '#1976d2',
+              description: raw.description || '',
+              media: raw.media,
+              impactKm: Number(raw.impactKm) || 1,
+              start: { lat: Number(raw.start.lat), lon: Number(raw.start.lon) },
+              end: { lat: Number(raw.end.lat), lon: Number(raw.end.lon) }
+            })
+          }
         }
-      })
-    ringItemsRef.current = items
-    reapplyRef.current()
-  }, [circles])
+      }
+      setEvents(out)
+    } catch (err) {
+      alert('Failed to import JSON: ' + (err as Error)?.message)
+    }
+  }
 
-  // Keep arrows ref in sync and reapply arcs when arrows change
-  useEffect(() => {
-    arrowsRef.current = arrows
-    reapplyRef.current()
-  }, [arrows])
+  // ---------------- Event form handlers ----------------
+
+  function handleAddEvent() {
+    const impactKm = Number(evImpactKm)
+    if (!Number.isFinite(impactKm) || impactKm <= 0) return
+    const base: EventBase = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title: evTitle || '(untitled)',
+      dateStart: evDateStart,
+      dateEnd: evDateEnd || undefined,
+      color: evColor || '#e53935',
+      description: evDesc || '',
+      impactKm,
+      media: evImageDataUrl ? { imageDataUrl: evImageDataUrl } : undefined
+    }
+
+    if (evType === 'point') {
+      const lat = Number(evLat), lon = Number(evLon)
+      if (![lat, lon].every(Number.isFinite)) return
+      const e: PointEvent = { ...base, type: 'point', location: { lat, lon } }
+      setEvents(arr => [...arr, e])
+    } else {
+      const slat = Number(evLat), slon = Number(evLon)
+      const elat = Number(evEndLat), elon = Number(evEndLon)
+      if (![slat, slon, elat, elon].every(Number.isFinite)) return
+      const e: PathEvent = { ...base, type: 'path', start: { lat: slat, lon: slon }, end: { lat: elat, lon: elon } }
+      setEvents(arr => [...arr, e])
+    }
+
+    // reset minimal fields
+    setEvTitle('')
+    setEvDesc('')
+    setEvImageDataUrl('')
+  }
+
+  function handleRemoveEvent(id: string) {
+    setEvents(arr => arr.filter(e => e.id !== id))
+  }
+
+  function handleEventImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) { setEvImageDataUrl(''); return }
+    const reader = new FileReader()
+    reader.onload = () => { setEvImageDataUrl(String(reader.result || '')) }
+    reader.readAsDataURL(file)
+  }
+
+  // ---------------- Legacy UI actions ----------------
 
   function handleAddCircle() {
     const lat = Number(latInput)
@@ -398,12 +635,16 @@ export default function WorldGlobe() {
     const animMs = Number(aAnimMs)
     if (![startLat, startLng, endLat, endLng, strokePx, animMs].every(Number.isFinite)) return
     const id = `${startLat.toFixed(4)},${startLng.toFixed(4)}->${endLat.toFixed(4)},${endLng.toFixed(4)}@${Date.now()}`
-    setArrows(arr => [...arr, { id, startLat, startLng, endLat, endLng, color: aColor || '#1976d2', strokePx: Math.max(1, strokePx), animMs: Math.max(200, animMs), altitude: 0.12, initialGap: Math.random() }])
+    setArrowsState(arr => [...arr, { id, startLat, startLng, endLat, endLng, color: aColor || '#1976d2', strokePx: Math.max(1, strokePx), animMs: Math.max(200, animMs), altitude: 0.12, initialGap: Math.random() }])
   }
 
   function handleRemoveArrow(id: string) {
-    setArrows(arr => arr.filter(a => a.id !== id))
+    setArrowsState(arr => arr.filter(a => a.id !== id))
   }
+
+  // ---------------- Render ----------------
+
+  const exportPreview = JSON.stringify(buildExport(), null, 2)
 
   return (
     <main className="page">
@@ -415,111 +656,243 @@ export default function WorldGlobe() {
         </section>
 
         <section className="panel">
-          <div className="eyebrow">Add Circle</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '.5rem', alignItems: 'end' }}>
-            <label>
-              <div className="muted">Latitude</div>
-              <input type="number" step={0.0001} value={latInput} onChange={(e)=> setLatInput(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">Longitude</div>
-              <input type="number" step={0.0001} value={lngInput} onChange={(e)=> setLngInput(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">Radius (km)</div>
-              <input type="number" step={1} value={radiusInput} onChange={(e)=> setRadiusInput(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">Thickness (km)</div>
-              <input type="number" step={1} value={thicknessInput} onChange={(e)=> setThicknessInput(e.target.value)} />
-            </label>
-            <label style={{ display:'flex', gap:'.4rem', alignItems:'center' }}>
-              <input type="checkbox" checked={animateInput} onChange={(e)=> setAnimateInput(e.target.checked)} />
-              <span className="muted">Animate</span>
-            </label>
-            <label>
-              <div className="muted">Color</div>
-              <input type="color" value={colorInput} onChange={(e)=> setColorInput(e.target.value)} />
-            </label>
-            <div>
-              <button className="btn" onClick={handleAddCircle}>Add Circle</button>
+          <div className="grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                <input type="checkbox" checked={teacherMode} onChange={(e)=> setTeacherMode(e.target.checked)} />
+                <span className="muted">Teacher Mode</span>
+              </label>
+              {teacherMode && (
+                <>
+                  <label style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                    <span className="muted">Title</span>
+                    <input type="text" value={storyTitle} onChange={(e)=> setStoryTitle(e.target.value)} style={{ width: 240 }} />
+                  </label>
+                  <label style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                    <span className="muted">Import</span>
+                    <input type="file" accept="application/json" onChange={(e)=> { const f=e.target.files?.[0]; if (f) handleImportFile(f) }} />
+                  </label>
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+              <label className="muted">Selected Date</label>
+              <input type="date" value={selectedDate} onChange={(e)=> setSelectedDate(e.target.value)} />
             </div>
           </div>
         </section>
 
-        {circles.length > 0 && (
+        {teacherMode && (
           <section className="panel">
-            <div className="eyebrow">Circles</div>
+            <div className="eyebrow">Add Event</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '.5rem', alignItems: 'end' }}>
+              <label>
+                <div className="muted">Type</div>
+                <select value={evType} onChange={(e)=> setEvType(e.target.value as any)}>
+                  <option value="point">Point</option>
+                  <option value="path">Path</option>
+                </select>
+              </label>
+              <label>
+                <div className="muted">Title</div>
+                <input type="text" value={evTitle} onChange={(e)=> setEvTitle(e.target.value)} />
+              </label>
+              <label>
+                <div className="muted">Start Date</div>
+                <input type="date" value={evDateStart} onChange={(e)=> setEvDateStart(e.target.value)} />
+              </label>
+              <label>
+                <div className="muted">End Date</div>
+                <input type="date" value={evDateEnd} onChange={(e)=> setEvDateEnd(e.target.value)} />
+              </label>
+              <label>
+                <div className="muted">Impact (km)</div>
+                <input type="number" step={1} value={evImpactKm} onChange={(e)=> setEvImpactKm(e.target.value)} />
+              </label>
+              <label>
+                <div className="muted">Color</div>
+                <input type="color" value={evColor} onChange={(e)=> setEvColor(e.target.value)} />
+              </label>
+              {evType === 'point' ? (
+                <>
+                  <label>
+                    <div className="muted">Lat</div>
+                    <input type="number" step={0.0001} value={evLat} onChange={(e)=> setEvLat(e.target.value)} />
+                  </label>
+                  <label>
+                    <div className="muted">Lon</div>
+                    <input type="number" step={0.0001} value={evLon} onChange={(e)=> setEvLon(e.target.value)} />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label>
+                    <div className="muted">Start Lat</div>
+                    <input type="number" step={0.0001} value={evLat} onChange={(e)=> setEvLat(e.target.value)} />
+                  </label>
+                  <label>
+                    <div className="muted">Start Lon</div>
+                    <input type="number" step={0.0001} value={evLon} onChange={(e)=> setEvLon(e.target.value)} />
+                  </label>
+                  <label>
+                    <div className="muted">End Lat</div>
+                    <input type="number" step={0.0001} value={evEndLat} onChange={(e)=> setEvEndLat(e.target.value)} />
+                  </label>
+                  <label>
+                    <div className="muted">End Lon</div>
+                    <input type="number" step={0.0001} value={evEndLon} onChange={(e)=> setEvEndLon(e.target.value)} />
+                  </label>
+                </>
+              )}
+              <label style={{ gridColumn: '1 / -1' }}>
+                <div className="muted">Description</div>
+                <textarea rows={3} value={evDesc} onChange={(e)=> setEvDesc(e.target.value)} />
+              </label>
+              <label>
+                <div className="muted">Image</div>
+                <input type="file" accept="image/*" onChange={handleEventImage} />
+              </label>
+              <div>
+                <button className="btn" onClick={handleAddEvent}>Add Event</button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {events.length > 0 && (
+          <section className="panel">
+            <div className="eyebrow">Events</div>
             <ul className="list-plain" style={{ margin: 0 }}>
-              {circles.map(c => (
-                <li key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
-                    <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: c.color, border: '1px solid rgba(0,0,0,.2)' }} />
-                    <span className="muted">{c.lat.toFixed(4)}, {c.lng.toFixed(4)} · r {c.radiusKm} km · w {c.thicknessKm} km · {c.animate ? 'animated' : 'static'}</span>
-                    <label style={{ display:'flex', gap:'.35rem', alignItems:'center' }}>
-                      <input type="checkbox" checked={c.animate} onChange={()=> handleToggleAnimate(c.id)} />
-                      <span className="muted">Animate</span>
-                    </label>
+              {events
+                .slice()
+                .sort((a,b)=> (a.dateStart.localeCompare(b.dateStart)) || a.title.localeCompare(b.title))
+                .map(e => (
+                <li key={e.id} style={{ display:'flex', alignItems:'center', gap:'.5rem', justifyContent:'space-between', flexWrap:'wrap' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'.6rem', flexWrap:'wrap' }}>
+                    <span style={{ display:'inline-block', width:14, height:14, borderRadius:'50%', background: e.color, border:'1px solid rgba(0,0,0,.2)' }} />
+                    <span className="muted">{e.type.toUpperCase()}</span>
+                    <strong>{e.title}</strong>
+                    <span className="muted">{e.dateStart}{e.dateEnd ? ' — '+e.dateEnd : ''} · impact {e.impactKm} km</span>
                   </div>
-                  <button className="btn" onClick={()=> handleRemoveCircle(c.id)}>Remove</button>
+                  {teacherMode && (
+                    <button className="btn" onClick={()=> handleRemoveEvent(e.id)}>Remove</button>
+                  )}
                 </li>
               ))}
             </ul>
           </section>
         )}
 
-        <section className="panel">
-          <div className="eyebrow">Add Arrow</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '.5rem', alignItems: 'end' }}>
-            <label>
-              <div className="muted">Start Lat</div>
-              <input type="number" step={0.0001} value={aStartLat} onChange={(e)=> setAStartLat(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">Start Lon</div>
-              <input type="number" step={0.0001} value={aStartLng} onChange={(e)=> setAStartLng(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">End Lat</div>
-              <input type="number" step={0.0001} value={aEndLat} onChange={(e)=> setAEndLat(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">End Lon</div>
-              <input type="number" step={0.0001} value={aEndLng} onChange={(e)=> setAEndLng(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">Width (px)</div>
-              <input type="number" step={1} value={aStrokePx} onChange={(e)=> setAStrokePx(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">Loop (ms)</div>
-              <input type="number" step={100} value={aAnimMs} onChange={(e)=> setAAnimMs(e.target.value)} />
-            </label>
-            <label>
-              <div className="muted">Color</div>
-              <input type="color" value={aColor} onChange={(e)=> setAColor(e.target.value)} />
-            </label>
-            <div>
-              <button className="btn" onClick={handleAddArrow}>Add Arrow</button>
-            </div>
-          </div>
-        </section>
+        {teacherMode && (
+          <>
+            <section className="panel">
+              <div className="eyebrow">Legacy Shapes (Advanced)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '.5rem', alignItems: 'end' }}>
+                <label>
+                  <div className="muted">Lat</div>
+                  <input type="number" step={0.0001} value={latInput} onChange={(e)=> setLatInput(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">Lon</div>
+                  <input type="number" step={0.0001} value={lngInput} onChange={(e)=> setLngInput(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">Radius (km)</div>
+                  <input type="number" step={1} value={radiusInput} onChange={(e)=> setRadiusInput(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">Thickness (km)</div>
+                  <input type="number" step={1} value={thicknessInput} onChange={(e)=> setThicknessInput(e.target.value)} />
+                </label>
+                <label style={{ display:'flex', gap:'.4rem', alignItems:'center' }}>
+                  <input type="checkbox" checked={animateInput} onChange={(e)=> setAnimateInput(e.target.checked)} />
+                  <span className="muted">Animate</span>
+                </label>
+                <label>
+                  <div className="muted">Color</div>
+                  <input type="color" value={colorInput} onChange={(e)=> setColorInput(e.target.value)} />
+                </label>
+                <div>
+                  <button className="btn" onClick={handleAddCircle}>Add Circle</button>
+                </div>
+              </div>
+            </section>
 
-        {arrows.length > 0 && (
-          <section className="panel">
-            <div className="eyebrow">Arrows</div>
-            <ul className="list-plain" style={{ margin: 0 }}>
-              {arrows.map(a => (
-                <li key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
-                    <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: a.color, border: '1px solid rgba(0,0,0,.2)' }} />
-                    <span className="muted">{a.startLat.toFixed(2)},{a.startLng.toFixed(2)} → {a.endLat.toFixed(2)},{a.endLng.toFixed(2)} · {a.strokePx}px · {a.animMs}ms</span>
-                  </div>
-                  <button className="btn" onClick={()=> handleRemoveArrow(a.id)}>Remove</button>
-                </li>
-              ))}
-            </ul>
-          </section>
+            {circles.length > 0 && (
+              <section className="panel">
+                <div className="eyebrow">Circles</div>
+                <ul className="list-plain" style={{ margin: 0 }}>
+                  {circles.map(c => (
+                    <li key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: c.color, border: '1px solid rgba(0,0,0,.2)' }} />
+                        <span className="muted">{c.lat.toFixed(4)}, {c.lng.toFixed(4)} · r {c.radiusKm} km · w {c.thicknessKm} km · {c.animate ? 'animated' : 'static'}</span>
+                        <label style={{ display:'flex', gap:'.35rem', alignItems: 'center' }}>
+                          <input type="checkbox" checked={c.animate} onChange={()=> handleToggleAnimate(c.id)} />
+                          <span className="muted">Animate</span>
+                        </label>
+                      </div>
+                      <button className="btn" onClick={()=> handleRemoveCircle(c.id)}>Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section className="panel">
+              <div className="eyebrow">Add Arrow</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '.5rem', alignItems: 'end' }}>
+                <label>
+                  <div className="muted">Start Lat</div>
+                  <input type="number" step={0.0001} value={aStartLat} onChange={(e)=> setAStartLat(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">Start Lon</div>
+                  <input type="number" step={0.0001} value={aStartLng} onChange={(e)=> setAStartLng(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">End Lat</div>
+                  <input type="number" step={0.0001} value={aEndLat} onChange={(e)=> setAEndLat(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">End Lon</div>
+                  <input type="number" step={0.0001} value={aEndLng} onChange={(e)=> setAEndLng(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">Width (px)</div>
+                  <input type="number" step={1} value={aStrokePx} onChange={(e)=> setAStrokePx(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">Loop (ms)</div>
+                  <input type="number" step={100} value={aAnimMs} onChange={(e)=> setAAnimMs(e.target.value)} />
+                </label>
+                <label>
+                  <div className="muted">Color</div>
+                  <input type="color" value={aColor} onChange={(e)=> setAColor(e.target.value)} />
+                </label>
+                <div>
+                  <button className="btn" onClick={handleAddArrow}>Add Arrow</button>
+                </div>
+              </div>
+            </section>
+
+            {arrowsState.length > 0 && (
+              <section className="panel">
+                <div className="eyebrow">Arrows</div>
+                <ul className="list-plain" style={{ margin: 0 }}>
+                  {arrowsState.map(a => (
+                    <li key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: a.color, border: '1px solid rgba(0,0,0,.2)' }} />
+                        <span className="muted">{a.startLat.toFixed(2)},{a.startLng.toFixed(2)} → {a.endLat.toFixed(2)},{a.endLng.toFixed(2)} · {a.strokePx}px · {a.animMs}ms</span>
+                      </div>
+                      <button className="btn" onClick={()=> handleRemoveArrow(a.id)}>Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
         )}
 
         <section className="panel">
@@ -531,6 +904,18 @@ export default function WorldGlobe() {
               {selectedNames.map(n => <li key={n}>{n}</li>)}
             </ul>
           )}
+        </section>
+
+        <section className="panel">
+          <div className="eyebrow">Output — Technical Story JSON (keyed by date)</div>
+          <div style={{ display:'flex', gap:'.5rem', marginBottom:'.5rem', flexWrap:'wrap' }}>
+            <button className="btn" onClick={downloadExport}>Download JSON</button>
+            <button className="btn" onClick={()=> { navigator.clipboard?.writeText(exportPreview) }}>Copy JSON</button>
+          </div>
+          <textarea style={{ width:'100%', minHeight: 220, fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace' }} readOnly value={exportPreview} />
+          <div className="muted" style={{ marginTop: '.5rem' }}>
+            Notes: timeline keys are ISO dates (YYYY-MM-DD). Each entry contains point or path events with impactKm in kilometers, plain text description, and optional image data URL.
+          </div>
         </section>
       </div>
     </main>
