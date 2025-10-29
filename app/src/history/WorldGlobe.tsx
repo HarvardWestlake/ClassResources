@@ -39,9 +39,9 @@ const PROVIDERS: Provider[] = [
     label: 'CShapes 2.0 (1886–2019)',
     kind: 'vector',
     url: '/static/data/history/cshapes_2_0.geojson',
-    nameProp: 'country_name',
-    startProp: 'start_year',
-    endProp: 'end_year'
+    nameProp: 'cntry_name',
+    startProp: 'gwsyear',
+    endProp: 'gweyear'
   }
 ]
 
@@ -105,6 +105,14 @@ const HB_SNAPSHOTS: { year: number; file: string }[] = [
   { year: 2010, file: 'world_2010.geojson' }
 ].sort((a,b) => a.year - b.year)
 
+// Helper: find last snapshot index at or before a given year (avoid Array.prototype.findLastIndex for older TS libs)
+function findLastSnapshotIndexAtOrBefore(targetYear: number): number {
+  for (let i = HB_SNAPSHOTS.length - 1; i >= 0; i--) {
+    if (HB_SNAPSHOTS[i].year <= targetYear) return i
+  }
+  return -1
+}
+
 function formatYear(y: number): string {
   return y < 0 ? `${Math.abs(y)} BCE` : `${y} CE`
 }
@@ -139,7 +147,7 @@ export default function WorldGlobe() {
     if (year >= 1886 && year <= 2019) return PROVIDERS[1]
 
     // Outside that window, select HB snapshot nearest at or before the year
-    const idx = HB_SNAPSHOTS.findLastIndex(s => s.year <= year)
+    const idx = findLastSnapshotIndexAtOrBefore(year)
     const snap = idx >= 0 ? HB_SNAPSHOTS[idx] : HB_SNAPSHOTS[0]
     const label = `HB Snapshot (${formatYear(snap.year)})`
     return {
@@ -147,7 +155,7 @@ export default function WorldGlobe() {
       label,
       kind: 'vector',
       url: `/static/data/history/hb/${snap.file}`,
-      nameProp: 'name'
+      nameProp: 'NAME'
     }
   }, [year])
   const [activeProviderLabel, setActiveProviderLabel] = useState<string>(provider.label)
@@ -199,7 +207,7 @@ export default function WorldGlobe() {
 
   function preloadAdjacent(p: Provider, y: number){
     if (p.id.startsWith('hb_')){
-      const idx = HB_SNAPSHOTS.findLastIndex(s => s.year <= y)
+      const idx = findLastSnapshotIndexAtOrBefore(y)
       preloadHBAtIndex(idx - 1)
       preloadHBAtIndex(idx + 1)
     } else if (p.startProp && p.endProp){
@@ -242,7 +250,10 @@ export default function WorldGlobe() {
     const selected = new Set<string>()
 
     function getName(f: CountryFeature): string {
-      const n = (f?.properties?.name ?? '') as string
+      const props = (f?.properties ?? {}) as Record<string, unknown>
+      const n1 = (props['name'] ?? '') as string
+      const n2 = (props['NAME'] ?? '') as string
+      const n = n1 || n2
       return n || '—'
     }
 
@@ -344,8 +355,12 @@ export default function WorldGlobe() {
     const selected = new Set<string>()
 
     function getName(f: CountryFeature): string {
-      const p = provider.nameProp || 'name'
-      const n = (f?.properties?.[p] ?? '') as string
+      const props = (f?.properties ?? {}) as Record<string, unknown>
+      const primary = provider.nameProp || 'name'
+      const n1 = (props[primary] ?? '') as string
+      const n2 = (props['name'] ?? '') as string
+      const n3 = (props['NAME'] ?? '') as string
+      const n = n1 || n2 || n3
       return n || '—'
     }
 
