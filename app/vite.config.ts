@@ -40,10 +40,13 @@ function serveExternalPublicStatic() {
 export default defineConfig({
   base: '/',
   plugins: [react(), serveExternalPublicStatic()],
+  server: {
+    host: '127.0.0.1',
+    port: 5180,
+    strictPort: true,
+    hmr: { host: '127.0.0.1', port: 5180 }
+  },
   resolve: {
-    alias: {
-      three: path.resolve(here, 'node_modules/three')
-    },
     dedupe: ['three']
   },
   optimizeDeps: {

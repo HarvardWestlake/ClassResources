@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Globe from 'globe.gl'
+import Globe, { type GlobeInstance } from 'globe.gl'
 
 type CountryFeature = {
   type: 'Feature'
@@ -16,6 +16,13 @@ type Provider = {
   nameProp?: string
   startProp?: string
   endProp?: string
+}
+
+type RangePreset = {
+  id: string
+  label: string
+  min: number
+  max: number
 }
 
 const PROVIDERS: Provider[] = [
@@ -38,23 +45,143 @@ const PROVIDERS: Provider[] = [
   }
 ]
 
+// HB snapshots (BCE as negative years)
+const HB_SNAPSHOTS: { year: number; file: string }[] = [
+  // BCE
+  { year: -123000, file: 'world_bc123000.geojson' },
+  { year: -10000, file: 'world_bc10000.geojson' },
+  { year: -8000, file: 'world_bc8000.geojson' },
+  { year: -5000, file: 'world_bc5000.geojson' },
+  { year: -4000, file: 'world_bc4000.geojson' },
+  { year: -3000, file: 'world_bc3000.geojson' },
+  { year: -2000, file: 'world_bc2000.geojson' },
+  { year: -1500, file: 'world_bc1500.geojson' },
+  { year: -1000, file: 'world_bc1000.geojson' },
+  { year: -700, file: 'world_bc700.geojson' },
+  { year: -500, file: 'world_bc500.geojson' },
+  { year: -400, file: 'world_bc400.geojson' },
+  { year: -323, file: 'world_bc323.geojson' },
+  { year: -300, file: 'world_bc300.geojson' },
+  { year: -200, file: 'world_bc200.geojson' },
+  { year: -100, file: 'world_bc100.geojson' },
+  { year: -1, file: 'world_bc1.geojson' },
+  // CE
+  { year: 100, file: 'world_100.geojson' },
+  { year: 200, file: 'world_200.geojson' },
+  { year: 300, file: 'world_300.geojson' },
+  { year: 400, file: 'world_400.geojson' },
+  { year: 500, file: 'world_500.geojson' },
+  { year: 600, file: 'world_600.geojson' },
+  { year: 700, file: 'world_700.geojson' },
+  { year: 800, file: 'world_800.geojson' },
+  { year: 900, file: 'world_900.geojson' },
+  { year: 1000, file: 'world_1000.geojson' },
+  { year: 1100, file: 'world_1100.geojson' },
+  { year: 1200, file: 'world_1200.geojson' },
+  { year: 1279, file: 'world_1279.geojson' },
+  { year: 1300, file: 'world_1300.geojson' },
+  { year: 1400, file: 'world_1400.geojson' },
+  { year: 1492, file: 'world_1492.geojson' },
+  { year: 1500, file: 'world_1500.geojson' },
+  { year: 1530, file: 'world_1530.geojson' },
+  { year: 1600, file: 'world_1600.geojson' },
+  { year: 1650, file: 'world_1650.geojson' },
+  { year: 1700, file: 'world_1700.geojson' },
+  { year: 1715, file: 'world_1715.geojson' },
+  { year: 1783, file: 'world_1783.geojson' },
+  { year: 1800, file: 'world_1800.geojson' },
+  { year: 1815, file: 'world_1815.geojson' },
+  { year: 1880, file: 'world_1880.geojson' },
+  // extras (still usable when outside cshapes window)
+  { year: 1900, file: 'world_1900.geojson' },
+  { year: 1914, file: 'world_1914.geojson' },
+  { year: 1920, file: 'world_1920.geojson' },
+  { year: 1930, file: 'world_1930.geojson' },
+  { year: 1938, file: 'world_1938.geojson' },
+  { year: 1945, file: 'world_1945.geojson' },
+  { year: 1960, file: 'world_1960.geojson' },
+  { year: 1994, file: 'world_1994.geojson' },
+  { year: 2000, file: 'world_2000.geojson' },
+  { year: 2010, file: 'world_2010.geojson' }
+].sort((a,b) => a.year - b.year)
+
+function formatYear(y: number): string {
+  return y < 0 ? `${Math.abs(y)} BCE` : `${y} CE`
+}
+
+const RANGE_PRESETS: RangePreset[] = [
+  { id: 'ancient2today', label: '−2000 to Today', min: -2000, max: 2020 },
+  { id: 'classical-medieval', label: '−500 to 1500', min: -500, max: 1500 },
+  { id: 'early-modern', label: '1500 to 1886', min: 1500, max: 1886 },
+  { id: 'modern-plus', label: '1850 to Today', min: 1850, max: 2020 },
+  { id: 'all', label: 'All (−123000 to 2020)', min: -123000, max: 2020 }
+]
+
 export default function WorldGlobe() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [selectedNames, setSelectedNames] = useState<string[]>([])
   const [year, setYear] = useState<number>(2020)
+  const [pendingYear, setPendingYear] = useState<number>(2020)
+  const [rangePresetId, setRangePresetId] = useState<string>('modern-plus')
+  const [customMin, setCustomMin] = useState<number>(-2000)
+  const [customMax, setCustomMax] = useState<number>(2020)
+  const rangePreset = useMemo<RangePreset>(() => {
+    if (rangePresetId === 'custom'){
+      const min = Math.min(customMin, customMax)
+      const max = Math.max(customMin, customMax)
+      return { id: 'custom', label: 'Custom', min, max }
+    }
+    return RANGE_PRESETS.find(p => p.id === rangePresetId) || RANGE_PRESETS[0]
+  }, [rangePresetId, customMin, customMax])
   const provider = useMemo<Provider>(() => {
+    // Prefer CShapes within its supported window
     if (year >= 1886 && year <= 2019) return PROVIDERS[1]
-    return PROVIDERS[0]
+
+    // Outside that window, select HB snapshot nearest at or before the year
+    const idx = HB_SNAPSHOTS.findLastIndex(s => s.year <= year)
+    const snap = idx >= 0 ? HB_SNAPSHOTS[idx] : HB_SNAPSHOTS[0]
+    const label = `HB Snapshot (${formatYear(snap.year)})`
+    return {
+      id: `hb_${snap.year}`,
+      label,
+      kind: 'vector',
+      url: `/static/data/history/hb/${snap.file}`,
+      nameProp: 'name'
+    }
   }, [year])
   const [activeProviderLabel, setActiveProviderLabel] = useState<string>(provider.label)
 
   const cacheRef = useRef<Record<string, CountryFeature[]>>({})
-  const globeInstanceRef = useRef<ReturnType<typeof Globe> | null>(null)
+  const globeInstanceRef = useRef<GlobeInstance | null>(null)
+  const fetchAbortRef = useRef<AbortController | null>(null)
+  const requestSeqRef = useRef<number>(0)
+  const prevProviderIdRef = useRef<string | null>(null)
+
+  // Debounce slider updates to avoid thrashing renders when scrubbing
+  useEffect(() => {
+    const handle = setTimeout(() => setYear(pendingYear), 150)
+    return () => clearTimeout(handle)
+  }, [pendingYear])
+
+  // Clamp pending/committed year to the selected range preset
+  useEffect(() => {
+    const clamp = (v: number) => Math.min(rangePreset.max, Math.max(rangePreset.min, v))
+    const clampedPending = clamp(pendingYear)
+    if (clampedPending !== pendingYear) setPendingYear(clampedPending)
+    if (year < rangePreset.min || year > rangePreset.max) setYear(clampedPending)
+  }, [rangePreset, pendingYear, year])
+
+  function handleCustomMinChange(v: number){
+    setCustomMin(v)
+  }
+  function handleCustomMaxChange(v: number){
+    setCustomMax(v)
+  }
 
   useEffect(() => {
     if (!containerRef.current) return
     if (!globeInstanceRef.current){
-      globeInstanceRef.current = Globe({ animateIn: true })(containerRef.current)
+      globeInstanceRef.current = new Globe(containerRef.current, { animateIn: true })
     }
     const globe = globeInstanceRef.current
       .backgroundColor('#f2f0ec')
@@ -84,24 +211,25 @@ export default function WorldGlobe() {
     function applyStyles(){
       globe
         .polygonsData(features.filter(f => getName(f) !== 'Antarctica'))
-        .polygonAltitude((d: CountryFeature) => (d === hover ? 0.06 : 0.01))
-        .polygonCapColor((d: CountryFeature) => selected.has(getName(d)) ? 'rgba(200,16,46,0.85)' : 'rgba(120,150,170,0.65)')
+        .polygonAltitude((d) => (d === hover ? 0.06 : 0.01))
+        .polygonCapColor((d) => selected.has(getName(d as CountryFeature)) ? 'rgba(200,16,46,0.85)' : 'rgba(120,150,170,0.65)')
         .polygonSideColor(() => 'rgba(60,80,95,0.5)')
         .polygonStrokeColor(() => 'rgba(255,255,255,0.6)')
-        .polygonLabel((d: CountryFeature) => {
-          const name = getName(d)
+        .polygonsTransitionDuration(0)
+        .polygonLabel((d) => {
+          const name = getName(d as CountryFeature)
           return `
             <div style="padding:.25rem .35rem; font-weight:600; color:#000">
               ${name}
             </div>
           `
         })
-        .onPolygonHover((d: CountryFeature | null) => {
-          hover = d
+        .onPolygonHover((d) => {
+          hover = d as CountryFeature | null
           globe.polygonAltitude(globe.polygonAltitude())
         })
-        .onPolygonClick((d: CountryFeature) => {
-          const name = getName(d)
+        .onPolygonClick((d) => {
+          const name = getName(d as CountryFeature)
           if (selected.has(name)) selected.delete(name); else selected.add(name)
           globe.polygonCapColor(globe.polygonCapColor())
           refreshSelectedState()
@@ -115,14 +243,21 @@ export default function WorldGlobe() {
         return
       }
       try{
-        const res = await fetch(p.url)
+        // Abort any in-flight fetch when switching quickly
+        try { fetchAbortRef.current?.abort() } catch {}
+        const seq = ++requestSeqRef.current
+        const ctrl = new AbortController()
+        fetchAbortRef.current = ctrl
+        const res = await fetch(p.url, { signal: ctrl.signal })
         if (!res.ok) throw new Error('fetch failed')
         const gj = await res.json()
+        if (seq !== requestSeqRef.current) return // stale
         const fs = (gj?.features ?? []) as CountryFeature[]
         cacheRef.current[p.id] = fs
         features = fs
         setActiveProviderLabel(p.label)
-      }catch{
+      }catch(err){
+        if ((err as any)?.name === 'AbortError') return
         // Fallback to modern
         const fallback = PROVIDERS[0]
         if (cacheRef.current[fallback.id]){
@@ -179,24 +314,24 @@ export default function WorldGlobe() {
     function applyStyles(){
       globe
         .polygonsData(features.filter(f => getName(f) !== 'Antarctica'))
-        .polygonAltitude((d: CountryFeature) => (d === hover ? 0.06 : 0.01))
-        .polygonCapColor((d: CountryFeature) => selected.has(getName(d)) ? 'rgba(200,16,46,0.85)' : 'rgba(120,150,170,0.65)')
+        .polygonAltitude((d) => (d === hover ? 0.06 : 0.01))
+        .polygonCapColor((d) => selected.has(getName(d as CountryFeature)) ? 'rgba(200,16,46,0.85)' : 'rgba(120,150,170,0.65)')
         .polygonSideColor(() => 'rgba(60,80,95,0.5)')
         .polygonStrokeColor(() => 'rgba(255,255,255,0.6)')
-        .polygonLabel((d: CountryFeature) => {
-          const name = getName(d)
+        .polygonLabel((d) => {
+          const name = getName(d as CountryFeature)
           return `
             <div style="padding:.25rem .35rem; font-weight:600; color:#000">
               ${name}
             </div>
           `
         })
-        .onPolygonHover((d: CountryFeature | null) => {
-          hover = d
+        .onPolygonHover((d) => {
+          hover = d as CountryFeature | null
           globe.polygonAltitude(globe.polygonAltitude())
         })
-        .onPolygonClick((d: CountryFeature) => {
-          const name = getName(d)
+        .onPolygonClick((d) => {
+          const name = getName(d as CountryFeature)
           if (selected.has(name)) selected.delete(name); else selected.add(name)
           globe.polygonCapColor(globe.polygonCapColor())
           refreshSelectedState()
@@ -206,7 +341,6 @@ export default function WorldGlobe() {
     async function loadProvider(p: Provider){
       if (cacheRef.current[p.id]){
         let fs = cacheRef.current[p.id]
-        // Year filter if fields exist
         if (p.startProp && p.endProp){
           const y = year
           fs = fs.filter(f => {
@@ -255,7 +389,23 @@ export default function WorldGlobe() {
       applyStyles()
     }
 
-    loadProvider(provider)
+    const isHB = provider.id.startsWith('hb_')
+    const prevId = prevProviderIdRef.current
+    const providerChanged = prevId !== provider.id
+    if (isHB) {
+      if (providerChanged) {
+        loadProvider(provider)
+        prevProviderIdRef.current = provider.id
+      } else {
+        // No reload on year-only changes for HB; just re-apply styles from cache
+        features = cacheRef.current[provider.id] ?? []
+        applyStyles()
+      }
+    } else {
+      // CShapes depends on year filtering; load every time year changes
+      loadProvider(provider)
+      prevProviderIdRef.current = provider.id
+    }
   }, [provider, year])
 
   return (
@@ -271,16 +421,37 @@ export default function WorldGlobe() {
           <div className="grid gap-md" style={{ alignItems: 'center', gridTemplateColumns: '1fr auto' }}>
             <div>
               <div className="eyebrow">Year</div>
+              <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.25rem', flexWrap: 'wrap' }}>
+                <label htmlFor="rangePreset" className="muted">Range</label>
+                <select id="rangePreset" value={rangePresetId} onChange={(e)=> setRangePresetId(e.target.value)}>
+                  {RANGE_PRESETS.map(p => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                  <option value="custom">Custom</option>
+                </select>
+                {rangePresetId === 'custom' && (
+                  <>
+                    <label htmlFor="customMin" className="muted">Min</label>
+                    <input id="customMin" type="number" step={1} style={{ width: 110 }}
+                      value={customMin}
+                      onChange={(e)=> handleCustomMinChange(Number(e.target.value))} />
+                    <label htmlFor="customMax" className="muted">Max</label>
+                    <input id="customMax" type="number" step={1} style={{ width: 110 }}
+                      value={customMax}
+                      onChange={(e)=> handleCustomMaxChange(Number(e.target.value))} />
+                  </>
+                )}
+              </div>
               <input
                 className="range"
                 type="range"
-                min={-500}
-                max={2020}
+                min={rangePreset.min}
+                max={rangePreset.max}
                 step={1}
-                value={year}
-                onChange={(e)=> setYear(Number(e.target.value))}
+                value={pendingYear}
+                onChange={(e)=> setPendingYear(Number(e.target.value))}
               />
-              <div className="muted">{year}</div>
+              <div className="muted">{formatYear(pendingYear)}</div>
             </div>
             <div className="badge badge--neutral">Map: {activeProviderLabel}</div>
           </div>
