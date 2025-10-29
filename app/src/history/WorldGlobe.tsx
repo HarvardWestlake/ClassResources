@@ -122,6 +122,7 @@ export default function WorldGlobe() {
   const [selectedNames, setSelectedNames] = useState<string[]>([])
   const [year, setYear] = useState<number>(2020)
   const [pendingYear, setPendingYear] = useState<number>(2020)
+  const [isScrubbing, setIsScrubbing] = useState<boolean>(false)
   const [rangePresetId, setRangePresetId] = useState<string>('modern-plus')
   const [customMin, setCustomMin] = useState<number>(-2000)
   const [customMax, setCustomMax] = useState<number>(2020)
@@ -156,12 +157,15 @@ export default function WorldGlobe() {
   const fetchAbortRef = useRef<AbortController | null>(null)
   const requestSeqRef = useRef<number>(0)
   const prevProviderIdRef = useRef<string | null>(null)
+  const filteredCacheRef = useRef<Record<string, CountryFeature[]>>({})
 
-  // Debounce slider updates to avoid thrashing renders when scrubbing
-  useEffect(() => {
-    const handle = setTimeout(() => setYear(pendingYear), 150)
-    return () => clearTimeout(handle)
-  }, [pendingYear])
+  // Commit helper: apply current pending year as the active year (on release)
+  function commitPendingYear(){
+    const clamp = (v: number) => Math.min(rangePreset.max, Math.max(rangePreset.min, v))
+    const clamped = clamp(pendingYear)
+    if (clamped !== pendingYear) setPendingYear(clamped)
+    setYear(clamped)
+  }
 
   // Clamp pending/committed year to the selected range preset
   useEffect(() => {
@@ -176,6 +180,44 @@ export default function WorldGlobe() {
   }
   function handleCustomMaxChange(v: number){
     setCustomMax(v)
+  }
+
+  // Neighbor preloading helpers
+  async function preloadHBAtIndex(index: number){
+    const snap = HB_SNAPSHOTS[index]
+    if (!snap) return
+    const id = `hb_${snap.year}`
+    if (cacheRef.current[id]) return
+    try{
+      const res = await fetch(`/static/data/history/hb/${snap.file}`)
+      if (!res.ok) return
+      const gj = await res.json()
+      const fs = (gj?.features ?? []) as CountryFeature[]
+      cacheRef.current[id] = fs
+    }catch{}
+  }
+
+  function preloadAdjacent(p: Provider, y: number){
+    if (p.id.startsWith('hb_')){
+      const idx = HB_SNAPSHOTS.findLastIndex(s => s.year <= y)
+      preloadHBAtIndex(idx - 1)
+      preloadHBAtIndex(idx + 1)
+    } else if (p.startProp && p.endProp){
+      const base = cacheRef.current[p.id]
+      if (!base) return
+      const years = [y - 1, y + 1]
+      for (const yy of years){
+        const key = `${p.id}:${yy}`
+        if (!filteredCacheRef.current[key]){
+          const arr = base.filter(f => {
+            const s = Number(f.properties?.[p.startProp!] ?? -Infinity)
+            const e = Number(f.properties?.[p.endProp!] ?? Infinity)
+            return s <= yy && yy <= e
+          })
+          filteredCacheRef.current[key] = arr
+        }
+      }
+    }
   }
 
   useEffect(() => {
@@ -278,7 +320,9 @@ export default function WorldGlobe() {
       applyStyles()
     }
 
-    loadProvider(provider)
+    loadProvider(provider).then(() => {
+      preloadAdjacent(provider, year)
+    })
 
     function handleResize(){
       if (!containerRef.current) return
@@ -342,16 +386,23 @@ export default function WorldGlobe() {
       if (cacheRef.current[p.id]){
         let fs = cacheRef.current[p.id]
         if (p.startProp && p.endProp){
-          const y = year
-          fs = fs.filter(f => {
-            const s = Number(f.properties?.[p.startProp!] ?? -Infinity)
-            const e = Number(f.properties?.[p.endProp!] ?? Infinity)
-            return s <= y && y <= e
-          })
+          const key = `${p.id}:${year}`
+          let filtered = filteredCacheRef.current[key]
+          if (!filtered){
+            const y = year
+            filtered = fs.filter(f => {
+              const s = Number(f.properties?.[p.startProp!] ?? -Infinity)
+              const e = Number(f.properties?.[p.endProp!] ?? Infinity)
+              return s <= y && y <= e
+            })
+            filteredCacheRef.current[key] = filtered
+          }
+          fs = filtered
         }
         features = fs
         applyStyles()
         setActiveProviderLabel(p.label)
+        preloadAdjacent(p, year)
         return
       }
       try{
@@ -361,12 +412,18 @@ export default function WorldGlobe() {
         let fs = (gj?.features ?? []) as CountryFeature[]
         cacheRef.current[p.id] = fs
         if (p.startProp && p.endProp){
-          const y = year
-          fs = fs.filter(f => {
-            const s = Number(f.properties?.[p.startProp!] ?? -Infinity)
-            const e = Number(f.properties?.[p.endProp!] ?? Infinity)
-            return s <= y && y <= e
-          })
+          const key = `${p.id}:${year}`
+          let filtered = filteredCacheRef.current[key]
+          if (!filtered){
+            const y = year
+            filtered = fs.filter(f => {
+              const s = Number(f.properties?.[p.startProp!] ?? -Infinity)
+              const e = Number(f.properties?.[p.endProp!] ?? Infinity)
+              return s <= y && y <= e
+            })
+            filteredCacheRef.current[key] = filtered
+          }
+          fs = filtered
         }
         features = fs
         setActiveProviderLabel(p.label)
@@ -394,16 +451,21 @@ export default function WorldGlobe() {
     const providerChanged = prevId !== provider.id
     if (isHB) {
       if (providerChanged) {
-        loadProvider(provider)
+        loadProvider(provider).then(() => {
+          preloadAdjacent(provider, year)
+        })
         prevProviderIdRef.current = provider.id
       } else {
         // No reload on year-only changes for HB; just re-apply styles from cache
         features = cacheRef.current[provider.id] ?? []
         applyStyles()
+        preloadAdjacent(provider, year)
       }
     } else {
       // CShapes depends on year filtering; load every time year changes
-      loadProvider(provider)
+      loadProvider(provider).then(() => {
+        preloadAdjacent(provider, year)
+      })
       prevProviderIdRef.current = provider.id
     }
   }, [provider, year])
@@ -450,6 +512,10 @@ export default function WorldGlobe() {
                 step={1}
                 value={pendingYear}
                 onChange={(e)=> setPendingYear(Number(e.target.value))}
+                onPointerDown={()=> setIsScrubbing(true)}
+                onPointerUp={()=> { setIsScrubbing(false); commitPendingYear() }}
+                onPointerCancel={()=> { setIsScrubbing(false); commitPendingYear() }}
+                onKeyUp={()=> { commitPendingYear() }}
               />
               <div className="muted">{formatYear(pendingYear)}</div>
             </div>
