@@ -2,6 +2,7 @@ import { Routes, Route, Link, NavLink } from 'react-router-dom'
 import Home from './pages/Home.tsx'
 import History from './history/History.tsx'
 import WorldGlobe from './history/WorldGlobe.tsx'
+import LectureViewer from './history/LectureViewer.tsx'
 import StyleGuide from './admin/StyleGuide.tsx'
 import MobileFullscreen from './pages/MobileFullscreen.tsx'
 
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="mobile" element={<MobileFullscreen />} />
         <Route path="history" element={<History />} />
         <Route path="history/world" element={<WorldGlobe />} />
+        <Route path="history/lecture" element={<LectureViewer />} />
         <Route path="*" element={<Home />} />
       </Routes>
       <footer className="hw-footer">

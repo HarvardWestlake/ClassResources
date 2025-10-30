@@ -16,6 +16,15 @@ export default function History() {
             <span className="button">Open In‑App</span>
           </Link>
 
+          <Link className="widget-card" to="/history/lecture">
+            <div className="title-row">
+              <h3>Lecture of the Day</h3>
+              <div className="function">Upload JSON and scroll a clean timeline</div>
+            </div>
+            <p>Student‑mode viewer: upload a story JSON to browse a clear, scrollable timeline of major events. Click any event to view details, images, and dates.</p>
+            <span className="button">Open Viewer</span>
+          </Link>
+
           <a className="widget-card" href="/static/history/widgets/chocolate-history/chocolate-history.html">
             <div className="title-row">
               <h3>Chocolate: A Global History</h3>

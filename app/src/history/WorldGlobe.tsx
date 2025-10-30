@@ -56,6 +56,7 @@ type EventBase = {
   description: string // plain text
   media?: { imageDataUrl?: string; imageUrl?: string; caption?: string }
   impactKm: number
+  importance: 'major' | 'minor'
 }
 
 type PointEvent = EventBase & {
@@ -71,6 +72,15 @@ type PathEvent = EventBase & {
 
 type EventSpec = PointEvent | PathEvent
 
+// Propagation link connecting two point events
+type EventLink = {
+  id: string
+  fromId: string
+  toId: string
+  importance: 'major' | 'minor'
+  color?: string
+}
+
 // Export structure keyed by date
 type StoryExport = {
   version: 'story/v1'
@@ -85,11 +95,19 @@ type StoryExport = {
     color: string
     description: string
     impactKm: number
+    importance: 'major' | 'minor'
     location?: { lat: number; lon: number }
     start?: { lat: number; lon: number }
     end?: { lat: number; lon: number }
     media?: { imageDataUrl?: string; imageUrl?: string; caption?: string }
   }>>
+  links?: Array<{
+    id: string
+    fromId: string
+    toId: string
+    importance: 'major' | 'minor'
+    color?: string
+  }>
 }
 
 // ---------------- Constants ----------------
@@ -150,6 +168,16 @@ export default function WorldGlobe() {
   const [evLon, setEvLon] = useState<string>('0')
   const [evEndLat, setEvEndLat] = useState<string>('0')
   const [evEndLon, setEvEndLon] = useState<string>('0')
+  const [evImportance, setEvImportance] = useState<'major' | 'minor'>('minor')
+
+  // Links state
+  const [links, setLinks] = useState<EventLink[]>([])
+  const [showMajorLinks, setShowMajorLinks] = useState<boolean>(true)
+  const [showMinorLinks, setShowMinorLinks] = useState<boolean>(true)
+  const [lnkFromId, setLnkFromId] = useState<string>('')
+  const [lnkToId, setLnkToId] = useState<string>('')
+  const [lnkImportance, setLnkImportance] = useState<'major' | 'minor'>('major')
+  const [lnkColor, setLnkColor] = useState<string>('')
 
   // ---------------- Globe bootstrap ----------------
 
@@ -421,6 +449,8 @@ export default function WorldGlobe() {
       const b = e.dateEnd ? T(e.dateEnd) : a
       return t >= a && t <= b
     })
+    const activeIds = new Set(active.map(e => e.id))
+    const evById = new Map(events.map(e => [e.id, e]))
 
     // Build donuts and rings for point events; endpoint rings + arcs for path events
     const eventDonuts: CountryFeature[] = []
@@ -459,6 +489,32 @@ export default function WorldGlobe() {
       }
     }
 
+    // Build arrows from propagation links (from -> to), shown when destination is active
+    for (const l of links) {
+      if (l.importance === 'major' && !showMajorLinks) continue
+      if (l.importance === 'minor' && !showMinorLinks) continue
+      const fromEv = evById.get(l.fromId)
+      const toEv = evById.get(l.toId)
+      if (!fromEv || !toEv) continue
+      if (fromEv.type !== 'point' || toEv.type !== 'point') continue
+      if (!activeIds.has(toEv.id)) continue
+      const fromImp = Number(fromEv.impactKm) || 1
+      const toImp = Number(toEv.impactKm) || 1
+      const strokePx = impactToArrowStrokePx((fromImp + toImp) / 2)
+      eventArrows.push({
+        id: `link-${l.id}`,
+        startLat: fromEv.location.lat,
+        startLng: fromEv.location.lon,
+        endLat: toEv.location.lat,
+        endLng: toEv.location.lon,
+        color: l.color || fromEv.color,
+        strokePx,
+        animMs: 2000,
+        altitude: 0.12,
+        initialGap: Math.random()
+      })
+    }
+
     // Merge with legacy layers
     const legacyRings = ringItemsRef.current.filter(r => true)
     const legacyArrows = arrowsState
@@ -486,6 +542,7 @@ export default function WorldGlobe() {
         color: e.color,
         description: e.description,
         impactKm: e.impactKm,
+        importance: e.importance,
         ...(e.type === 'point'
           ? { location: { lat: e.location.lat, lon: e.location.lon } }
           : { start: { lat: e.start.lat, lon: e.start.lon }, end: { lat: e.end.lat, lon: e.end.lon } }),
@@ -498,7 +555,8 @@ export default function WorldGlobe() {
       version: 'story/v1',
       meta: { title: storyTitle || 'Untitled Story', exportedAt: new Date().toISOString() },
       settings: { impactUnit: 'km' },
-      timeline
+      timeline,
+      links: links.map(l => ({ id: l.id, fromId: l.fromId, toId: l.toId, importance: l.importance, color: l.color }))
     }
   }
 
@@ -520,6 +578,7 @@ export default function WorldGlobe() {
       const text = await file.text()
       const json = JSON.parse(text) as StoryExport
       const out: EventSpec[] = []
+      const importedLinks: EventLink[] = []
       const timeline = json?.timeline || {}
       for (const [dateKey, arr] of Object.entries(timeline)) {
         for (const raw of arr) {
@@ -534,6 +593,7 @@ export default function WorldGlobe() {
               description: raw.description || '',
               media: raw.media,
               impactKm: Number(raw.impactKm) || 1,
+              importance: (raw as any).importance === 'major' ? 'major' : 'minor',
               location: { lat: Number(raw.location.lat), lon: Number(raw.location.lon) }
             })
           } else if (raw.type === 'path' && raw.start && raw.end) {
@@ -547,13 +607,23 @@ export default function WorldGlobe() {
               description: raw.description || '',
               media: raw.media,
               impactKm: Number(raw.impactKm) || 1,
+              importance: (raw as any).importance === 'major' ? 'major' : 'minor',
               start: { lat: Number(raw.start.lat), lon: Number(raw.start.lon) },
               end: { lat: Number(raw.end.lat), lon: Number(raw.end.lon) }
             })
           }
         }
       }
+      const rawLinks = (json as any)?.links
+      if (Array.isArray(rawLinks)) {
+        for (const l of rawLinks) {
+          if (l && typeof l.fromId === 'string' && typeof l.toId === 'string' && (l.importance === 'major' || l.importance === 'minor')) {
+            importedLinks.push({ id: String(l.id || `${l.fromId}->${l.toId}`), fromId: l.fromId, toId: l.toId, importance: l.importance, color: typeof l.color === 'string' ? l.color : undefined })
+          }
+        }
+      }
       setEvents(out)
+      setLinks(importedLinks)
     } catch (err) {
       alert('Failed to import JSON: ' + (err as Error)?.message)
     }
@@ -572,6 +642,7 @@ export default function WorldGlobe() {
       color: evColor || '#e53935',
       description: evDesc || '',
       impactKm,
+      importance: evImportance,
       media: evImageDataUrl ? { imageDataUrl: evImageDataUrl } : undefined
     }
 
@@ -604,6 +675,42 @@ export default function WorldGlobe() {
     const reader = new FileReader()
     reader.onload = () => { setEvImageDataUrl(String(reader.result || '')) }
     reader.readAsDataURL(file)
+  }
+
+  // ---------------- Link handlers ----------------
+
+  function handleAddLink() {
+    if (!lnkFromId || !lnkToId || lnkFromId === lnkToId) return
+    const id = `${lnkFromId}->${lnkToId}@${Date.now()}`
+    const cleanColor = (lnkColor || '').trim()
+    const color = /^#([\da-fA-F]{6})$/.test(cleanColor) ? cleanColor : undefined
+    setLinks(arr => [...arr, { id, fromId: lnkFromId, toId: lnkToId, importance: lnkImportance, color }])
+  }
+
+  function handleRemoveLink(id: string) {
+    setLinks(arr => arr.filter(l => l.id !== id))
+  }
+
+  function handleClearLinks() {
+    setLinks([])
+  }
+
+  function handleAutoLink(importance: 'major' | 'minor') {
+    // Build consecutive links among point events of the given importance, ordered by dateStart
+    const pts = events
+      .filter(e => e.type === 'point' && e.importance === importance)
+      .slice()
+      .sort((a, b) => (a.dateStart.localeCompare(b.dateStart)) || a.title.localeCompare(b.title)) as PointEvent[]
+    if (pts.length < 2) return
+    // Replace existing links of this importance with the new chain
+    const others = links.filter(l => l.importance !== importance)
+    const chain: EventLink[] = []
+    for (let i = 1; i < pts.length; i++) {
+      const prev = pts[i - 1]
+      const curr = pts[i]
+      chain.push({ id: `${prev.id}->${curr.id}`, fromId: prev.id, toId: curr.id, importance, color: undefined })
+    }
+    setLinks([...others, ...chain])
   }
 
   // ---------------- Legacy UI actions ----------------
@@ -672,6 +779,14 @@ export default function WorldGlobe() {
                     <span className="muted">Import</span>
                     <input type="file" accept="application/json" onChange={(e)=> { const f=e.target.files?.[0]; if (f) handleImportFile(f) }} />
                   </label>
+                  <label style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                    <input type="checkbox" checked={showMajorLinks} onChange={(e)=> setShowMajorLinks(e.target.checked)} />
+                    <span className="muted">Show Major Arrows</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                    <input type="checkbox" checked={showMinorLinks} onChange={(e)=> setShowMinorLinks(e.target.checked)} />
+                    <span className="muted">Show Minor Arrows</span>
+                  </label>
                 </>
               )}
             </div>
@@ -708,6 +823,13 @@ export default function WorldGlobe() {
               <label>
                 <div className="muted">Impact (km)</div>
                 <input type="number" step={1} value={evImpactKm} onChange={(e)=> setEvImpactKm(e.target.value)} />
+              </label>
+              <label>
+                <div className="muted">Importance</div>
+                <select value={evImportance} onChange={(e)=> setEvImportance((e.target.value as 'major' | 'minor'))}>
+                  <option value="major">Major</option>
+                  <option value="minor">Minor</option>
+                </select>
               </label>
               <label>
                 <div className="muted">Color</div>
@@ -771,6 +893,9 @@ export default function WorldGlobe() {
                   <div style={{ display:'flex', alignItems:'center', gap:'.6rem', flexWrap:'wrap' }}>
                     <span style={{ display:'inline-block', width:14, height:14, borderRadius:'50%', background: e.color, border:'1px solid rgba(0,0,0,.2)' }} />
                     <span className="muted">{e.type.toUpperCase()}</span>
+                    <span className="muted" style={{ padding: '.05rem .35rem', border: '1px solid rgba(0,0,0,.2)', borderRadius: 4 }}>
+                      {e.importance === 'major' ? 'MAJOR' : 'MINOR'}
+                    </span>
                     <strong>{e.title}</strong>
                     <span className="muted">{e.dateStart}{e.dateEnd ? ' — '+e.dateEnd : ''} · impact {e.impactKm} km</span>
                   </div>
@@ -785,6 +910,62 @@ export default function WorldGlobe() {
 
         {teacherMode && (
           <>
+            <section className="panel">
+              <div className="eyebrow">Propagation Arrows</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '.5rem', alignItems: 'end' }}>
+                <label>
+                  <div className="muted">From Event</div>
+                  <select value={lnkFromId} onChange={(e)=> setLnkFromId(e.target.value)}>
+                    <option value="">— Select —</option>
+                    {events.filter(e=> e.type==='point').slice().sort((a,b)=> a.dateStart.localeCompare(b.dateStart)).map(e=> (
+                      <option key={e.id} value={e.id}>{e.dateStart} · {e.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <div className="muted">To Event</div>
+                  <select value={lnkToId} onChange={(e)=> setLnkToId(e.target.value)}>
+                    <option value="">— Select —</option>
+                    {events.filter(e=> e.type==='point').slice().sort((a,b)=> a.dateStart.localeCompare(b.dateStart)).map(e=> (
+                      <option key={e.id} value={e.id}>{e.dateStart} · {e.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <div className="muted">Importance</div>
+                  <select value={lnkImportance} onChange={(e)=> setLnkImportance(e.target.value as any)}>
+                    <option value="major">Major</option>
+                    <option value="minor">Minor</option>
+                  </select>
+                </label>
+                <label>
+                  <div className="muted">Color (optional)</div>
+                  <input type="color" value={lnkColor || '#000000'} onChange={(e)=> setLnkColor(e.target.value)} />
+                </label>
+                <div>
+                  <button className="btn" onClick={handleAddLink}>Add Link</button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem', flexWrap: 'wrap' }}>
+                <button className="btn" onClick={()=> handleAutoLink('major')}>Auto‑Link Major (by date)</button>
+                <button className="btn" onClick={()=> handleAutoLink('minor')}>Auto‑Link Minor (by date)</button>
+                <button className="btn" onClick={handleClearLinks}>Clear All Links</button>
+              </div>
+              {links.length > 0 && (
+                <ul className="list-plain" style={{ marginTop: '.5rem' }}>
+                  {links.map(l=> (
+                    <li key={l.id} style={{ display:'flex', alignItems:'center', gap:'.5rem', justifyContent:'space-between', flexWrap:'wrap' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'.6rem', flexWrap:'wrap' }}>
+                        <span className="muted" style={{ padding: '.05rem .35rem', border: '1px solid rgba(0,0,0,.2)', borderRadius: 4 }}>{l.importance === 'major' ? 'MAJOR' : 'MINOR'}</span>
+                        <span>{l.fromId} → {l.toId}</span>
+                        {l.color && <span className="muted">color <span style={{ display:'inline-block', width:12, height:12, background:l.color, border:'1px solid rgba(0,0,0,.2)' }} /></span>}
+                      </div>
+                      <button className="btn" onClick={()=> handleRemoveLink(l.id)}>Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
             <section className="panel">
               <div className="eyebrow">Legacy Shapes (Advanced)</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '.5rem', alignItems: 'end' }}>

@@ -583,6 +583,10 @@ a.link:hover { text-decoration: underline; }
 .btn--lg { min-height: 48px; padding: .75rem 1.25rem; font-size: var(--step-0); }
 .btn--block { width: 100%; }
 
+/* Lecture viewer cards: restore outline style within viewer despite global no-borders */
+.lecture-card.btn--outline { border: 1px solid var(--hw-red) !important; background: #fff; }
+.lecture-card__title { font-weight: 800; }
+
 /* Uppercase variant with yellow text on hover */
 .btn--caps {
   text-transform: uppercase;
