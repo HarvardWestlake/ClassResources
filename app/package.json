@@ -10,9 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "globe.gl": "^2.44.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-router-dom": "^7.9.3"
+    "react-router-dom": "^7.9.3",
+    "three": "^0.180.0",
+    "three-globe": "^2.44.1",
+    "three-render-objects": "^1.40.4",
+    "topojson-client": "^3.1.0"
+  },
+  "overrides": {
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

@@ -48,13 +48,13 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
-          <a className="widget-card" href="/static/history/index.html">
+          <Link className="widget-card" to="/history">
             <div className="title-row">
               <h3>History</h3>
             </div>
             <p>Interactive timelines and maps for world histories.</p>
             <span className="button">Open</span>
-          </a>
+          </Link>
         </div>
 
         <h2>Admin</h2>
