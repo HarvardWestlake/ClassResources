@@ -32,14 +32,6 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
-          <Link className="widget-card" to="/econ/supply-demand">
-            <div className="title-row">
-              <h3>Supply & Demand (Native)</h3>
-            </div>
-            <p>Market equilibrium with complete, simplified, and animated views.</p>
-            <span className="button">Open</span>
-          </Link>
-
           <a className="widget-card" href="/static/chem/index.html">
             <div className="title-row">
               <h3>Chemistry</h3>
