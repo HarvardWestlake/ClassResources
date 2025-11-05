@@ -202,6 +202,12 @@ canvas {
   box-shadow: none;
 }
 
+/* Active tab look for widget topbar (to match Imperfect Competitor) */
+.topbar .widget-action-button[aria-pressed="true"] { background: #000; }
+
+.small { font-size: 0.85rem; }
+.subtle { color: #666; }
+
 /* If a .widget-action-button is a direct child of a display:flex container, 
    and we want it to take full width or grow, you can optionally set flex-grow/width. */
 
