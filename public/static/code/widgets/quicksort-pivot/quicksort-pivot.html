@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>QuickSort Pivot Demo — Standalone Widget</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --qs-font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+                 "Segoe UI Emoji", "Segoe UI Symbol";
+      --qs-bg: #ffffff;
+      --qs-text: #111827;
+      --qs-muted: #6b7280;
+      --qs-border: #d1d5db;
+      --qs-tile-bg: #f3f4f6;
+      --qs-tile-bg-strong: #e5e7eb;
+      --qs-brand: #0b63ff;
+      --qs-brand-weak: #e6efff;
+      --qs-success: #16a34a;
+      --qs-warning: #f59e0b;
+      --qs-danger: #ef4444;
+      --qs-radius: 10px;
+      --qs-gap: 8px;
+      --qs-pad: 14px;
+      --qs-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+      --qs-step-dur: 250ms;
+    }
+
+    #qs-demo {
+      font-family: var(--qs-font);
+      color: var(--qs-text);
+      background: var(--qs-bg);
+      max-width: 960px;
+      margin: 28px auto;
+      padding: 20px;
+      border: 1px solid var(--qs-border);
+      border-radius: 14px;
+      box-shadow: var(--qs-shadow);
+    }
+    #qs-demo * { box-sizing: border-box; }
+
+    .qs-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .qs-title { font-size: 1.125rem; font-weight: 650; letter-spacing: .2px; margin: 0; }
+    .qs-subtle { margin: 0; color: var(--qs-muted); font-size: .95rem; }
+
+    .qs-array { --n: 15; display: grid; grid-template-columns: repeat(var(--n), minmax(0,1fr)); gap: var(--qs-gap); width: 100%; align-items: stretch; user-select: none; margin: 8px 0 14px 0; }
+    .qs-item { position: relative; appearance: none; border: 1px solid var(--qs-border); background: var(--qs-tile-bg); border-radius: var(--qs-radius); padding: clamp(6px, 1.2vw, 10px); height: var(--tile-height, 54px); line-height: 1; font-weight: 630; font-variant-numeric: tabular-nums; font-size: var(--tile-font, 16px); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background-color 130ms ease, border-color 130ms ease, box-shadow 130ms ease, transform var(--qs-step-dur) ease; outline: none; }
+    .qs-item:hover { background: var(--qs-tile-bg-strong); }
+    .qs-item:focus-visible { box-shadow: 0 0 0 2px var(--qs-brand-weak), 0 0 0 4px var(--qs-brand); }
+    .qs-item.is-pivot { background: var(--qs-brand-weak); border-color: var(--qs-brand); }
+    .qs-item.is-compare { background: #fff7ed; border-color: var(--qs-warning); }
+    .qs-item.is-move { background: #eff6ff; border-color: var(--qs-brand); }
+    .qs-item.is-placed { background: #ecfdf5; border-color: var(--qs-success); }
+    .qs-item.is-disabled { cursor: default; opacity: .6; }
+    .qs-item.in-range { box-shadow: inset 0 0 0 2px rgba(11,99,255,.15); }
+
+    .qs-controls { border-top: 1px solid var(--qs-border); padding-top: 12px; display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .qs-row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+    .qs-group { display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap; }
+    .qs-field { display: grid; gap: 6px; min-width: 200px; }
+    .qs-label { font-size: .9rem; color: var(--qs-muted); }
+    input[type="range"] { width: 240px; accent-color: var(--qs-brand); }
+    input[type="number"] { width: 88px; padding: 8px 10px; border: 1px solid var(--qs-border); border-radius: 8px; background: #fff; font: inherit; }
+    .qs-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .qs-btn { appearance: none; border: 1px solid var(--qs-border); background: #fff; color: var(--qs-text); padding: 9px 14px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease; }
+    .qs-btn:hover { background: #f9fafb; }
+    .qs-btn:active { transform: translateY(1px); }
+    .qs-btn.primary { background: var(--qs-brand); color: #fff; border-color: var(--qs-brand); }
+    .qs-btn[disabled] { opacity: .6; cursor: not-allowed; }
+    .qs-metrics { display: flex; gap: 16px; color: var(--qs-muted); font-size: .95rem; padding-top: 6px; }
+    .qs-metrics strong { color: var(--qs-text); }
+
+    @media (prefers-reduced-motion: reduce) { .qs-item { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div id="qs-demo" aria-labelledby="qs-title">
+    <div class="qs-header">
+      <h2 id="qs-title" class="qs-title">QuickSort Pivot Demo</h2>
+      <p class="qs-subtle">Click any number to choose the first pivot • All items stay on one row</p>
+    </div>
+
+    <div id="qs-array" class="qs-array" role="list" aria-live="polite"></div>
+
+    <div class="qs-controls" aria-label="Controls">
+      <div class="qs-row">
+        <div class="qs-group">
+          <div class="qs-field">
+            <label class="qs-label" for="nRange">Items (N): <span id="nOut">15</span></label>
+            <div class="qs-group">
+              <input id="nRange" type="range" min="5" max="40" step="1" value="15" />
+              <input id="nInput" type="number" min="5" max="40" step="1" value="15" />
+            </div>
+          </div>
+          <div class="qs-field">
+            <label class="qs-label" for="speedRange">Animation speed: <span id="speedOut">4</span> ops/sec</label>
+            <input id="speedRange" type="range" min="1" max="15" step="1" value="4" />
+          </div>
+        </div>
+        <div class="qs-actions">
+          <button id="shuffleBtn" class="qs-btn">Shuffle</button>
+          <button id="prevBtn" class="qs-btn">Prev</button>
+          <button id="pauseBtn" class="qs-btn">Pause</button>
+          <button id="nextBtn" class="qs-btn">Next</button>
+        </div>
+      </div>
+      <div class="qs-row" style="justify-content:flex-start;">
+        <div class="qs-metrics">
+          <span>Operations: <strong id="opCount">0</strong></span>
+          <span>Status: <strong id="status">Ready — choose a pivot</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const qs = (sel, root = document) => root.querySelector(sel);
+    const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+    const shuffle = (arr) => { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+
+    const state = {
+      n: 15,
+      items: [],            // [{id,value}]
+      order: [],            // id order
+      opsPerSec: 4,
+      opCount: 0,
+      running: false,
+      cancelToken: 0,
+      // stepping
+      currentActions: [],
+      currentIndex: -1,     // last-applied index
+      isPaused: true,
+      initialOrder: [],
+      initialItems: []
+    };
+
+    const arrayEl    = qs('#qs-array');
+    const nRange     = qs('#nRange');
+    const nInput     = qs('#nInput');
+    const nOut       = qs('#nOut');
+    const speedRange = qs('#speedRange');
+    const speedOut   = qs('#speedOut');
+    const shuffleBtn = qs('#shuffleBtn');
+    const prevBtn    = qs('#prevBtn');
+    const pauseBtn   = qs('#pauseBtn');
+    const nextBtn    = qs('#nextBtn');
+    const opCountEl  = qs('#opCount');
+    const statusEl   = qs('#status');
+    const root       = qs('#qs-demo');
+
+    const msFromOps = (ops) => Math.max(80, Math.round(1000 / ops));
+
+    function setOpCount(n) { state.opCount = n; opCountEl.textContent = String(n); }
+    function updateOpCount(delta = 0) { setOpCount(state.opCount + delta); }
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    function applyDensity(n) {
+      const height = Math.max(36, Math.min(64, 72 - n));
+      const font   = Math.max(11, Math.min(18, 22 - Math.floor(n / 2)));
+      arrayEl.style.setProperty('--tile-height', height + 'px');
+      arrayEl.style.setProperty('--tile-font', font + 'px');
+      arrayEl.style.setProperty('--n', n);
+    }
+
+    function renderArray() {
+      const existing = new Map(qsa('.qs-item', arrayEl).map(el => [el.dataset.id, el]));
+      const frag = document.createDocumentFragment();
+      state.order.forEach(id => {
+        let el = existing.get(id);
+        if (!el) {
+          const item = state.items.find(it => it.id === id);
+          el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'qs-item';
+          el.dataset.id = id;
+          el.setAttribute('role', 'listitem');
+          el.title = 'Click to choose pivot';
+          el.addEventListener('click', onTileClick);
+          el.textContent = item.value;
+        }
+        frag.appendChild(el);
+      });
+      arrayEl.innerHTML = '';
+      arrayEl.appendChild(frag);
+      toggleTileInteractivity(!state.running);
+    }
+
+    function toggleTileInteractivity(enabled) {
+      qsa('.qs-item', arrayEl).forEach(el => { el.classList.toggle('is-disabled', !enabled); el.tabIndex = enabled ? 0 : -1; });
+      // Controls
+      nInput.disabled = state.running || state.currentActions.length > 0;
+      nRange.disabled = state.running || state.currentActions.length > 0;
+      shuffleBtn.disabled = state.running;
+      prevBtn.disabled = state.currentActions.length === 0 || state.currentIndex <= -1;
+      nextBtn.disabled = state.currentActions.length === 0 || state.currentIndex >= state.currentActions.length - 1;
+      pauseBtn.disabled = state.currentActions.length === 0;
+      pauseBtn.textContent = state.isPaused ? 'Resume' : 'Pause';
+    }
+
+    function initItems(n) {
+      const values = shuffle([...Array(n)].map((_, i) => i + 1));
+      state.items = values.map((v, i) => ({ id: 'id' + i + '_' + Date.now() + '_' + Math.random().toString(16).slice(2), value: v }));
+      state.order = state.items.map(it => it.id);
+      state.currentActions = [];
+      state.currentIndex = -1;
+      state.isPaused = true;
+      setOpCount(0);
+      setStatus('Ready — choose a pivot');
+      root.style.setProperty('--qs-step-dur', msFromOps(state.opsPerSec) + 'ms');
+      applyDensity(n);
+      renderArray();
+      toggleTileInteractivity(true);
+    }
+
+    function flipToOrder(newOrder) {
+      const before = new Map();
+      qsa('.qs-item', arrayEl).forEach(el => { before.set(el.dataset.id, el.getBoundingClientRect()); });
+      const map = new Map(qsa('.qs-item', arrayEl).map(el => [el.dataset.id, el]));
+      const frag = document.createDocumentFragment();
+      newOrder.forEach(id => frag.appendChild(map.get(id)));
+      arrayEl.appendChild(frag);
+      qsa('.qs-item', arrayEl).forEach(el => {
+        const id = el.dataset.id;
+        const first = before.get(id);
+        const last  = el.getBoundingClientRect();
+        const dx = first.left - last.left; const dy = first.top - last.top;
+        if (dx || dy) {
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          el.getBoundingClientRect();
+          el.style.transition = `transform var(--qs-step-dur) ease`;
+          el.style.transform = 'translate(0,0)';
+          el.addEventListener('transitionend', function tidy(e){ if (e.propertyName === 'transform'){ el.style.transition=''; el.removeEventListener('transitionend', tidy); } });
+        }
+      });
+    }
+
+    function buildActionQueue(initialPivotId) {
+      const actions = [];
+      const ids = [...state.order];
+      const valueById = new Map(state.items.map(it => [it.id, it.value]));
+      const inRangeMark = (low, high, on) => actions.push({ type: 'range', low, high, on });
+      function lomutoPartition(low, high, pivotIdAtIndex) {
+        actions.push({ type: 'pick', id: ids[pivotIdAtIndex] });
+        if (pivotIdAtIndex !== high) { const a = ids[pivotIdAtIndex], b = ids[high]; actions.push({ type: 'move', a, b }); [ids[pivotIdAtIndex], ids[high]] = [ids[high], ids[pivotIdAtIndex]]; }
+        const pivotId = ids[high]; let i = low;
+        for (let j = low; j < high; j++) { actions.push({ type: 'compare', a: ids[j], b: pivotId }); if (valueById.get(ids[j]) < valueById.get(pivotId)) { if (i !== j) { actions.push({ type: 'move', a: ids[i], b: ids[j] }); [ids[i], ids[j]] = [ids[j], ids[i]]; } i++; } }
+        actions.push({ type: 'move', a: ids[i], b: ids[high] }); [ids[i], ids[high]] = [ids[high], ids[i]]; actions.push({ type: 'placed', id: ids[i] });
+        return i;
+      }
+      function quickSort(low, high, firstCall = false) {
+        if (low >= high) return; inRangeMark(low, high, true);
+        let pivotIndexInCurrent = high;
+        if (firstCall) { pivotIndexInCurrent = ids.slice(low, high + 1).indexOf(initialPivotId); pivotIndexInCurrent = (pivotIndexInCurrent === -1) ? high : (pivotIndexInCurrent + low); }
+        const p = lomutoPartition(low, high, pivotIndexInCurrent);
+        inRangeMark(low, high, false); quickSort(low, p - 1, false); quickSort(p + 1, high, false);
+      }
+      quickSort(0, ids.length - 1, true);
+      return actions;
+    }
+
+    function snapshotNow() {
+      state.initialOrder = [...state.order];
+      state.initialItems = state.items.map(it => ({ ...it }));
+    }
+    function resetToSnapshot() {
+      state.order = [...state.initialOrder];
+      state.items = state.initialItems.map(it => ({ ...it }));
+      setOpCount(0);
+      renderArray();
+      // clear states
+      qsa('.qs-item', arrayEl).forEach(el => el.classList.remove('is-compare','is-move','is-pivot','in-range','is-placed'));
+    }
+
+    function qsValue(id) { const item = state.items.find(x => x.id === id); return item ? item.value : '?'; }
+
+    async function applyAction(a, withDelay) {
+      const tiles = new Map(qsa('.qs-item', arrayEl).map(el => [el.dataset.id, el]));
+      const step = async () => { if (withDelay) await sleep(msFromOps(state.opsPerSec)); };
+      if (a.type === 'pick') {
+        setStatus('Pick pivot ' + qsValue(a.id)); tiles.get(a.id)?.classList.add('is-pivot'); updateOpCount(1); await step(); return;
+      }
+      if (a.type === 'compare') {
+        setStatus('Compare ' + qsValue(a.a) + ' vs pivot ' + qsValue(a.b)); const A = tiles.get(a.a), B = tiles.get(a.b); A?.classList.add('is-compare'); B?.classList.add('is-compare'); updateOpCount(1); await step(); A?.classList.remove('is-compare'); B?.classList.remove('is-compare'); return;
+      }
+      if (a.type === 'move') {
+        setStatus('Move/swap ' + qsValue(a.a) + ' ↔ ' + qsValue(a.b)); const idA = a.a, idB = a.b; const idxA = state.order.indexOf(idA); const idxB = state.order.indexOf(idB);
+        if (idxA !== -1 && idxB !== -1 && idxA !== idxB) { tiles.get(idA)?.classList.add('is-move'); tiles.get(idB)?.classList.add('is-move'); const next = [...state.order]; [next[idxA], next[idxB]] = [next[idxB], next[idxA]]; flipToOrder(next); state.order = next; updateOpCount(1); await step(); tiles.get(idA)?.classList.remove('is-move'); tiles.get(idB)?.classList.remove('is-move'); }
+        else { updateOpCount(1); await step(); }
+        return;
+      }
+      if (a.type === 'placed') {
+        const el = tiles.get(a.id); if (el) { el.classList.remove('is-pivot','is-compare','is-move'); el.classList.add('is-placed'); } return;
+      }
+      if (a.type === 'range') {
+        const { low, high, on } = a; if (!on) { qsa('.qs-item', arrayEl).forEach(el => el.classList.remove('in-range')); }
+        else { const ids = state.order.slice(low, high + 1); ids.forEach(id => tiles.get(id)?.classList.add('in-range')); }
+        return;
+      }
+    }
+
+    async function renderToIndex(targetIndex, withDelay) {
+      resetToSnapshot();
+      for (let i = 0; i <= targetIndex; i++) { const a = state.currentActions[i]; if (!a) break; await applyAction(a, withDelay); }
+      toggleTileInteractivity(true);
+    }
+
+    async function stepForward(withDelay) {
+      if (state.currentIndex >= state.currentActions.length - 1) return;
+      state.currentIndex += 1;
+      const a = state.currentActions[state.currentIndex];
+      await applyAction(a, withDelay);
+      toggleTileInteractivity(true);
+    }
+
+    async function stepBackward() {
+      if (state.currentIndex <= -1) return;
+      state.currentIndex -= 1;
+      await renderToIndex(state.currentIndex, false);
+    }
+
+    async function autoRun() {
+      const token = ++state.cancelToken;
+      state.running = true; state.isPaused = false; toggleTileInteractivity(false); pauseBtn.textContent = 'Pause';
+      while (!state.isPaused && state.currentIndex < state.currentActions.length - 1) {
+        if (token !== state.cancelToken) return; await stepForward(true);
+      }
+      state.running = false; toggleTileInteractivity(true); if (state.currentIndex >= state.currentActions.length - 1) setStatus('Done');
+    }
+
+    function setActions(actions) {
+      state.currentActions = actions; state.currentIndex = -1; state.isPaused = true; snapshotNow(); resetToSnapshot();
+      setStatus('Steps ready — use Next or Resume'); toggleTileInteractivity(true);
+    }
+
+    function onTileClick(e) {
+      if (state.running) return;
+      const id = e.currentTarget.dataset.id;
+      setStatus('Building steps…');
+      const actions = buildActionQueue(id);
+      setActions(actions);
+    }
+
+    // Controls
+    nRange.addEventListener('input', e => applyN(e.target.value));
+    nInput.addEventListener('change', e => applyN(e.target.value));
+    speedRange.addEventListener('input', e => { const val = Math.max(1, Math.min(15, parseInt(e.target.value,10))); speedRange.value = String(val); speedOut.textContent = String(val); state.opsPerSec = val; root.style.setProperty('--qs-step-dur', msFromOps(val) + 'ms'); });
+    shuffleBtn.addEventListener('click', () => { if (state.running) return; initItems(state.n); });
+    prevBtn.addEventListener('click', async () => { state.isPaused = true; pauseBtn.textContent = 'Resume'; await stepBackward(); });
+    nextBtn.addEventListener('click', async () => { state.isPaused = true; pauseBtn.textContent = 'Resume'; await stepForward(false); });
+    pauseBtn.addEventListener('click', async () => { if (state.currentActions.length === 0) return; state.isPaused = !state.isPaused; if (!state.isPaused) { await autoRun(); } else { pauseBtn.textContent = 'Resume'; toggleTileInteractivity(true); } });
+
+    function clampInt(v, lo, hi) { v = parseInt(v, 10); if (isNaN(v)) v = lo; return Math.max(lo, Math.min(hi, v)); }
+    function applyN(newN) { newN = clampInt(newN, parseInt(nRange.min,10), parseInt(nRange.max,10)); nRange.value = String(newN); nInput.value = String(newN); nOut.textContent = String(newN); state.n = newN; initItems(newN); }
+
+    // Boot
+    applyN(15);
+    speedOut.textContent = '4'; state.opsPerSec = 4; root.style.setProperty('--qs-step-dur', msFromOps(4) + 'ms');
+  })();
+  </script>
+</body>
+</html>
+
+

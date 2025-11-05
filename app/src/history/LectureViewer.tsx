@@ -72,7 +72,6 @@ export default function LectureViewer() {
   const [showMinor, setShowMinor] = useState<boolean>(false)
   const [error, setError] = useState<string>('')
 
-  const railRef = useRef<HTMLDivElement | null>(null)
   const globeRef = useRef<HTMLDivElement | null>(null)
   const globeInstanceRef = useRef<GlobeInstance | null>(null)
   const countriesCacheRef = useRef<CountryFeature[] | null>(null)
@@ -84,12 +83,7 @@ export default function LectureViewer() {
 
   const visible = useMemo(() => ordered.filter(e => showMinor ? true : e.importance === 'major'), [ordered, showMinor])
 
-  const span = useMemo(() => {
-    if (ordered.length === 0) return { min: 0, max: 1 }
-    const min = Math.min(...ordered.map(e => e.dateMs))
-    const max = Math.max(...ordered.map(e => Math.max(e.dateMs, e.dateEnd ? parseIsoDateMs(e.dateEnd) : e.dateMs)))
-    return { min, max }
-  }, [ordered])
+  // Timeline span can be derived on-demand if needed
 
   const selected = useMemo(() => ordered.find(e => e.id === selectedId) || null, [ordered, selectedId])
 
@@ -106,7 +100,7 @@ export default function LectureViewer() {
       const flat: LectureEvent[] = []
       for (const [dateKey, arr] of Object.entries(timeline)) {
         for (const raw of arr) {
-          const base = {
+          const base: Omit<LectureEvent, 'type' | 'location' | 'start' | 'end'> = {
             id: String((raw as any).id || `${dateKey}-${Math.random().toString(36).slice(2, 8)}`),
             title: raw.title || '(untitled)',
             dateStart: raw.dateStart || dateKey,
@@ -132,11 +126,6 @@ export default function LectureViewer() {
     })
   }
 
-  function positionPct(ms: number): number {
-    const { min, max } = span
-    if (max <= min) return 0
-    return (ms - min) / (max - min)
-  }
 
   // Initialize globe
   useEffect(() => {
@@ -159,7 +148,7 @@ export default function LectureViewer() {
     function applyPolygons(features: CountryFeature[]) {
       globe
         .polygonsData(features.filter(f => (f.properties?.NAME || f.properties?.name) !== 'Antarctica'))
-        .polygonAltitude((d) => 0.01 as any)
+        .polygonAltitude(() => 0.01 as any)
         .polygonCapColor(() => 'rgba(120,150,170,0.65)' as any)
         .polygonSideColor(() => 'rgba(60,80,95,0.5)' as any)
         .polygonStrokeColor(() => 'rgba(255,255,255,0.6)' as any)

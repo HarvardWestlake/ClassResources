@@ -516,9 +516,9 @@ export default function WorldGlobe() {
     }
 
     // Merge with legacy layers
-    const legacyRings = ringItemsRef.current.filter(r => true)
+    const legacyRings = ringItemsRef.current.slice()
     const legacyArrows = arrowsState
-    const legacyDonuts = circleFeaturesRef.current.filter(f => true)
+    const legacyDonuts = circleFeaturesRef.current.slice()
 
     circleFeaturesRef.current = [...legacyDonuts, ...eventDonuts]
     ringItemsRef.current = [...legacyRings, ...eventRings]
