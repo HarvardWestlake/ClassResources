@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multivariable Integration Visualizer</title>
+    <link rel="stylesheet" href="../shared/styles.css">
+    <link rel="stylesheet" href="integration.css">
+    <script>
+    (function(){
+        try {
+            var m = document.cookie.match(/(?:^|; )theme=([^;]*)/);
+            var cookieTheme = m ? decodeURIComponent(m[1]) : null;
+            var lsTheme = null; try { lsTheme = localStorage.getItem('theme'); } catch(e){}
+            var theme = lsTheme || cookieTheme || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            var c = document.documentElement.classList; c.remove('theme-light','theme-dark'); c.add('theme-'+theme);
+            document.documentElement.setAttribute('data-theme', theme);
+        } catch(e) {}
+    })();
+    </script>
+    <!-- External libraries -->
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjs@11.11.0/lib/browser/math.min.js"></script>
+    <!-- Firebase (optional, for Firestore sync) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js" defer></script>
+    <script src="firebase-config.js" defer></script>
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="brand">
+                <h1>Integration Visualizer</h1>
+                <p class="subtitle">Aligned with visualize guidelines (<a href="https://learnhw.web.app/admin" target="_blank" rel="noopener">link</a>)</p>
+                <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme"></button>
+            </div>
+
+            <section class="panel">
+                <label for="methodSelect">Method</label>
+                <select id="methodSelect">
+                    <option value="double_cartesian">∬ over R (Cartesian)</option>
+                    <option value="double_polar">∬ over R (Polar)</option>
+                    <option value="triple_cylindrical">∭ (Cylindrical)</option>
+                    <option value="triple_spherical">∭ (Spherical)</option>
+                </select>
+            </section>
+
+            <section class="panel">
+                <label for="presetSelect">Stock shapes</label>
+                <select id="presetSelect">
+                    <option value="none">None</option>
+                    <option value="cone">Right circular cone</option>
+                    <option value="sphere">Sphere</option>
+                    <option value="cylinder">Cylinder</option>
+                    <option value="paraboloid">Paraboloid</option>
+                </select>
+            </section>
+
+            <section class="panel" id="equationPanel">
+                <label for="equationInput">Surface z = f(x, y)</label>
+                <input id="equationInput" type="text" value="sin(x)*cos(y)">
+                <small>Used for double integrals (height of Riemann columns)</small>
+                <div id="equationError" class="error-text" style="display:none"></div>
+            </section>
+
+            <section class="panel" id="boundsCartesian">
+                <div class="panel-title">Bounds (Cartesian)</div>
+                <div class="grid-2">
+                    <div>
+                        <label for="xMin">x min</label>
+                        <input id="xMin" type="number" value="-3" step="0.5">
+                    </div>
+                    <div>
+                        <label for="xMax">x max</label>
+                        <input id="xMax" type="number" value="3" step="0.5">
+                    </div>
+                    <div>
+                        <label for="yMin">y min</label>
+                        <input id="yMin" type="number" value="-3" step="0.5">
+                    </div>
+                    <div>
+                        <label for="yMax">y max</label>
+                        <input id="yMax" type="number" value="3" step="0.5">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" id="boundsPolar" hidden>
+                <div class="panel-title">Bounds (Polar)</div>
+                <div class="grid-2">
+                    <div>
+                        <label for="rMin">r min</label>
+                        <input id="rMin" type="number" value="0" step="0.5">
+                    </div>
+                    <div>
+                        <label for="rMax">r max</label>
+                        <input id="rMax" type="number" value="3" step="0.5">
+                    </div>
+                    <div>
+                        <label for="thetaMin">θ min (deg)</label>
+                        <input id="thetaMin" type="number" value="0" step="5">
+                    </div>
+                    <div>
+                        <label for="thetaMax">θ max (deg)</label>
+                        <input id="thetaMax" type="number" value="360" step="5">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" id="boundsCylindrical" hidden>
+                <div class="panel-title">Bounds (Cylindrical)</div>
+                <div class="grid-2">
+                    <div>
+                        <label for="rcMin">r min</label>
+                        <input id="rcMin" type="number" value="0" step="0.5">
+                    </div>
+                    <div>
+                        <label for="rcMax">r max</label>
+                        <input id="rcMax" type="number" value="2" step="0.5">
+                    </div>
+                    <div>
+                        <label for="thetacMin">θ min (deg)</label>
+                        <input id="thetacMin" type="number" value="0" step="5">
+                    </div>
+                    <div>
+                        <label for="thetacMax">θ max (deg)</label>
+                        <input id="thetacMax" type="number" value="360" step="5">
+                    </div>
+                    <div>
+                        <label for="zMin">z min</label>
+                        <input id="zMin" type="number" value="0" step="0.5">
+                    </div>
+                    <div>
+                        <label for="zMax">z max</label>
+                        <input id="zMax" type="number" value="4" step="0.5">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" id="boundsSpherical" hidden>
+                <div class="panel-title">Bounds (Spherical)</div>
+                <div class="grid-2">
+                    <div>
+                        <label for="rhoMin">ρ min</label>
+                        <input id="rhoMin" type="number" value="0" step="0.5">
+                    </div>
+                    <div>
+                        <label for="rhoMax">ρ max</label>
+                        <input id="rhoMax" type="number" value="2.5" step="0.5">
+                    </div>
+                    <div>
+                        <label for="phiMin">φ min (deg)</label>
+                        <input id="phiMin" type="number" value="0" step="5">
+                    </div>
+                    <div>
+                        <label for="phiMax">φ max (deg)</label>
+                        <input id="phiMax" type="number" value="180" step="5">
+                    </div>
+                    <div>
+                        <label for="thetasMin">θ min (deg)</label>
+                        <input id="thetasMin" type="number" value="0" step="5">
+                    </div>
+                    <div>
+                        <label for="thetasMax">θ max (deg)</label>
+                        <input id="thetasMax" type="number" value="360" step="5">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title">Partitions</div>
+                <div class="grid-3">
+                    <div>
+                        <label for="nx">N x/r/ρ</label>
+                        <input id="nx" type="number" value="12" min="2" step="1">
+                    </div>
+                    <div>
+                        <label for="ny">N y/θ/φ</label>
+                        <input id="ny" type="number" value="12" min="2" step="1">
+                    </div>
+                    <div>
+                        <label for="nz">N z</label>
+                        <input id="nz" type="number" value="8" min="1" step="1">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title">Display</div>
+                <div class="checks">
+                    <label><input id="showSurface" type="checkbox" checked> Surface/Volume</label>
+                    <label><input id="showColumns" type="checkbox" checked> Riemann elements</label>
+                    <label><input id="showRegion" type="checkbox" checked> Region projection</label>
+                    <label><input id="showWedge" type="checkbox" checked> Highlight dA / dV</label>
+                </div>
+            </section>
+
+            <section class="panel actions">
+                <button id="renderBtn" class="btn">Render</button>
+                <button id="resetCameraBtn" class="btn btn--outline">Reset camera</button>
+            </section>
+
+            <section class="panel info">
+                <div id="jacobianText">dA = dx dy</div>
+                <div id="integralEstimate">Approx ∬ f dA = …</div>
+            </section>
+        </aside>
+
+        <main class="viewport">
+            <div id="canvas3d"></div>
+            <div class="legend">
+                <span class="chip chip-surface">Surface/Volume</span>
+                <span class="chip chip-columns">Riemann elements</span>
+                <span class="chip chip-region">Region</span>
+                <span class="chip chip-wedge">dA/dV</span>
+            </div>
+        </main>
+    </div>
+
+    <script src="theme.js"></script>
+    <script src="integration.js"></script>
+</body>
+<script>
+// Prevent pinch-zoom from interfering with orbit controls on iOS
+document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+</script>
+</html>
+
