@@ -10,6 +10,18 @@
       href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css"
+    />
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
+    ></script>
     <style>
       body {
         font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont,
@@ -331,6 +343,12 @@
         var container = document.querySelector(".container");
         if (!container) return;
 
+        function toLatex(expr) {
+          if (!expr) return "";
+          // Convert sqrt(x) -> \\sqrt{x}
+          return expr.replace(/sqrt\(([^)]+)\)/g, "\\\\sqrt{$1}");
+        }
+
         fetch("widgets/trigonometric-Sub/trig-sub.json")
           .then(function (r) {
             return r.ok ? r.json() : null;
@@ -387,7 +405,7 @@
               meta.functions && meta.functions.length
                 ? meta.functions
                     .map(function (f) {
-                      return f.label;
+                      return toLatex(f.label);
                     })
                     .join(", ")
                 : "Trigonometric Substitution";
@@ -397,7 +415,13 @@
               (meta.title || "Trigonometric Substitution Explorer") +
               "</h3>" +
               '<div class="function">' +
-              functionText +
+              // Wrap in inline math delimiters for KaTeX auto-render
+              functionText
+                .split(", ")
+                .map(function (s) {
+                  return "\\(" + s + "\\)";
+                })
+                .join(", ") +
               "</div>" +
               "</div>" +
               "<p>" +
@@ -406,6 +430,18 @@
               '<span class="button">Launch Widget</span>';
 
             grid.appendChild(card);
+            // Render math in the newly created card if KaTeX auto-render is available
+            if (window.renderMathInElement) {
+              try {
+                window.renderMathInElement(card, {
+                  delimiters: [
+                    { left: "$$", right: "$$", display: true },
+                    { left: "\\(", right: "\\)", display: false },
+                  ],
+                  throwOnError: false,
+                });
+              } catch (e) {}
+            }
           })
           .catch(function () {
             /* ignore errors */
