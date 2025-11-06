@@ -1406,6 +1406,15 @@
         updateMetrics();
         writeParams();
         savePrefs();
+
+        // If KaTeX script loads later (defer), re-render the math once DOM is ready
+        document.addEventListener("DOMContentLoaded", function () {
+          if (window.katex) {
+            try {
+              renderSubPanel();
+            } catch (e) {}
+          }
+        });
       })();
     </script>
 
