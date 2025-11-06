@@ -291,6 +291,12 @@ import './styles.css';
     let accSamples = []; // {t: secondsFromStart, acc: 0..1}
     let timingPlot = null; // uPlot instance for summary
     let timingResizeHandler = null;
+    // Live timing plot (real-time) state
+    let livePlot = null;
+    let livePlotResizeHandler = null;
+    let liveX = [];
+    let liveY = [];
+    let liveIndexByItem = new Map(); // pattern.items index -> live series index
     let autoScrollRow = -1;
     let lastHitAtSec = -Infinity;
     const HIT_COOLDOWN_SEC = 0.12;
@@ -508,6 +514,21 @@ import './styles.css';
         if (el.startOverlay) el.startOverlay.style.display = 'none';
         if (el.canvasWrap) el.canvasWrap.style.overflowY = 'auto';
 
+        // Initialize live timing plot series (non-rest notes only) when NOT in tutorial mode
+        if (!tutorialMode) {
+            liveIndexByItem = new Map();
+            const noteItems = [];
+            for (let i = 0, k = 0; i < pattern.items.length; i++) {
+                const it = pattern.items[i];
+                if (it.isRest) continue;
+                liveIndexByItem.set(i, k++);
+                noteItems.push(it);
+            }
+            liveX = noteItems.map((_, i) => i + 1);
+            liveY = new Array(liveX.length).fill(null);
+            initLivePlot(liveX.length);
+        }
+
         // Clear any prior scheduled clicks before scheduling new ones
         stopAllScheduledMetronome(nowAudio);
         stopAllScheduledGuides(nowAudio);
@@ -581,6 +602,16 @@ import './styles.css';
         // Stop tutorial playhead if active
         try { if (typeof stopTutorialBeat === 'function') stopTutorialBeat(); } catch { }
         drawSheet();
+
+        // Destroy live plot overlay if present
+        try { if (livePlot) livePlot.destroy(); } catch { }
+        livePlot = null;
+        if (livePlotResizeHandler) {
+            window.removeEventListener('resize', livePlotResizeHandler);
+            livePlotResizeHandler = null;
+        }
+        const liveWrap = document.getElementById('liveTimingWrap');
+        if (liveWrap && liveWrap.parentElement) liveWrap.parentElement.removeChild(liveWrap);
     }
 
     function loop() {
@@ -614,7 +645,12 @@ import './styles.css';
         if (now >= endSec + 0.05) {
             isPlaying = false;
             if (audioCtx) stopAllScheduledMetronome(audioCtx.currentTime);
-
+            // Remove live plot before showing summary
+            try { if (livePlot) livePlot.destroy(); } catch { }
+            livePlot = null;
+            if (livePlotResizeHandler) { window.removeEventListener('resize', livePlotResizeHandler); livePlotResizeHandler = null; }
+            const liveWrap = document.getElementById('liveTimingWrap');
+            if (liveWrap && liveWrap.parentElement) liveWrap.parentElement.removeChild(liveWrap);
             drawSheet();
             if (!tutorialMode) {
                 showSummary();
@@ -645,6 +681,9 @@ import './styles.css';
                 stats.combo = 0;
                 updateStats();
                 nextEventIdx++;
+                // Live chart update for miss (leave null to show gap)
+                // Find item index we just advanced from
+                liveSetDeltaForItemIndex(nextEventIdx - 1, null);
                 continue;
             }
             break;
@@ -713,6 +752,8 @@ import './styles.css';
             if (el.feedback) el.feedback.innerHTML = `<span class="good">${feedbackText}</span>`;
             nextEventIdx = idx + 1;
             lastHitAtSec = now;
+            // Live chart update
+            liveSetDeltaForItemIndex(idx, it.hitDeltaMs);
         } else if (Math.abs(delta) <= badWindowSec) {
             // Early/Late (bad) but still consume to progress
             it.state = 'bad';
@@ -724,6 +765,8 @@ import './styles.css';
             if (el.feedback) el.feedback.innerHTML = `<span class="warn">${feedbackText}</span>`;
             nextEventIdx = idx + 1;
             lastHitAtSec = now;
+            // Live chart update
+            liveSetDeltaForItemIndex(idx, it.hitDeltaMs);
         } else {
             // Far-off tap → ignore, do not consume
             return;
@@ -1179,6 +1222,13 @@ import './styles.css';
         if (sumMiss) sumMiss.textContent = String(stats.misses);
         if (sumCombo) sumCombo.textContent = String(maxCombo);
 
+        // Ensure live chart hidden during summary
+        try { if (livePlot) livePlot.destroy(); } catch { }
+        livePlot = null;
+        if (livePlotResizeHandler) { window.removeEventListener('resize', livePlotResizeHandler); livePlotResizeHandler = null; }
+        const liveWrap = document.getElementById('liveTimingWrap');
+        if (liveWrap && liveWrap.parentElement) liveWrap.parentElement.removeChild(liveWrap);
+
         // Show overlay before measuring for chart sizing
         if (el.summaryOverlay) el.summaryOverlay.style.display = 'flex';
         if (el.canvasWrap) { el.canvasWrap.scrollTop = 0; el.canvasWrap.style.overflowY = 'hidden'; }
@@ -1300,6 +1350,94 @@ import './styles.css';
             };
             window.addEventListener('resize', timingResizeHandler, { passive: true });
         }
+    }
+
+    // Live timing chart (real-time) -------------------------------------------------
+    function getOrCreateLiveChartContainer() {
+        let wrap = document.getElementById('liveTimingWrap');
+        if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.id = 'liveTimingWrap';
+            // Fixed, non-interactive overlay at the bottom of the viewport
+            wrap.style.position = 'fixed';
+            wrap.style.left = '0';
+            wrap.style.right = '0';
+            wrap.style.bottom = '0';
+            wrap.style.zIndex = '50';
+            wrap.style.pointerEvents = 'none';
+            wrap.style.background = 'transparent';
+            wrap.style.padding = '6px 8px';
+            const chart = document.createElement('div');
+            chart.id = 'liveTimingChart';
+            chart.style.width = '100%';
+            chart.style.height = '140px';
+            chart.style.pointerEvents = 'none';
+            wrap.appendChild(chart);
+            document.body.appendChild(wrap);
+        }
+        return wrap.querySelector('#liveTimingChart');
+    }
+
+    function initLivePlot(noteCount) {
+        const container = getOrCreateLiveChartContainer();
+        if (!container || !uPlot) return;
+
+        const rect = container.getBoundingClientRect();
+        const width = Math.max(320, Math.floor(rect.width || window.innerWidth * 0.9));
+        const height = 140;
+        // Default y-range ±200ms; adjust later if needed
+        let maxAbs = 200;
+        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#60a5fa';
+
+        try { if (livePlot) livePlot.destroy(); } catch { }
+        livePlot = new uPlot({
+            width,
+            height,
+            title: '',
+            scales: {
+                x: { time: false },
+                y: { range: () => [-maxAbs, maxAbs] }
+            },
+            axes: [
+                { grid: { show: true }, stroke: palette.axis, ticks: { show: false }, values: () => [] },
+                { grid: { show: true }, stroke: palette.axis, values: (u, vals) => vals.map(v => (v === 0 ? '0 ms' : `${v > 0 ? '+' : ''}${Math.round(v)} ms`)) }
+            ],
+            cursor: { drag: { x: false, y: false } },
+            legend: { show: false },
+            hooks: {
+                draw: [u => {
+                    const ctx = u.ctx;
+                    const { top, left, width: bw } = u.bbox;
+                    const y0 = Math.round(u.valToPos(0, 'y', true)) + 0.5;
+                    ctx.save();
+                    ctx.strokeStyle = palette.axis;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(left, y0);
+                    ctx.lineTo(left + bw, y0);
+                    ctx.stroke();
+                    ctx.restore();
+                }]
+            },
+            series: [{}, { stroke: accent, width: 2, spanGaps: true, points: { show: false }, fill: 'rgba(200,16,46,0.08)' }]
+        }, [liveX, liveY], container);
+
+        // Resize handler
+        if (livePlotResizeHandler) window.removeEventListener('resize', livePlotResizeHandler);
+        livePlotResizeHandler = () => {
+            if (!livePlot) return;
+            const r = container.getBoundingClientRect();
+            const w = Math.max(320, Math.floor(r.width));
+            livePlot.setSize({ width: w, height });
+        };
+        window.addEventListener('resize', livePlotResizeHandler, { passive: true });
+    }
+
+    function liveSetDeltaForItemIndex(itemIdx, deltaMs) {
+        const liveIdx = liveIndexByItem.get(itemIdx);
+        if (liveIdx == null) return;
+        liveY[liveIdx] = deltaMs;
+        if (livePlot) livePlot.setData([liveX, liveY]);
     }
 
     // Persistence
@@ -1525,100 +1663,62 @@ import './styles.css';
     // Tutorials: definitions and UI
     const tutorials = [
         {
-            group: '4/4 Basics',
+            group: 'Swing & Bebop (4/4)',
             items: [
-                { id: 'q44', label: 'Quarter notes (4/4)', desc: 'Four even beats', timeSig: '4/4', tokens: ['q', 'q', 'q', 'q'], bpm: 96 },
-                { id: 'e44', label: 'Straight eighths (4/4)', desc: 'Eight even eighth notes', timeSig: '4/4', tokens: ['e', 'e', 'e', 'e', 'e', 'e', 'e', 'e'], bpm: 100 },
-                { id: 'sync44', label: 'Off-beat eighths (4/4)', desc: 'Rest on downbeats, notes on off-beats', timeSig: '4/4', tokens: ['r:e', 'e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'e'], bpm: 96 },
-                { id: 'dq_e_44', label: 'Dotted quarter + eighth (4/4)', desc: 'Long-short pairs (3+1)', timeSig: '4/4', tokens: ['dq', 'e', 'dq', 'e'], bpm: 88 },
-                { id: 'trip44', label: 'Triplets (4/4)', desc: 'Three per beat', timeSig: '4/4', tokens: ['trip', 'trip', 'trip', 'trip'], bpm: 84 }
+                { id: 'swingRide', label: 'Swing ride pattern', desc: '“ding‑ding‑da‑ding” ride feel', timeSig: '4/4', tokens: ['q', 'e', 'trip', 'q'], bpm: 180 },
+                { id: 'charleston', label: 'Charleston rhythm', desc: 'Classic comping figure', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'q'], bpm: 160 },
+                { id: 'bebopComp', label: 'Bebop comping', desc: 'Syncopated hits', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'e'], bpm: 184 },
+                { id: 'walkingBass', label: 'Walking bass (quarters)', desc: 'Steady on all beats', timeSig: '4/4', tokens: ['q', 'q', 'q', 'q'], bpm: 140 }
             ]
         },
         {
-            group: 'Odd times',
+            group: 'Afro‑Cuban Jazz',
             items: [
-                { id: 'q34', label: 'Quarter notes (3/4)', desc: 'Three even beats', timeSig: '3/4', tokens: ['q', 'q', 'q'], bpm: 96 },
-                { id: 'e68', label: 'Eighths grouped 3+3 (6/8)', desc: 'Two groups of three', timeSig: '6/8', tokens: ['e', 'e', 'e', 'e', 'e', 'e'], bpm: 90 },
-                { id: 'q54', label: 'Quarter notes (5/4)', desc: 'Five-beat bar', timeSig: '5/4', tokens: ['q', 'q', 'q', 'q', 'q'], bpm: 84 },
-                { id: 'e78_223', label: 'Seven eighths (2+2+3) in 7/8', desc: 'Common 7/8 grouping', timeSig: '7/8', tokens: ['e', 'e', 'e', 'e', 'e', 'e', 'e'], bpm: 92 }
+                { id: 'sonClave32', label: 'Son clave (3‑2)', desc: 'Clave foundation (3‑2)', timeSig: '4/4', measures: 2, tokens: ['e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e'], bpm: 120 },
+                { id: 'rumbaClave23', label: 'Rumba clave (2‑3)', desc: 'Laid‑back clave (2‑3)', timeSig: '4/4', measures: 2, tokens: ['r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'r:e'], bpm: 120 },
+                { id: 'cascara', label: 'Cáscara pattern', desc: 'Timbales/shells motion', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'e', 'r:e', 'e', 'q'], bpm: 132 }
             ]
         },
         {
-            group: 'Classic rhythms',
+            group: 'Bossa Nova',
             items: [
-                { id: 'tresillo44', label: 'Tresillo (4/4)', desc: '3-3-2 eighths', timeSig: '4/4', tokens: ['e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e'], bpm: 96 },
-                { id: 'backbeat8', label: 'Backbeat eighths (4/4)', desc: 'All off-beats', timeSig: '4/4', tokens: ['r:e', 'e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'e'], bpm: 100 },
-                { id: 'charlestonApprox', label: 'Charleston (approx, 4/4)', desc: 'Dotted feel (approx)', timeSig: '4/4', tokens: ['dq', 'e', 'e', 'e', 'e', 'e'], bpm: 92 }
+                { id: 'bossaDrums', label: 'Bossa (drums)', desc: 'Cross‑stick, soft groove', timeSig: '4/4', tokens: ['q', 'e', 'r:e', 'e', 'e', 'q'], bpm: 132 },
+                { id: 'bossaBass', label: 'Bossa bass', desc: 'Alternating root/fifth', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'q', 'r:e', 'e'], bpm: 120 },
+                { id: 'bossaGuitar', label: 'Bossa guitar', desc: 'Bass‑chord‑chord pattern', timeSig: '4/4', tokens: ['q', 'e', 'e', 'q', 'e'], bpm: 120 }
             ]
         },
         {
-            group: 'Clave & Afro‑Cuban (4/4)',
+            group: 'Hard Bop & Post‑Bop',
             items: [
-                { id: 'sonclave3', label: 'Son clave 3‑side (4/4, approx)', desc: 'Hits on 1, 2&, 4', timeSig: '4/4', tokens: ['e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e'], bpm: 96 },
-                { id: 'sonclave2', label: 'Son clave 2‑side (4/4, approx)', desc: 'Hits on 2, 3&, 4&', timeSig: '4/4', tokens: ['r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'e'], bpm: 96 },
-                { id: 'rumba3', label: 'Rumba clave 3‑side (approx)', desc: 'Single‑bar approximation', timeSig: '4/4', tokens: ['e', 'r:e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'r:e'], bpm: 92 }
+                { id: 'hardBopShuffle', label: 'Hard bop shuffle', desc: 'Heavy triplet shuffle', timeSig: '4/4', tokens: ['trip', 'trip', 'trip', 'trip'], bpm: 160 },
+                { id: 'stopTime', label: 'Stop‑time hits', desc: 'Punchy ensemble hits', timeSig: '4/4', tokens: ['q', 'rq', 'q', 'q'], bpm: 160 },
+                { id: 'straight8Funk', label: 'Straight‑eighth funk', desc: 'Even eighths drive', timeSig: '4/4', tokens: ['e', 'e', 'e', 'e', 'e', 'e', 'e', 'e'], bpm: 110 },
+                { id: 'brokenTime', label: 'Broken‑time drumming', desc: 'Floating time feel', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'rq', 'e', 'q'], bpm: 170 }
             ]
         },
         {
-            group: 'Clave (two‑measure, 4/4)',
+            group: 'Afro‑Caribbean Extensions',
             items: [
-                {
-                    id: 'sonclave_32_2m',
-                    label: 'Son clave (3‑2, two bars)',
-                    desc: 'Bar 1: hits on 1, 2&, 4 • Bar 2: hits on 2, 3&',
-                    timeSig: '4/4',
-                    measures: 2,
-                    tokens: [
-                        'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e',
-                        'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e'
-                    ],
-                    bpm: 96
-                },
-                {
-                    id: 'sonclave_23_2m',
-                    label: 'Son clave (2‑3, two bars)',
-                    desc: 'Bar 1: hits on 2, 3& • Bar 2: hits on 1, 2&, 4',
-                    timeSig: '4/4',
-                    measures: 2,
-                    tokens: [
-                        'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e',
-                        'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e'
-                    ],
-                    bpm: 96
-                },
-                {
-                    id: 'backbeat_2m',
-                    label: 'Backbeat (2 bars, 4/4)',
-                    desc: 'Snare on 2 and 4 each bar (clap/tap on 2 and 4).',
-                    timeSig: '4/4',
-                    measures: 2,
-                    tokens: [
-                        'r:e', 'r:e', 'e', 'r:e', 'r:e', 'r:e', 'e', 'r:e',
-                        'r:e', 'r:e', 'e', 'r:e', 'r:e', 'r:e', 'e', 'r:e'
-                    ],
-                    bpm: 96
-                }
+                { id: 'afro68', label: '6/8 Afro (modal jazz)', desc: 'Dotted 6/8 undercurrent', timeSig: '6/8', tokens: ['dq', 'e', 'q', 'e', 'dq'], bpm: 96 },
+                { id: 'mozambique', label: 'Mozambique', desc: 'Cuban pattern over 4/4', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'r:e', 'e', 'q'], bpm: 120 },
+                { id: 'guaguanco', label: 'Guaguancó', desc: 'Conversational syncopation', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'q'], bpm: 120 },
+                { id: 'calypso', label: 'Calypso feel', desc: 'Bright Caribbean jazz', timeSig: '4/4', tokens: ['q', 'e', 'r:e', 'q', 'e', 'r:e'], bpm: 132 }
             ]
         },
         {
-            group: 'Afro‑Cuban (6/8)',
+            group: 'Brazilian & Latin‑Jazz',
             items: [
-                { id: 'bembeBasic', label: 'Bembé basic (6/8)', desc: 'Three groups of two', timeSig: '6/8', tokens: ['e', 'r:e', 'e', 'r:e', 'e', 'r:e'], bpm: 96 },
-                { id: 'acBell', label: '6/8 bell (approx)', desc: 'Common bell pattern', timeSig: '6/8', tokens: ['e', 'r:e', 'r:e', 'e', 'r:e', 'e'], bpm: 96 }
+                { id: 'samba24', label: 'Samba (2/4, approx)', desc: 'Fast forward motion', timeSig: '2/4', tokens: ['e', 'r:e', 'e', 'e'], bpm: 180 },
+                { id: 'partidoAlto', label: 'Partido alto (approx)', desc: 'Syncopated samba variant', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'e', 'r:e', 'e'], bpm: 140 },
+                { id: 'baion', label: 'Baión', desc: 'Slow hypnotic groove', timeSig: '4/4', tokens: ['q', 'e', 'r:e', 'q', 'e', 'r:e'], bpm: 110 }
             ]
         },
         {
-            group: 'Syncopation & Hemiola',
+            group: 'Modern Fusion & Odd',
             items: [
-                { id: 'hemiola34', label: 'Hemiola (3/4 → 2x dotted quarter)', desc: 'Two dotted quarters in 3/4', timeSig: '3/4', tokens: ['dq', 'dq'], bpm: 88 },
-                { id: 'syncStrong', label: 'Strong syncopation (4/4)', desc: 'Off-beat emphasis', timeSig: '4/4', tokens: ['r:e', 'e', 'e', 'r:e', 'r:e', 'e', 'e', 'r:e'], bpm: 96 }
-            ]
-        },
-        {
-            group: 'Harder 4/4',
-            items: [
-                { id: 'tripMix44', label: 'Eighth triplets mixed (4/4)', desc: 'Triplets with straight notes', timeSig: '4/4', tokens: ['trip', 'e', 'trip', 'e'], bpm: 84 },
-                { id: 'dots44', label: 'Dotted rhythms (4/4)', desc: 'Dotted quarters + eighths', timeSig: '4/4', tokens: ['dq', 'e', 'e', 'dq'], bpm: 88 }
+                { id: 'swing54', label: '5/4 swing (Take Five)', desc: '3+2 ride phrasing', timeSig: '5/4', tokens: ['q', 'q', 'q', 'q', 'q'], bpm: 160 },
+                { id: 'groove78', label: '7/8 groove', desc: '2+2+3 phrasing', timeSig: '7/8', tokens: ['q', 'e', 'q', 'e', 'e'], bpm: 128 },
+                { id: 'funkSync', label: 'Funk‑jazz syncopation', desc: 'Dense, punchy hits', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'e', 'e', 'r:e', 'e', 'e'], bpm: 100 }
             ]
         }
     ];

@@ -76,13 +76,13 @@ body {
 /* Responsive padding for different screen sizes */
 @media (max-width: 480px) {
     .main-content {
-        padding: 12px;
+        padding: 12px 8px;
     }
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
     .main-content {
-        padding: 16px;
+        padding: 16px 12px;
     }
 }
 
@@ -420,7 +420,8 @@ canvas {
     max-width: 1200px;
     margin: 0 auto;
     justify-content: space-between;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    /* Allow wrapping on mobile */
 }
 
 .sb-left,
@@ -429,7 +430,8 @@ canvas {
     align-items: center;
     justify-content: center;
     gap: 18px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    /* Allow wrapping on mobile */
 }
 
 /* Even internal spacing with symmetric padding and separators */
@@ -526,34 +528,7 @@ canvas {
     box-shadow: var(--hw-shadow);
 }
 
-/* Mobile-friendly layout tweaks */
-@media (max-width: 600px) {
-    .start-bar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 16px;
-        padding: 12px;
-    }
-
-    .sb-left,
-    .sb-right {
-        flex-wrap: wrap;
-        gap: 12px;
-        justify-content: space-between;
-    }
-
-    .bar-sep {
-        display: none;
-    }
-
-    .range-wrap {
-        grid-template-columns: 1fr auto;
-    }
-
-    .switch {
-        gap: 10px;
-    }
-}
+/* Mobile-friendly layout tweaks removed: settings bar stays single-line */
 
 
 
@@ -795,55 +770,10 @@ canvas {
     }
 }
 
-/* Mobile adjustments - optimized for small screens */
-@media (max-width: 640px) {
-    .start-bar {
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-        padding: 8px 12px;
-    }
-
-    .sb-left,
-    .sb-right {
-        flex-wrap: wrap;
-        gap: 10px;
-        width: 100%;
-    }
-
-    .sb-left>div,
-    .sb-right>div {
-        padding: 0 8px;
-        flex: 1 1 auto;
-        min-width: 0;
-    }
-
-    .sb-left>div+div::before,
-    .sb-right>div+div::before {
-        display: none;
-    }
-
-    .bar-sep {
-        display: none;
-    }
-
-    .control-label {
-        font-size: 10px;
-    }
-
-    .range-value {
-        font-size: 12px;
-        min-width: 36px;
-    }
-}
+/* Mobile adjustments removed for settings bar: it stays single-line */
 
 /* Extra small devices - very tight layout */
 @media (max-width: 360px) {
-    .start-bar {
-        padding: 6px 8px;
-        gap: 8px;
-    }
-
     .card {
         padding: 12px;
     }
@@ -861,10 +791,6 @@ canvas {
 @media (min-width: 641px) and (max-width: 1024px) and (orientation: portrait) {
     .main-content {
         padding: 16px;
-    }
-
-    .start-bar {
-        gap: 20px;
     }
 }
 
@@ -916,4 +842,296 @@ canvas {
 .uplot .u-select {
     background: rgba(96, 165, 250, 0.08);
     border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+/* Start overlay mobile robustness: ensure no overflow/cutoff */
+@media (max-width: 640px) {
+    #startOverlay {
+        overflow-y: auto;
+        padding: calc(env(safe-area-inset-top) + 10px) 8px calc(env(safe-area-inset-bottom) + 10px);
+        box-sizing: border-box;
+    }
+
+    .start-content {
+        width: 100%;
+    }
+
+    .start-bar,
+    .sb-left,
+    .sb-right,
+    .pill-group {
+        max-width: 100%;
+    }
+
+    /* Make switch rows resilient and prevent label overflow */
+    .switch {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .switch span {
+        flex: 1 1 auto;
+        min-width: 0;
+        white-space: normal;
+        word-break: break-word;
+        text-align: left;
+    }
+}
+
+/* --- Single-line start bar with horizontal scroll (bar only) --- */
+/* Only the settings line scrolls horizontally, not the entire overlay */
+.start-content {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    width: 100%;
+}
+
+/* Ensure the bar grows to content width and stays on one line within scroller */
+.start-bar {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    width: max-content;
+    max-width: none;
+    overflow: visible;
+    white-space: nowrap;
+}
+
+/* Keep left/right clusters on one line too */
+.sb-left,
+.sb-right {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+/* Child blocks should not stretch full width in the horizontal scroller */
+.sb-left>div,
+.sb-right>div {
+    flex: 0 0 auto;
+}
+
+/* Avoid full-width controls inside the horizontal scroller */
+.start-bar .switch,
+.start-bar button,
+.start-bar select,
+.start-bar input[type="number"],
+.start-bar input[type="text"],
+.start-bar input[type="range"] {
+    width: auto;
+}
+
+/* Prevent long labels from forcing wrap; allow ellipsis if needed */
+.start-bar .control-label,
+.start-bar .range-value,
+.start-bar .switch span {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+/* Make pill groups stay on one line inside scroller */
+.start-bar .pill-group {
+    white-space: nowrap;
+}
+
+/* Final override: never wrap the settings bar; scroll horizontally instead */
+.start-content {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.start-bar {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    width: max-content;
+    white-space: nowrap;
+}
+
+.sb-left,
+.sb-right {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+}
+
+.sb-left>div,
+.sb-right>div,
+.bar-sep {
+    flex: 0 0 auto;
+}
+
+/* Inside the scroller, controls should size to content and not force wrapping */
+.start-bar select,
+.start-bar button,
+.start-bar input[type="number"],
+.start-bar input[type="text"],
+.start-bar input[type="range"] {
+    width: auto !important;
+    max-width: none;
+}
+
+.start-bar .switch span,
+.start-bar .control-label,
+.start-bar .range-value {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Keep BPM slider sizing constant and avoid responsive reflow */
+.start-bar .range-wrap {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    grid-template-columns: none !important;
+}
+
+.start-bar #bpm {
+    width: 180px !important;
+    min-width: 180px !important;
+}
+
+.start-bar .range-value {
+    width: 44px !important;
+    min-width: 44px !important;
+    text-align: right;
+}
+
+/* FINAL SPACING LOCKS: keep constant sizes; only horizontal scroll */
+#startOverlay .start-content .start-bar {
+    justify-content: flex-start !important;
+    gap: 16px !important;
+    padding: 12px 12px !important;
+    min-height: 56px !important;
+}
+
+#startOverlay .start-content .sb-left,
+#startOverlay .start-content .sb-right {
+    gap: 16px !important;
+}
+
+#startOverlay .start-content .sb-left>div,
+#startOverlay .start-content .sb-right>div {
+    padding: 0 !important;
+}
+
+#startOverlay .start-content .sb-left>div+div::before,
+#startOverlay .start-content .sb-right>div+div::before {
+    display: none !important;
+}
+
+#startOverlay .start-content .bar-sep {
+    display: inline-block !important;
+    width: 1px !important;
+    height: 24px !important;
+    background: rgba(0, 0, 0, 0.10) !important;
+    margin: 0 12px !important;
+}
+
+#startOverlay .start-content .pill-group {
+    gap: 8px !important;
+}
+
+/* Absolute lock: nothing inside the settings bar resizes or wraps; only scrolls */
+#startOverlay .start-content .start-bar,
+#startOverlay .start-content .start-bar * {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+}
+
+/* Ensure key controls never wrap or shrink */
+#startOverlay .start-content .start-bar button {
+    white-space: nowrap !important;
+}
+
+#startOverlay .start-content .start-bar .switch span {
+    display: inline-block !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+
+#startOverlay .start-content .start-bar .pill-group .pill {
+    white-space: nowrap !important;
+}
+
+/* BPM: hard-lock appearance and dimensions (no platform resizing) */
+#startOverlay .start-content #bpm {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+    height: 8px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: content-box !important;
+    background: transparent !important;
+    /* track handled below */
+}
+
+#startOverlay .start-content #bpm::-webkit-slider-runnable-track {
+    height: 8px !important;
+    background: var(--hw-gray-200) !important;
+    border-radius: 9999px !important;
+}
+
+#startOverlay .start-content #bpm::-moz-range-track {
+    height: 8px !important;
+    background: var(--hw-gray-200) !important;
+    border-radius: 9999px !important;
+}
+
+#startOverlay .start-content #bpm::-webkit-slider-thumb {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50% !important;
+    background: var(--accent) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    margin-top: -5px !important;
+    /* center on 8px track */
+}
+
+#startOverlay .start-content #bpm::-moz-range-thumb {
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50% !important;
+    background: var(--accent) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Lock the range slider width on all devices */
+#startOverlay .start-content .start-bar input[type="range"] {
+    -webkit-appearance: none !important;
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+    flex: 0 0 180px !important;
+    box-sizing: content-box !important;
+}
+
+/* Ensure no mobile media rule can flip the bar to column/wrap */
+@media (max-width: 10000px) {
+    #startOverlay .start-content .start-bar {
+        flex-wrap: nowrap !important;
+        flex-direction: row !important;
+    }
+
+    #startOverlay .start-content .sb-left,
+    #startOverlay .start-content .sb-right {
+        flex-wrap: nowrap !important;
+        flex-direction: row !important;
+    }
 }
