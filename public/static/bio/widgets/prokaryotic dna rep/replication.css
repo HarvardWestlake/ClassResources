@@ -112,6 +112,22 @@ svg#replication-svg {
   stroke-linecap: round;
 }
 
+/* Lagging strand visuals (Okazaki fragments) */
+.pol3-lag-block {
+  stroke: none;
+}
+.pol3-lag-path {
+  fill: none;
+  stroke: #10b981; /* match leading green for merged path */
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.pol3-lag-enzyme {
+  fill: #8b5cf6; /* purple */
+  stroke: #6d28d9;
+  stroke-width: 2;
+}
+
 .label.prime {
   font-size: 14px;
   fill: var(--muted);

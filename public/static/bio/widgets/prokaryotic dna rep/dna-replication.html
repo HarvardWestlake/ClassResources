@@ -18,11 +18,10 @@
       <div class="controls" aria-label="Replication controls">
         <button id="helicase-start" type="button">Unwind DNA Helix (Helicase)</button>
         <button id="primase-start" type="button" aria-label="Lay down RNA primers (Primase)" style="display:none" disabled>Lay down primers (Primase)</button>
-        <button id="helicase-reset" type="button" style="display:none">Reset</button>
         <span id="helicase-status" aria-hidden="true"></span>
         <span id="primase-status" aria-hidden="true"></span>
-        <button id="pol3-start" type="button" style="display:none" disabled>DNA Pol III – leading strand</button>
-        <span id="pol3-status" aria-hidden="true"></span>
+        <button id="pol3-start" type="button" style="display:none" disabled>DNA Pol III</button>
+        <button id="helicase-reset" type="button" style="display:none">Reset</button>
       </div>
 
     </main>
@@ -68,6 +67,9 @@
         // Group for synthesized leading strand (DNA Pol III)
         const pol3Group = document.createElementNS(NS, 'g');
         pol3Group.setAttribute('id', 'pol3-leading');
+        // Group for synthesized lagging strand (Okazaki fragments)
+        const pol3LagGroup = document.createElementNS(NS, 'g');
+        pol3LagGroup.setAttribute('id', 'pol3-lagging');
         // Small connector segments drawn at completion to join unwound strands
         // to the residual helical tail visually
         const junctionTopPath = document.createElementNS(NS, 'path');
@@ -316,6 +318,8 @@
         g.appendChild(templateBPath);
         g.appendChild(pol3Group);
         g.appendChild(primersGroup);
+        // Place lagging products above primers for visibility
+        g.appendChild(pol3LagGroup);
         g.appendChild(topLabel);
         g.appendChild(bottomLabel);
         g.appendChild(helicase);
@@ -338,7 +342,6 @@
 
         // Pol III state and controls
         const pol3Btn = document.getElementById('pol3-start');
-        const pol3Status = document.getElementById('pol3-status');
         let helicaseCompleted = false;
         let pol3Active = false;
         let pol3Completed = false;
@@ -346,6 +349,14 @@
         let pol3LastTs = null;
         let pol3FrontX = 0;
         let pol3Enzyme = null; // moving enzyme circle
+
+        // Lagging Pol III state
+        let pol3LagActive = false;
+        let pol3LagCompleted = false;
+        let pol3LagAnimId = null;
+        let pol3LagLastTs = null;
+        let pol3LagFrontX = 0;
+        let pol3LagEnzyme = null; // moving enzyme circle (lagging)
 
         // Pol III visual/animation constants
         const pol3BlockWidth = 20;
@@ -359,11 +370,16 @@
 
         function updatePol3CTA() {
           if (!pol3Btn) return;
-          if (helicaseCompleted && leadingPrimerPlaced && !pol3Completed) {
+          if (helicaseCompleted && leadingPrimerPlaced && laggingPrimersPlaced) {
             pol3Btn.style.display = '';
             pol3Btn.disabled = false;
+          } else {
+            pol3Btn.style.display = 'none';
+            pol3Btn.disabled = true;
           }
         }
+
+        /* removed: separate lagging CTA (combined into single Pol III button) */
 
         const primaseBtn = document.getElementById('primase-start');
         const primaseStatus = document.getElementById('primase-status');
@@ -507,6 +523,20 @@
           placeNext();
         });
 
+        function getLaggingPrimers() {
+          const rects = Array.from(primersGroup.querySelectorAll('rect.primer-block-lagging'));
+          const arr = rects.map(r => {
+            const x = parseFloat(r.getAttribute('x') || '0');
+            const w = parseFloat(r.getAttribute('width') || '0');
+            const y = parseFloat(r.getAttribute('y') || '0');
+            const h = parseFloat(r.getAttribute('height') || '0');
+            return { xLeft: x, xRight: x + w, xCenter: x + w / 2, yCenter: y + h / 2 };
+          });
+          // Sort right-to-left: nearest to fork first
+          arr.sort((a, b) => b.xCenter - a.xCenter);
+          return arr;
+        }
+
         function makePol3Block(xCenter, idx) {
           const rect = document.createElementNS(NS, 'rect');
           const yTop = centerY - forkOffsetLeft(xCenter, helicaseEndX);
@@ -569,7 +599,6 @@
           const blocks = pol3Group.querySelectorAll('rect.pol3-block');
           blocks.forEach(b => b.parentNode?.removeChild(b));
 
-          if (pol3Status) pol3Status.textContent = 'Leading strand synthesized';
           pol3Active = false;
           pol3Completed = true;
           if (pol3Btn) pol3Btn.disabled = true;
@@ -583,7 +612,6 @@
           pol3FrontX = xStart;
           pol3LastTs = null;
           pol3Active = true;
-          if (pol3Status) pol3Status.textContent = 'DNA Pol III synthesizing…';
 
           // Place blocks progressively as front advances
           let nextBlockCenterX = xStart + (pol3BlockWidth / 2);
@@ -627,7 +655,146 @@
         pol3Btn?.addEventListener('click', () => {
           if (pol3Btn) pol3Btn.disabled = true;
           startPol3();
+          startPol3Lagging();
         });
+
+        function ensurePol3LagEnzyme() {
+          if (pol3LagEnzyme) return pol3LagEnzyme;
+          const c = document.createElementNS(NS, 'circle');
+          c.setAttribute('r', String(Math.max(8, pol3BlockHeight / 2 + 6)));
+          c.setAttribute('class', 'pol3-lag-enzyme');
+          c.setAttribute('fill', '#8b5cf6');
+          c.setAttribute('stroke', '#6d28d9');
+          c.setAttribute('stroke-width', '2');
+          pol3LagGroup.appendChild(c);
+          pol3LagEnzyme = c;
+          return c;
+        }
+
+        function updatePol3LagEnzymePosition(x) {
+          if (!pol3LagEnzyme) return;
+          const leadOffsetX = (pol3BlockWidth / 2) + pol3BlockGap + 6;
+          const xMin = startX + 6;
+          const xFront = Math.max(x - leadOffsetX, xMin);
+          const yBottom = centerY + forkOffsetLeft(xFront, helicaseEndX);
+          const yCenter = yBottom - (pol3BlockHeight / 2) - pol3OffsetUnder;
+          pol3LagEnzyme.setAttribute('cx', String(xFront));
+          pol3LagEnzyme.setAttribute('cy', String(yCenter));
+          pol3LagGroup.appendChild(pol3LagEnzyme);
+        }
+
+        function makeLagBlock(xCenter, idx) {
+          const rect = document.createElementNS(NS, 'rect');
+          const yBottom = centerY + forkOffsetLeft(xCenter, helicaseEndX);
+          const yCenter = yBottom - (pol3BlockHeight / 2) - pol3OffsetUnder;
+          rect.setAttribute('x', String(xCenter - pol3BlockWidth / 2));
+          rect.setAttribute('y', String(yCenter - pol3BlockHeight / 2));
+          rect.setAttribute('width', String(pol3BlockWidth));
+          rect.setAttribute('height', String(pol3BlockHeight));
+          rect.setAttribute('rx', '3');
+          rect.setAttribute('class', 'pol3-lag-block');
+          const color = nucleotideColors[idx % nucleotideColors.length];
+          rect.setAttribute('fill', color);
+          rect.setAttribute('style', 'fill: ' + color);
+          pol3LagGroup.appendChild(rect);
+          return rect;
+        }
+
+        function mergeLagBlocksToPath(xRight, xLeft) {
+          const path = document.createElementNS(NS, 'path');
+          let d = '';
+          let started = false;
+          const stepSize = Math.max(2, Math.min(6, step));
+          for (let x = xRight; x >= xLeft; x -= stepSize) {
+            const yBottom = centerY + forkOffsetLeft(x, helicaseEndX);
+            const y = yBottom - pol3PathOffset;
+            if (!started) { d += 'M ' + x + ' ' + y; started = true; }
+            else { d += ' L ' + x + ' ' + y; }
+          }
+          path.setAttribute('d', d || `M ${xRight} ${centerY}`);
+          path.setAttribute('class', 'pol3-path');
+          pol3LagGroup.appendChild(path);
+
+          // Remove all lagging block rects for this fragment (group currently contains only those)
+          const blocks = pol3LagGroup.querySelectorAll('rect.pol3-lag-block');
+          blocks.forEach(b => b.parentNode?.removeChild(b));
+        }
+
+        function startPol3Lagging() {
+          if (pol3LagActive || pol3LagCompleted) return;
+          const primers = getLaggingPrimers();
+          if (!primers.length) return;
+          pol3LagActive = true;
+
+          ensurePol3LagEnzyme();
+
+          const leftClamp = startX + 10;
+          let fragmentIndex = 0;
+
+          function synthesizeNextFragment() {
+            if (fragmentIndex >= primers.length) {
+              // done
+              pol3LagActive = false;
+              pol3LagCompleted = true;
+              if (pol3LagEnzyme && pol3LagEnzyme.parentNode) pol3LagEnzyme.parentNode.removeChild(pol3LagEnzyme);
+              pol3LagEnzyme = null;
+              return;
+            }
+
+            const curr = primers[fragmentIndex];
+            const next = primers[fragmentIndex + 1];
+            const gap = pol3BlockGap;
+            const xRightBound = Math.max(leftClamp + gap, curr.xLeft - gap);
+            const xLeftBound = next ? Math.max(leftClamp, next.xRight + gap) : leftClamp;
+
+            /* no status readout */
+
+            pol3LagFrontX = xRightBound;
+            pol3LagLastTs = null;
+
+            let nextBlockCenterX = xRightBound - (pol3BlockWidth / 2);
+            let nextBlockIndex = 0;
+
+            updatePol3LagEnzymePosition(pol3LagFrontX);
+
+            function stepFragment(ts) {
+              if (!pol3LagLastTs) pol3LagLastTs = ts;
+              const dt = (ts - pol3LagLastTs) / 1000;
+              pol3LagLastTs = ts;
+
+              pol3LagFrontX = Math.max(xLeftBound, pol3LagFrontX - pol3Speed * dt);
+
+              while (
+                (nextBlockCenterX - (pol3BlockWidth / 2) >= xLeftBound) &&
+                (nextBlockCenterX + (pol3BlockWidth / 2) >= pol3LagFrontX)
+              ) {
+                makeLagBlock(nextBlockCenterX, nextBlockIndex++);
+                nextBlockCenterX -= (pol3BlockWidth + pol3BlockGap);
+                if (pol3LagEnzyme) pol3LagGroup.appendChild(pol3LagEnzyme);
+              }
+
+              updatePol3LagEnzymePosition(pol3LagFrontX);
+
+              if (pol3LagFrontX <= xLeftBound) {
+                cancelAnimationFrame(pol3LagAnimId);
+                pol3LagAnimId = null;
+                // merge this fragment and advance
+                mergeLagBlocksToPath(xRightBound, xLeftBound);
+                fragmentIndex++;
+                synthesizeNextFragment();
+                return;
+              }
+
+              pol3LagAnimId = requestAnimationFrame(stepFragment);
+            }
+
+            pol3LagAnimId = requestAnimationFrame(stepFragment);
+          }
+
+          synthesizeNextFragment();
+        }
+
+        /* removed: separate lagging start button listener (combined into single Pol III button) */
 
         resetBtn?.addEventListener('click', () => {
           if (animId) cancelAnimationFrame(animId);
@@ -666,7 +833,16 @@
           pol3LastTs = null;
           pol3Enzyme = null;
           if (pol3Btn) { pol3Btn.disabled = true; pol3Btn.style.display = 'none'; }
-          if (pol3Status) pol3Status.textContent = '';
+
+          // Clear Lagging Pol III visuals and state
+          while (pol3LagGroup.firstChild) pol3LagGroup.removeChild(pol3LagGroup.firstChild);
+          pol3LagActive = false;
+          pol3LagCompleted = false;
+          if (pol3LagAnimId) cancelAnimationFrame(pol3LagAnimId);
+          pol3LagAnimId = null;
+          pol3LagLastTs = null;
+          pol3LagEnzyme = null;
+          /* removed: separate lagging button/status reset */
         });
       })();
     </script>
