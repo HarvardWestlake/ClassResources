@@ -73,6 +73,19 @@ body {
     overflow: hidden;
 }
 
+/* Responsive padding for different screen sizes */
+@media (max-width: 480px) {
+    .main-content {
+        padding: 12px;
+    }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+    .main-content {
+        padding: 16px;
+    }
+}
+
 .card {
     background: var(--panel);
     border: 1px solid var(--panel-border);
@@ -737,23 +750,72 @@ canvas {
     }
 }
 
-/* Mobile adjustments */
+/* Performance: Reduce animations on low-end devices */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    button {
+        min-height: 48px;
+        /* Larger touch targets */
+        padding: 10px 16px;
+    }
+
+    .switch {
+        min-height: 44px;
+        padding: 4px 0;
+    }
+
+    input[type="range"] {
+        height: 44px;
+        /* Larger slider for touch */
+    }
+
+    .pill {
+        padding: 8px 12px;
+        min-height: 36px;
+    }
+}
+
+/* High DPI display optimizations */
+@media (-webkit-min-device-pixel-ratio: 2),
+(min-resolution: 192dpi) {
+    canvas {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+}
+
+/* Mobile adjustments - optimized for small screens */
 @media (max-width: 640px) {
     .start-bar {
         flex-wrap: wrap;
         gap: 10px;
         justify-content: center;
+        padding: 8px 12px;
     }
 
     .sb-left,
     .sb-right {
         flex-wrap: wrap;
         gap: 10px;
+        width: 100%;
     }
 
     .sb-left>div,
     .sb-right>div {
         padding: 0 8px;
+        flex: 1 1 auto;
+        min-width: 0;
     }
 
     .sb-left>div+div::before,
@@ -763,6 +825,74 @@ canvas {
 
     .bar-sep {
         display: none;
+    }
+
+    .control-label {
+        font-size: 10px;
+    }
+
+    .range-value {
+        font-size: 12px;
+        min-width: 36px;
+    }
+}
+
+/* Extra small devices - very tight layout */
+@media (max-width: 360px) {
+    .start-bar {
+        padding: 6px 8px;
+        gap: 8px;
+    }
+
+    .card {
+        padding: 12px;
+    }
+
+    .title {
+        font-size: 16px;
+    }
+
+    .subtitle {
+        font-size: 12px;
+    }
+}
+
+/* Tablet portrait optimization */
+@media (min-width: 641px) and (max-width: 1024px) and (orientation: portrait) {
+    .main-content {
+        padding: 16px;
+    }
+
+    .start-bar {
+        gap: 20px;
+    }
+}
+
+/* Tablet landscape and small laptops */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .main-content>.card {
+        max-width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+    }
+}
+
+/* Ultra-wide and tall aspect ratios */
+@media (min-aspect-ratio: 21/9) {
+    .main-content>.card {
+        max-width: 1400px;
+    }
+}
+
+@media (max-aspect-ratio: 3/4) {
+
+    /* Very tall/narrow screens */
+    .main-content {
+        padding: 12px;
+    }
+
+    .canvas-wrap {
+        max-height: 60vh;
     }
 }
 
@@ -787,4 +917,3 @@ canvas {
     background: rgba(96, 165, 250, 0.08);
     border: 1px solid rgba(96, 165, 250, 0.3);
 }
-    </style>
