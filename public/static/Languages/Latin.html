@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latin Text Analyzer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.2em;
+            color: #764ba2;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: 'Georgia', serif;
+            line-height: 1.6;
+        }
+
+        .latin-input-wrapper {
+            position: relative;
+        }
+
+        #latin-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: 'Georgia', serif;
+            line-height: 1.6;
+            pointer-events: none;
+            background: transparent;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            display: none;
+        }
+
+        .token {
+            cursor: pointer;
+            padding: 2px 0;
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+
+        .token.highlight {
+            font-weight: 500;
+        }
+
+        .token:hover {
+            filter: brightness(0.9);
+        }
+
+        .word-count {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .input-warning {
+            color: #e53e3e;
+            font-size: 0.9em;
+            margin-top: 5px;
+            min-height: 20px;
+        }
+
+        #examine-btn {
+            display: block;
+            margin: 20px auto;
+            padding: 15px 50px;
+            font-size: 18px;
+        }
+
+        .analysis-output {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        #group-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .swatch {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95em;
+        }
+
+        .dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        #rendered-text {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Georgia', serif;
+            line-height: 1.8;
+            border: 2px solid #e2e8f0;
+        }
+
+        .grammar-section {
+            margin-top: 20px;
+        }
+
+        .grammar-item {
+            background: white;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #764ba2;
+        }
+
+        .grammar-name {
+            font-weight: 600;
+            color: #764ba2;
+            margin-right: 10px;
+        }
+
+        .grammar-text {
+            color: #555;
+            font-style: italic;
+        }
+
+        .translation-input {
+            border: 2px solid #ddd;
+        }
+
+        .translation-correct {
+            border-color: #48bb78 !important;
+            background: #f0fff4;
+        }
+
+        .translation-incorrect {
+            border-color: #e53e3e !important;
+            background: #fff5f5;
+        }
+
+        .translation-feedback {
+            margin-top: 10px;
+            font-weight: 600;
+            min-height: 24px;
+        }
+
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+            z-index: 1000;
+            pointer-events: none;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .tooltip strong {
+            color: #fde047;
+            font-size: 16px;
+        }
+
+        .hint {
+            color: #cbd5e0;
+            font-size: 0.9em;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏛️ Latin Text Analyzer</h1>
+        <p class="subtitle">Analyze Latin poetry and prose with advanced grammatical insights</p>
+
+        <!-- Mode Selection -->
+        <div class="section">
+            <div class="mode-buttons">
+                <button id="btn-poetry" aria-pressed="false">📜 Poetry Mode</button>
+                <button id="btn-prose" aria-pressed="false">📖 Prose Mode</button>
+            </div>
+        </div>
+
+        <!-- Author Input -->
+        <div class="section" id="author-section" hidden>
+            <label class="section-title" for="author-input">Author (Optional):</label>
+            <input type="text" id="author-input" placeholder="e.g., Vergil, Caesar, Ovid...">
+        </div>
+
+        <!-- Latin Input -->
+        <div class="section" id="latin-section" hidden>
+            <label class="section-title" for="latin-input">Latin Text (Max 50 words):</label>
+            <div class="latin-input-wrapper">
+                <textarea id="latin-input" placeholder="Enter your Latin text here..."></textarea>
+                <div id="latin-overlay" aria-hidden="true"></div>
+            </div>
+            <div class="word-count" id="word-count">0/50 words</div>
+            <div class="input-warning" id="input-warning"></div>
+        </div>
+
+        <!-- Examine Button -->
+        <button id="examine-btn" disabled>Examine!</button>
+
+        <!-- Analysis Output -->
+        <div class="analysis-output" id="analysis-output" hidden>
+            <div class="section-title">Grammatical Groups:</div>
+            <div id="group-legend"></div>
+            <div id="rendered-text"></div>
+        </div>
+
+        <!-- Grammar Section -->
+        <div class="grammar-section section" id="grammar-section" hidden>
+            <div class="section-title">Advanced Grammar Detected:</div>
+            <div id="grammar-list"></div>
+        </div>
+
+        <!-- Translation Section -->
+        <div class="section" id="translation-section" hidden>
+            <label class="section-title" for="translation-input">Your Translation:</label>
+            <textarea id="translation-input" class="translation-input" placeholder="Enter your English translation..."></textarea>
+            <button id="check-translation-btn">Check Translation</button>
+            <div class="translation-feedback" id="translation-feedback"></div>
+        </div>
+    </div>
+
+    <script>
+// Latin Translator Logic
+(function() {
+    const modeButtons = {
+        poetry: document.getElementById('btn-poetry'),
+        prose: document.getElementById('btn-prose')
+    };
+    const authorSection = document.getElementById('author-section');
+    const authorInput = document.getElementById('author-input');
+    const latinSection = document.getElementById('latin-section');
+    const latinInput = document.getElementById('latin-input');
+    const latinOverlay = document.getElementById('latin-overlay');
+    const wordCount = document.getElementById('word-count');
+    const inputWarning = document.getElementById('input-warning');
+    const examineBtn = document.getElementById('examine-btn');
+    const analysisOutput = document.getElementById('analysis-output');
+    const groupLegend = document.getElementById('group-legend');
+    const renderedText = document.getElementById('rendered-text');
+    const grammarSection = document.getElementById('grammar-section');
+    const grammarList = document.getElementById('grammar-list');
+    const translationSection = document.getElementById('translation-section');
+    const translationInput = document.getElementById('translation-input');
+    const checkTranslationBtn = document.getElementById('check-translation-btn');
+    const translationFeedback = document.getElementById('translation-feedback');
+
+    const STATE = {
+        mode: null,
+        lastValidLatin: '',
+        overlayActive: false,
+        tokens: [],
+        groups: [],
+        grammar: [],
+        baselineEnglish: []
+    };
+
+    const COLOR_PALETTE = [
+        '#fde047', '#60a5fa', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#f87171', '#22d3ee'
+    ];
+
+    // Mode selection
+    modeButtons.poetry.addEventListener('click', () => selectMode('poetry'));
+    modeButtons.prose.addEventListener('click', () => selectMode('prose'));
+
+    function selectMode(mode) {
+        STATE.mode = mode;
+        modeButtons.poetry.setAttribute('aria-pressed', String(mode === 'poetry'));
+        modeButtons.prose.setAttribute('aria-pressed', String(mode === 'prose'));
+        modeButtons.poetry.classList.toggle('active', mode === 'poetry');
+        modeButtons.prose.classList.toggle('active', mode === 'prose');
+        authorSection.hidden = false;
+        latinSection.hidden = false;
+        examineBtn.disabled = latinInput.value.trim().length === 0;
+        resetAnalysisState();
+    }
+
+    function resetAnalysisState() {
+        analysisOutput.hidden = true;
+        grammarSection.hidden = true;
+        translationSection.hidden = true;
+        translationInput.value = '';
+        translationFeedback.textContent = '';
+        translationInput.classList.remove('translation-correct', 'translation-incorrect');
+    }
+
+    // Input handling with 50-word cap
+    function tokenizeForCount(text) {
+        const matches = text.match(/\p{L}+[\p{L}\-]*|\d+/gu) || [];
+        return matches;
+    }
+
+    function updateWordCount() {
+        const tokens = tokenizeForCount(latinInput.value);
+        wordCount.textContent = `${tokens.length}/50 words`;
+        examineBtn.disabled = tokens.length === 0;
+    }
+
+    function enforceCap(e) {
+        const tokens = tokenizeForCount(latinInput.value);
+        if (tokens.length > 50) {
+            inputWarning.textContent = 'Limit is 50 words. Extra input was not added.';
+            latinInput.value = STATE.lastValidLatin;
+            setTimeout(() => inputWarning.textContent = '', 2000);
+        } else {
+            STATE.lastValidLatin = latinInput.value;
+        }
+        updateWordCount();
+        if (STATE.overlayActive) hideOverlayForEditing();
+        // Reset button to Examine! on any edit
+        examineBtn.textContent = 'Examine!';
+        examineBtn.disabled = tokenizeForCount(latinInput.value).length === 0;
+    }
+
+    latinInput.addEventListener('input', enforceCap);
+    latinInput.addEventListener('focus', hideOverlayForEditing);
+
+    // Examine -> analyze -> Ready
+    examineBtn.addEventListener('click', async () => {
+        if (examineBtn.disabled) return;
+        examineBtn.disabled = true;
+        examineBtn.textContent = 'Analyzing…';
+        const text = latinInput.value;
+        await new Promise(r => setTimeout(r, 30));
+        const analysis = analyze(text, {
+            mode: STATE.mode,
+            author: (authorInput.value || '').trim()
+        });
+        STATE.tokens = analysis.tokens;
+        STATE.groups = analysis.groups;
+        STATE.grammar = analysis.grammar;
+        STATE.baselineEnglish = analysis.baselineEnglish;
+
+        renderOverlay(text, STATE.tokens, STATE.groups);
+        renderLegend(STATE.groups);
+        renderGrammar(STATE.grammar);
+
+        analysisOutput.hidden = false;
+        grammarSection.hidden = false;
+        translationSection.hidden = false;
+        examineBtn.textContent = 'Ready!';
+        STATE.overlayActive = true;
+    });
+
+    // Tooltips
+    const tooltip = createTooltip();
+
+    function createTooltip() {
+        const el = document.createElement('div');
+        el.className = 'tooltip';
+        el.style.display = 'none';
+        document.body.appendChild(el);
+        return el;
+    }
+
+    function showTooltip(html, x, y) {
+        tooltip.innerHTML = html;
+        tooltip.style.left = Math.max(12, x + 12) + 'px';
+        tooltip.style.top = Math.max(12, y + 12) + 'px';
+        tooltip.style.display = 'block';
+    }
+
+    function hideTooltip() {
+        tooltip.style.display = 'none';
+    }
+
+    // Overlay rendering
+    function renderOverlay(rawText, tokens, groups) {
+        // Build a map from token index to group/color and tooltip
+        const tokenMeta = new Map();
+        const palette = COLOR_PALETTE;
+        groups.forEach((g, idx) => {
+            g.tokens.forEach(ti => {
+                tokenMeta.set(ti, {
+                    color: palette[idx % palette.length],
+                    name: g.name
+                });
+            });
+        });
+
+        // Replace words with spans in order using regex
+        let idx = 0;
+        const parts = [];
+        const regex = /\p{L}+[\p{L}\-]*/gu;
+        let lastIndex = 0;
+        let m;
+        while ((m = regex.exec(rawText)) !== null) {
+            const [word] = m;
+            parts.push(escapeHtml(rawText.slice(lastIndex, m.index)));
+            const t = tokens[idx] || null;
+            const meta = tokenMeta.get(idx);
+            const tooltipHtml = buildTooltipHtml(t);
+            const style = meta ? `style="background:${meta.color}33"` : '';
+            const cls = meta ? 'token highlight' : 'token';
+            parts.push(`<span class="${cls}" data-ti="${idx}" ${style}>${escapeHtml(word)}</span>`);
+            attachTokenHover(idx, tooltipHtml);
+            idx++;
+            lastIndex = regex.lastIndex;
+        }
+        parts.push(escapeHtml(rawText.slice(lastIndex)));
+        latinOverlay.innerHTML = parts.join('');
+        latinOverlay.style.display = 'block';
+        latinOverlay.style.pointerEvents = 'auto';
+        latinOverlay.setAttribute('aria-hidden', 'false');
+        STATE.overlayActive = true;
+
+        // Also render a read-only copy below for accessibility
+        renderedText.innerHTML = latinOverlay.innerHTML;
+        bindRenderedTextTooltips();
+    }
+
+    function hideOverlayForEditing() {
+        if (!STATE.overlayActive) return;
+        latinOverlay.style.display = 'none';
+        latinOverlay.style.pointerEvents = 'none';
+        latinOverlay.setAttribute('aria-hidden', 'true');
+        STATE.overlayActive = false;
+        hideTooltip();
+        examineBtn.textContent = 'Examine!';
+        examineBtn.disabled = tokenizeForCount(latinInput.value).length === 0;
+    }
+
+    function bindRenderedTextTooltips() {
+        renderedText.querySelectorAll('.token').forEach(el => {
+            const ti = Number(el.getAttribute('data-ti'));
+            const t = STATE.tokens[ti];
+            const html = buildTooltipHtml(t);
+            el.addEventListener('mouseenter', (e) => showTooltip(html, e.clientX, e.clientY));
+            el.addEventListener('mousemove', (e) => showTooltip(html, e.clientX, e.clientY));
+            el.addEventListener('mouseleave', hideTooltip);
+            el.addEventListener('click', (e) => {
+                if (tooltip.style.display === 'block') { hideTooltip(); }
+                else { showTooltip(html, e.clientX, e.clientY); }
+            });
+            el.addEventListener('focus', (e) => showTooltip(html, e.clientX || 0, e.clientY || 0));
+            el.addEventListener('blur', hideTooltip);
+            el.setAttribute('tabindex', '0');
+        });
+    }
+
+    function attachTokenHover(index, html) {
+        // Defer until after insert by event delegation on overlay
+        // We'll add one-time listener to overlay
+        if (!latinOverlay._bound) {
+            latinOverlay.addEventListener('mouseover', tokenHoverHandler);
+            latinOverlay.addEventListener('mousemove', tokenHoverHandler);
+            latinOverlay.addEventListener('mouseout', tokenHoverOut);
+            latinOverlay.addEventListener('click', tokenHoverHandler);
+            latinOverlay._bound = true;
+        }
+    }
+
+    function tokenHoverHandler(e) {
+        const target = e.target.closest('.token');
+        if (!target) {
+            hideTooltip();
+            return;
+        }
+        const ti = Number(target.getAttribute('data-ti'));
+        const t = STATE.tokens[ti];
+        if (!t) return;
+        const html = buildTooltipHtml(t);
+        showTooltip(html, e.clientX, e.clientY);
+    }
+
+    function tokenHoverOut() {
+        hideTooltip();
+    }
+
+    function buildTooltipHtml(t) {
+        if (!t) return '';
+        const def = t.definition || 'Unknown';
+        const pos = t.pos || 'Unknown';
+        let extra = '';
+        if (pos === 'noun') {
+            extra = t.features.case ? `, case: ${t.features.case}` : '';
+        } else if (pos === 'verb') {
+            extra = t.features.tense ? `, tense: ${t.features.tense}` : '';
+        } else if (pos === 'adjective') {
+            extra = '';
+        } else if (pos === 'participle') {
+            extra = t.features.tense ? `, tense: ${t.features.tense}` : '';
+        }
+        return `<strong>${escapeHtml(t.original)}</strong><br>${escapeHtml(def)}<br><span class="hint">${pos}${extra}</span>`;
+    }
+
+    function renderLegend(groups) {
+        groupLegend.innerHTML = '';
+        groups.forEach((g, idx) => {
+            const item = document.createElement('span');
+            item.className = 'swatch';
+            const dot = document.createElement('span');
+            dot.className = 'dot';
+            dot.style.background = COLOR_PALETTE[idx % COLOR_PALETTE.length];
+            const label = document.createElement('span');
+            label.textContent = g.name;
+            item.appendChild(dot);
+            item.appendChild(label);
+            groupLegend.appendChild(item);
+        });
+        groupLegend.setAttribute('aria-hidden', groups.length ? 'false' : 'true');
+    }
+
+    function renderGrammar(grammar) {
+        grammarList.innerHTML = '';
+        if (!grammar.length) {
+            const none = document.createElement('div');
+            none.className = 'grammar-item';
+            none.innerHTML = `<span class="grammar-name">None detected</span><span class="grammar-text"></span>`;
+            grammarList.appendChild(none);
+            return;
+        }
+        grammar.forEach(g => {
+            const div = document.createElement('div');
+            div.className = 'grammar-item';
+            const name = document.createElement('span');
+            name.className = 'grammar-name';
+            name.textContent = g.name + ':';
+            const text = document.createElement('span');
+            text.className = 'grammar-text';
+            text.textContent = `"${g.text}"`;
+            div.appendChild(name);
+            div.appendChild(text);
+            grammarList.appendChild(div);
+        });
+    }
+
+    // Translation evaluation
+    checkTranslationBtn.addEventListener('click', () => {
+        const user = (translationInput.value || '').toLowerCase();
+        const userTokens = (user.match(/[a-z]+/g) || []).filter(w => w.length > 1);
+        const expected = STATE.baselineEnglish;
+        if (!expected || expected.length === 0) {
+            translationFeedback.textContent = 'Run Examine! first to generate a baseline.';
+            return;
+        }
+        const score = similarityScore(new Set(expected), new Set(userTokens));
+        const ok = score >= 0.45 || (containsVerb(userTokens) && overlapCount(expected, userTokens) >= Math.ceil(expected.length * 0.4));
+        translationInput.classList.toggle('translation-correct', ok);
+        translationInput.classList.toggle('translation-incorrect', !ok);
+        translationFeedback.textContent = ok ? 'Correct (semantic match) ✔' : 'Not quite — try again ✘';
+    });
+
+    function containsVerb(tokens) {
+        return tokens.some(t => /(be|is|are|was|were|am|have|has|do|did|go|went|see|saw|says|said|love|comes|came|carry|carries|send|sends)/.test(t));
+    }
+
+    function overlapCount(a, b) {
+        const bset = new Set(b);
+        return a.filter(x => bset.has(x)).length;
+    }
+
+    function similarityScore(aSet, bSet) {
+        const a = Array.from(aSet);
+        let inter = 0;
+        a.forEach(x => { if (bSet.has(x)) inter++; });
+        const unionSize = aSet.size + bSet.size - inter;
+        return unionSize ? inter / unionSize : 0;
+    }
+
+    // Analysis pipeline
+    function analyze(rawText, opts) {
+        const tokens = tokenize(rawText);
+        const authorBias = inferAuthorBias(opts.author, opts.mode);
+        tokens.forEach(t => annotateToken(t, authorBias));
+        const groups = buildGroups(tokens, authorBias);
+        const grammar = detectComplexGrammar(tokens, authorBias);
+        const baselineEnglish = buildBaselineEnglish(tokens);
+        return { tokens, groups, grammar, baselineEnglish };
+    }
+
+    function tokenize(text) {
+        const regex = /\p{L}+[\p{L}\-]*/gu;
+        const tokens = [];
+        let m;
+        while ((m = regex.exec(text)) !== null) {
+            const word = m[0];
+            tokens.push({
+                original: word,
+                normalized: normalizeLatin(word),
+                pos: 'unknown',
+                features: {},
+                definition: lookupDefinition(word)
+            });
+        }
+        return tokens;
+    }
+
+    function normalizeLatin(w) {
+        return w
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics
+            .replace(/j/g, 'i')
+            .replace(/v/g, 'u');
+    }
+
+    function annotateToken(t, bias) {
+        const w = t.normalized;
+        
+        // FIRST: Check if word exists in LEXICON
+        const lexEntry = LEXICON[w];
+        if (lexEntry && lexEntry.pos) {
+            t.pos = lexEntry.pos;
+            // Set appropriate features based on part of speech
+            if (lexEntry.pos === 'noun' || lexEntry.pos === 'adjective') {
+                // Try to determine case from word endings
+                if (/(ae|am|as|arum|a)$/.test(w)) {
+                    t.features.case = caseFromEnding1st(w);
+                } else if (/(us|i|o|um|os|orum)$/.test(w)) {
+                    t.features.case = caseFromEnding2nd(w);
+                } else if (/(em|es|is|e|ibus|um|ium)$/.test(w)) {
+                    t.features.case = caseFromEnding3rd(w);
+                } else if (/er$/.test(w)) {
+                    t.features.case = 'nom sg';
+                } else if (/(or|x)$/.test(w)) {
+                    t.features.case = 'nom sg';
+                }
+            } else if (lexEntry.pos === 'verb') {
+                // Try to determine tense from word endings
+                if (/re$|sse$/.test(w)) {
+                    t.features.tense = 'infinitive';
+                } else if (/(vi|vit|visti|xit|si|sit)$/.test(w)) {
+                    t.features.tense = 'perfect';
+                } else if (/nt$/.test(w)) {
+                    t.features.tense = 'present';
+                } else {
+                    t.features.tense = 'present';
+                }
+            }
+            return;
+        }
+        
+        // SECOND: Fall back to morphology heuristics if not in LEXICON
+        // Verb patterns
+        if (/\b(sum|es|est|sumus|estis|sunt)\b/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = 'present';
+            t.definition ||= 'be';
+            return;
+        }
+        if (/nt$/.test(w) || /t$/.test(w) || /(o|m)$/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = /it$|erunt$/.test(w) ? 'perfect' : 'present';
+            return;
+        }
+        if (/re$/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = 'infinitive';
+            return;
+        }
+        // Participles
+        if (/nt(\b|[aeiouy])/.test(w)) {
+            t.pos = 'participle';
+            t.features.tense = 'present';
+            return;
+        }
+        if (/(tus|sus|xa|ctus|ptus|rsus)$/.test(w) || /(urus)$/.test(w)) {
+            t.pos = /(urus)$/.test(w) ? 'participle' : 'participle';
+            t.features.tense = /(urus)$/.test(w) ? 'future' : 'perfect';
+            return;
+        }
+        // Noun/adjective endings (very simplified)
+        if (/(ae|am|as|arum)$/.test(w) || /(a)$/.test(w)) {
+            t.pos = guessAdjOrNoun(w);
+            t.features.case = caseFromEnding1st(w);
+            return;
+        }
+        if (/(us|i|o|um|os|orum)$/.test(w)) {
+            t.pos = guessAdjOrNoun(w);
+            t.features.case = caseFromEnding2nd(w);
+            return;
+        }
+        if (/(em|es|is|e|ibus|um|ium)$/.test(w)) {
+            t.pos = 'noun';
+            t.features.case = caseFromEnding3rd(w);
+            return;
+        }
+        if (/que$|ve$|ne$/.test(w)) {
+            t.pos = 'particle';
+            return;
+        }
+        // fallback
+        t.pos = t.pos || 'unknown';
+    }
+
+    function guessAdjOrNoun(w) {
+        return LEXICON[w]?.pos || (/(us|a|um|i|ae)$/.test(w) ? 'adjective' : 'noun');
+    }
+
+    function caseFromEnding1st(w) {
+        if (/ae$/.test(w)) return 'gen/dat sg or nom pl';
+        if (/am$/.test(w)) return 'acc sg';
+        if (/arum$/.test(w)) return 'gen pl';
+        if (/a$/.test(w)) return 'nom/abl sg';
+        return undefined;
+    }
+
+    function caseFromEnding2nd(w) {
+        if (/i$/.test(w)) return 'gen sg or nom pl';
+        if (/o$/.test(w)) return 'dat/abl sg';
+        if (/um$/.test(w)) return 'acc sg (or nom/acc sg neuter)';
+        if (/os$/.test(w)) return 'acc pl';
+        if (/orum$/.test(w)) return 'gen pl';
+        if (/us$/.test(w)) return 'nom sg';
+        return undefined;
+    }
+
+    function caseFromEnding3rd(w) {
+        if (/em$/.test(w)) return 'acc sg';
+        if (/es$/.test(w)) return 'nom/acc pl';
+        if (/is$/.test(w)) return 'gen sg or dat sg';
+        if (/e$/.test(w)) return 'abl sg';
+        if (/ibus$/.test(w)) return 'dat/abl pl';
+        if (/um$/.test(w)) return 'gen pl';
+        if (/ium$/.test(w)) return 'gen pl (i-stem)';
+        return undefined;
+    }
+
+    function buildGroups(tokens, bias) {
+        const groups = [];
+        // noun-adjective agreements (naive)
+        const agreements = [];
+        for (let i = 0; i < tokens.length; i++) {
+            const t = tokens[i];
+            if (t.pos === 'noun') {
+                const windowSize = bias.poetry ? 6 : 3;
+                for (let j = Math.max(0, i - windowSize); j <= Math.min(tokens.length - 1, i + windowSize); j++) {
+                    if (i === j) continue;
+                    const a = tokens[j];
+                    if (a.pos === 'adjective' && t.features.case && a.features.case && sameCaseBucket(t.features.case, a.features.case)) {
+                        agreements.push(new Set([i, j]));
+                    }
+                }
+            }
+        }
+        if (agreements.length) {
+            const uniq = mergeSets(agreements);
+            uniq.forEach(set => groups.push({ name: 'Noun–Adjective', tokens: Array.from(set) }));
+        }
+
+        // participial phrases (participle + nearest noun)
+        tokens.forEach((t, i) => {
+            if (t.pos === 'participle') {
+                let best = -1, bestDist = Infinity;
+                const windowSize = bias.poetry ? 6 : 4;
+                for (let j = Math.max(0, i - windowSize); j <= Math.min(tokens.length - 1, i + windowSize); j++) {
+                    if (i === j) continue;
+                    if (tokens[j].pos === 'noun') {
+                        const d = Math.abs(j - i);
+                        if (d < bestDist) { best = j; bestDist = d; }
+                    }
+                }
+                if (best >= 0) groups.push({ name: 'Participial Phrase', tokens: [i, best] });
+            }
+        });
+
+        // relative clause (from relative pronoun to next finite verb)
+        const relSet = new Set(['qui','quae','quod','quem','quam','quos','quas','quo','qua','quibus','cui','cuius','quorum','quarum']);
+        for (let i = 0; i < tokens.length; i++) {
+            if (relSet.has(tokens[i].normalized)) {
+                const span = [i];
+                for (let j = i + 1; j < tokens.length; j++) {
+                    span.push(j);
+                    if (tokens[j].pos === 'verb') break;
+                }
+                groups.push({ name: 'Relative Clause', tokens: span });
+            }
+        }
+
+        // subject–verb (very naive: noun near finite verb)
+        for (let i = 0; i < tokens.length; i++) {
+            const t = tokens[i];
+            if (t.pos === 'verb' && t.features.tense !== 'infinitive') {
+                let subj = -1; let best = Infinity;
+                for (let j = Math.max(0, i - 4); j <= Math.min(tokens.length - 1, i + 2); j++) {
+                    if (tokens[j].pos === 'noun') {
+                        const d = Math.abs(j - i);
+                        if (d < best) { subj = j; best = d; }
+                    }
+                }
+                if (subj >= 0) groups.push({ name: 'Subject–Verb', tokens: [subj, i] });
+            }
+        }
+
+        return groups;
+    }
+
+    function sameCaseBucket(a, b) {
+        // quick bucket match
+        const bucket = s => s ? s.split(' ')[0] : '';
+        return bucket(a) === bucket(b);
+    }
+
+    function mergeSets(sets) {
+        const result = [];
+        sets.forEach(s => {
+            let merged = false;
+            for (const r of result) {
+                if ([...s].some(x => r.has(x))) { [...s].forEach(x => r.add(x)); merged = true; break; }
+            }
+            if (!merged) result.push(new Set(s));
+        });
+        return result;
+    }
+
+    function detectComplexGrammar(tokens, bias) {
+        const found = [];
+        // Ablative absolute: ablative noun + participle nearby
+        for (let i = 0; i < tokens.length - 1; i++) {
+            const a = tokens[i];
+            const b = tokens[i+1];
+            if ((a.pos === 'noun' && /abl/.test((a.features.case||''))) && b.pos === 'participle') {
+                found.push({ name: 'Ablative Absolute', text: `${a.original} ${b.original}` });
+            }
+        }
+        // Supine (accusative -um after motion verb)
+        const motion = new Set(['venit','veniunt','venimus','venio','eo','iit','iit','ierunt','ibat','ibant','iit','ivimus','adeo','redeo']);
+        for (let i = 0; i < tokens.length - 1; i++) {
+            if (motion.has(tokens[i].normalized) && /um$/.test(tokens[i+1].normalized)) {
+                found.push({ name: 'Accusative Supine', text: tokens[i+1].original });
+            }
+        }
+        // Indirect statement: head-verb + accusative + infinitive
+        const heads = new Set(['dicit','dixit','putat','putavit','puto','dico','video','videt','viderunt','audio','audivit']);
+        for (let i = 0; i < tokens.length - 2; i++) {
+            if (heads.has(tokens[i].normalized)) {
+                const hasAcc = /(am|um|em|as|os|es)$/.test(tokens[i+1].normalized) || /eum|eam|eos|eas|me|te|nos|vos/.test(tokens[i+1].normalized);
+                const isInf = /re$|isse$/.test(tokens[i+2].normalized);
+                if (hasAcc && isInf) {
+                    const span = [tokens[i].original, tokens[i+1].original, tokens[i+2].original].join(' ');
+                    found.push({ name: 'Indirect Statement', text: span });
+                }
+            }
+        }
+        // Relative Clause of Characteristic: relative + subjunctiveish verb form heuristic (very naive)
+        const relSet = new Set(['qui','quae','quod','quem','quam','quos','quas','quo','qua','quibus','cui','cuius','quorum','quarum']);
+        for (let i = 0; i < tokens.length - 1; i++) {
+            if (relSet.has(tokens[i].normalized) && /(ret|rit|erint|erimus)$/.test(tokens[i+1].normalized)) {
+                found.push({ name: 'Relative Clause of Characteristic', text: `${tokens[i].original} ${tokens[i+1].original}` });
+            }
+        }
+        return found;
+    }
+
+    function buildBaselineEnglish(tokens) {
+        const english = [];
+        tokens.forEach(t => {
+            const gloss = (t.definition || '').toLowerCase();
+            if (!gloss) return;
+            const keep = gloss.split(/[^a-z]+/).filter(x => x && x.length > 1);
+            keep.forEach(k => english.push(k));
+        });
+        return Array.from(new Set(english));
+    }
+
+    function inferAuthorBias(author, mode) {
+        const a = (author || '').toLowerCase();
+        const poetryAuthors = ['vergil','virgil','ovid','horace','catullus','propertius','tibullus'];
+        const proseAuthors = ['caesar','cicero','sallust','livy','pliny'];
+        return {
+            poetry: mode === 'poetry' || poetryAuthors.some(x => a.includes(x)),
+            prose: mode === 'prose' || proseAuthors.some(x => a.includes(x))
+        };
+    }
+
+    function renderSafe(text) {
+        return text.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+    }
+
+    function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+    }
+
+    // Comprehensive Latin dictionary based on https://personal.math.ubc.ca/~cass/frivs/latin/latin-dict-full.html
+    const LEXICON = {
+        // Common verbs
+        'amo': { pos: 'verb', def: 'love' }, 'amas': { pos: 'verb', def: 'love' }, 'amat': { pos: 'verb', def: 'love' }, 'amamus': { pos: 'verb', def: 'love' }, 'amant': { pos: 'verb', def: 'love' },
+        'sum': { pos: 'verb', def: 'be' }, 'es': { pos: 'verb', def: 'be' }, 'est': { pos: 'verb', def: 'be' }, 'sumus': { pos: 'verb', def: 'be' }, 'estis': { pos: 'verb', def: 'be' }, 'sunt': { pos: 'verb', def: 'be' },
+        'video': { pos: 'verb', def: 'see' }, 'videt': { pos: 'verb', def: 'see' }, 'vident': { pos: 'verb', def: 'see' }, 'vidi': { pos: 'verb', def: 'see' }, 'visum': { pos: 'verb', def: 'see' },
+        'dico': { pos: 'verb', def: 'say' }, 'dicit': { pos: 'verb', def: 'say' }, 'dixit': { pos: 'verb', def: 'say' },
+        'facio': { pos: 'verb', def: 'do, make' }, 'facit': { pos: 'verb', def: 'do, make' }, 'feci': { pos: 'verb', def: 'do, make' }, 'factum': { pos: 'verb', def: 'do, make' },
+        'venio': { pos: 'verb', def: 'come' }, 'venit': { pos: 'verb', def: 'come' }, 'veni': { pos: 'verb', def: 'come' }, 'ventum': { pos: 'verb', def: 'come' },
+        'do': { pos: 'verb', def: 'give' }, 'dat': { pos: 'verb', def: 'give' }, 'dedi': { pos: 'verb', def: 'give' }, 'datum': { pos: 'verb', def: 'give' },
+        'ago': { pos: 'verb', def: 'do, drive, act' }, 'agit': { pos: 'verb', def: 'do, drive' }, 'egi': { pos: 'verb', def: 'do, drive' }, 'actum': { pos: 'verb', def: 'do, drive' },
+        'pono': { pos: 'verb', def: 'put, place' }, 'ponit': { pos: 'verb', def: 'put, place' }, 'posui': { pos: 'verb', def: 'put, place' }, 'positum': { pos: 'verb', def: 'put, place' },
+        'capio': { pos: 'verb', def: 'take, capture' }, 'capit': { pos: 'verb', def: 'take, capture' }, 'cepi': { pos: 'verb', def: 'take, capture' }, 'captum': { pos: 'verb', def: 'take, capture' },
+        'habeo': { pos: 'verb', def: 'have, hold' }, 'habet': { pos: 'verb', def: 'have, hold' }, 'habui': { pos: 'verb', def: 'have, hold' }, 'habitum': { pos: 'verb', def: 'have, hold' },
+        'vivo': { pos: 'verb', def: 'live' }, 'vivit': { pos: 'verb', def: 'live' }, 'vixi': { pos: 'verb', def: 'live' }, 'victum': { pos: 'verb', def: 'live' },
+        'eo': { pos: 'verb', def: 'go' }, 'it': { pos: 'verb', def: 'go' }, 'ire': { pos: 'verb', def: 'go' }, 'iit': { pos: 'verb', def: 'go' }, 'ierunt': { pos: 'verb', def: 'go' },
+        'duco': { pos: 'verb', def: 'lead' }, 'ducit': { pos: 'verb', def: 'lead' }, 'duxi': { pos: 'verb', def: 'lead' }, 'ductum': { pos: 'verb', def: 'lead' },
+        'audio': { pos: 'verb', def: 'hear' }, 'audit': { pos: 'verb', def: 'hear' }, 'audivi': { pos: 'verb', def: 'hear' }, 'auditum': { pos: 'verb', def: 'hear' },
+        'scribo': { pos: 'verb', def: 'write' }, 'scribit': { pos: 'verb', def: 'write' }, 'scripsi': { pos: 'verb', def: 'write' }, 'scriptum': { pos: 'verb', def: 'write' },
+        'lego': { pos: 'verb', def: 'read, choose' }, 'legit': { pos: 'verb', def: 'read, choose' }, 'legi': { pos: 'verb', def: 'read, choose' }, 'lectum': { pos: 'verb', def: 'read, choose' },
+        'mitto': { pos: 'verb', def: 'send' }, 'mittit': { pos: 'verb', def: 'send' }, 'misi': { pos: 'verb', def: 'send' }, 'missum': { pos: 'verb', def: 'send' },
+        'porto': { pos: 'verb', def: 'carry' }, 'portat': { pos: 'verb', def: 'carry' }, 'portavi': { pos: 'verb', def: 'carry' }, 'portatum': { pos: 'verb', def: 'carry' },
+        'puto': { pos: 'verb', def: 'think, suppose' }, 'putat': { pos: 'verb', def: 'think' }, 'putavi': { pos: 'verb', def: 'think' }, 'putatum': { pos: 'verb', def: 'think' },
+        'vinco': { pos: 'verb', def: 'conquer, win' }, 'vincit': { pos: 'verb', def: 'conquer' }, 'vici': { pos: 'verb', def: 'conquer' }, 'victum': { pos: 'verb', def: 'conquer' },
+        'moveo': { pos: 'verb', def: 'move' }, 'movet': { pos: 'verb', def: 'move' }, 'movi': { pos: 'verb', def: 'move' }, 'motum': { pos: 'verb', def: 'move' },
+        'teneo': { pos: 'verb', def: 'hold' }, 'tenet': { pos: 'verb', def: 'hold' }, 'tenui': { pos: 'verb', def: 'hold' }, 'tentum': { pos: 'verb', def: 'hold' },
+        'moneo': { pos: 'verb', def: 'warn, advise' }, 'monet': { pos: 'verb', def: 'warn' }, 'monui': { pos: 'verb', def: 'warn' }, 'monitum': { pos: 'verb', def: 'warn' },
+        'timeo': { pos: 'verb', def: 'fear' }, 'timet': { pos: 'verb', def: 'fear' }, 'timui': { pos: 'verb', def: 'fear' },
+        'credo': { pos: 'verb', def: 'believe, trust' }, 'credit': { pos: 'verb', def: 'believe' }, 'credidi': { pos: 'verb', def: 'believe' }, 'creditum': { pos: 'verb', def: 'believe' }, 'credere': { pos: 'verb', def: 'believe' },
+        'laudo': { pos: 'verb', def: 'praise' }, 'laudat': { pos: 'verb', def: 'praise' }, 'laudavi': { pos: 'verb', def: 'praise' }, 'laudatum': { pos: 'verb', def: 'praise' },
+        'specto': { pos: 'verb', def: 'watch, look at' }, 'spectat': { pos: 'verb', def: 'watch' }, 'spectavi': { pos: 'verb', def: 'watch' }, 'spectatum': { pos: 'verb', def: 'watch' },
+        'paro': { pos: 'verb', def: 'prepare' }, 'parat': { pos: 'verb', def: 'prepare' }, 'paravi': { pos: 'verb', def: 'prepare' }, 'paratum': { pos: 'verb', def: 'prepare' },
+        'narro': { pos: 'verb', def: 'tell, narrate' }, 'narrat': { pos: 'verb', def: 'tell' }, 'narravi': { pos: 'verb', def: 'tell' }, 'narratum': { pos: 'verb', def: 'tell' },
+        'voco': { pos: 'verb', def: 'call' }, 'vocat': { pos: 'verb', def: 'call' }, 'vocavi': { pos: 'verb', def: 'call' }, 'vocatum': { pos: 'verb', def: 'call' },
+        'iuvo': { pos: 'verb', def: 'help' }, 'iuvat': { pos: 'verb', def: 'help' }, 'iuvi': { pos: 'verb', def: 'help' }, 'iutum': { pos: 'verb', def: 'help' },
+        'relinquo': { pos: 'verb', def: 'leave behind' }, 'relinquit': { pos: 'verb', def: 'leave behind' }, 'reliqui': { pos: 'verb', def: 'leave behind' }, 'relictum': { pos: 'verb', def: 'leave behind' },
+        'disco': { pos: 'verb', def: 'learn' }, 'discit': { pos: 'verb', def: 'learn' }, 'didici': { pos: 'verb', def: 'learn' },
+        'doceo': { pos: 'verb', def: 'teach' }, 'docet': { pos: 'verb', def: 'teach' }, 'docui': { pos: 'verb', def: 'teach' }, 'doctum': { pos: 'verb', def: 'teach' },
+        'possum': { pos: 'verb', def: 'be able' }, 'potest': { pos: 'verb', def: 'be able' }, 'potui': { pos: 'verb', def: 'be able' }, 'posse': { pos: 'verb', def: 'be able' },
+        'debeo': { pos: 'verb', def: 'ought, owe' }, 'debet': { pos: 'verb', def: 'ought' }, 'debui': { pos: 'verb', def: 'ought' }, 'debitum': { pos: 'verb', def: 'ought' },
+        'iubeo': { pos: 'verb', def: 'order' }, 'iubet': { pos: 'verb', def: 'order' }, 'iussi': { pos: 'verb', def: 'order' }, 'iussum': { pos: 'verb', def: 'order' },
+        'nolo': { pos: 'verb', def: 'not want' }, 'non': { pos: 'adverb', def: 'not' }, 'volo': { pos: 'verb', def: 'want, wish' }, 'vult': { pos: 'verb', def: 'want' }, 'volui': { pos: 'verb', def: 'want' }, 'velle': { pos: 'verb', def: 'want' },
+        'peto': { pos: 'verb', def: 'seek, attack' }, 'petit': { pos: 'verb', def: 'seek' }, 'petivi': { pos: 'verb', def: 'seek' }, 'petitum': { pos: 'verb', def: 'seek' },
+        'quaero': { pos: 'verb', def: 'seek, ask' }, 'quaerit': { pos: 'verb', def: 'seek' }, 'quaesivi': { pos: 'verb', def: 'seek' }, 'quaesitum': { pos: 'verb', def: 'seek' },
+        'respondeo': { pos: 'verb', def: 'answer' }, 'respondet': { pos: 'verb', def: 'answer' }, 'respondi': { pos: 'verb', def: 'answer' }, 'responsum': { pos: 'verb', def: 'answer' },
+        'rogo': { pos: 'verb', def: 'ask' }, 'rogat': { pos: 'verb', def: 'ask' }, 'rogavi': { pos: 'verb', def: 'ask' }, 'rogatum': { pos: 'verb', def: 'ask' },
+        'cupio': { pos: 'verb', def: 'desire' }, 'cupit': { pos: 'verb', def: 'desire' }, 'cupivi': { pos: 'verb', def: 'desire' }, 'cupitum': { pos: 'verb', def: 'desire' },
+        'curo': { pos: 'verb', def: 'care for' }, 'curat': { pos: 'verb', def: 'care for' }, 'curavi': { pos: 'verb', def: 'care for' }, 'curatum': { pos: 'verb', def: 'care for' },
+        'pugno': { pos: 'verb', def: 'fight' }, 'pugnat': { pos: 'verb', def: 'fight' }, 'pugnavi': { pos: 'verb', def: 'fight' }, 'pugnatum': { pos: 'verb', def: 'fight' },
+        'sto': { pos: 'verb', def: 'stand' }, 'stat': { pos: 'verb', def: 'stand' }, 'steti': { pos: 'verb', def: 'stand' }, 'statum': { pos: 'verb', def: 'stand' },
+        'sedeo': { pos: 'verb', def: 'sit' }, 'sedet': { pos: 'verb', def: 'sit' }, 'sedi': { pos: 'verb', def: 'sit' }, 'sessum': { pos: 'verb', def: 'sit' },
+        'curro': { pos: 'verb', def: 'run' }, 'currit': { pos: 'verb', def: 'run' }, 'cucurri': { pos: 'verb', def: 'run' }, 'cursum': { pos: 'verb', def: 'run' },
+        'ambulo': { pos: 'verb', def: 'walk' }, 'ambulat': { pos: 'verb', def: 'walk' }, 'ambulavi': { pos: 'verb', def: 'walk' }, 'ambulatum': { pos: 'verb', def: 'walk' },
+        'sto': { pos: 'verb', def: 'stand' }, 'supero': { pos: 'verb', def: 'overcome' }, 'impero': { pos: 'verb', def: 'command' }, 'iudico': { pos: 'verb', def: 'judge' },
+        'accedo': { pos: 'verb', def: 'approach' }, 'accipio': { pos: 'verb', def: 'receive' }, 'adsum': { pos: 'verb', def: 'be present' }, 'aperio': { pos: 'verb', def: 'open' },
+        'cedo': { pos: 'verb', def: 'yield' }, 'cogito': { pos: 'verb', def: 'think' }, 'cognosco': { pos: 'verb', def: 'learn, know' }, 'constituo': { pos: 'verb', def: 'establish' },
+        'defendo': { pos: 'verb', def: 'defend' }, 'deleo': { pos: 'verb', def: 'destroy' }, 'discedo': { pos: 'verb', def: 'depart' }, 'fero': { pos: 'verb', def: 'bear, carry' },
+        'fugio': { pos: 'verb', def: 'flee' }, 'gero': { pos: 'verb', def: 'carry on, wage' }, 'intro': { pos: 'verb', def: 'enter' }, 'iacio': { pos: 'verb', def: 'throw' },
+        'invenio': { pos: 'verb', def: 'find' }, 'maneo': { pos: 'verb', def: 'remain' }, 'ostendo': { pos: 'verb', def: 'show' }, 'pervenio': { pos: 'verb', def: 'arrive' },
+        'prohibeo': { pos: 'verb', def: 'prevent' }, 'promitto': { pos: 'verb', def: 'promise' }, 'redeo': { pos: 'verb', def: 'return' }, 'regno': { pos: 'verb', def: 'rule' },
+        'servo': { pos: 'verb', def: 'save, protect' }, 'supero': { pos: 'verb', def: 'overcome' }, 'trado': { pos: 'verb', def: 'hand over' }, 'traho': { pos: 'verb', def: 'drag' },
+        'verto': { pos: 'verb', def: 'turn' }, 'vigilo': { pos: 'verb', def: 'watch' }, 'vulnero': { pos: 'verb', def: 'wound' },
+        
+        // Common nouns
+        'homo': { pos: 'noun', def: 'man, human' }, 'hominis': { pos: 'noun', def: 'man, human' }, 'hominem': { pos: 'noun', def: 'man, human' }, 'homines': { pos: 'noun', def: 'men, humans' },
+        'vir': { pos: 'noun', def: 'man, hero' }, 'viri': { pos: 'noun', def: 'man, hero' }, 'virum': { pos: 'noun', def: 'man, hero' },
+        'femina': { pos: 'noun', def: 'woman' }, 'feminae': { pos: 'noun', def: 'woman' }, 'feminam': { pos: 'noun', def: 'woman' },
+        'puella': { pos: 'noun', def: 'girl' }, 'puellae': { pos: 'noun', def: 'girl' }, 'puellam': { pos: 'noun', def: 'girl' },
+        'puer': { pos: 'noun', def: 'boy' }, 'pueri': { pos: 'noun', def: 'boy' }, 'puerum': { pos: 'noun', def: 'boy' },
+        'rex': { pos: 'noun', def: 'king' }, 'regis': { pos: 'noun', def: 'king' }, 'regem': { pos: 'noun', def: 'king' }, 'reges': { pos: 'noun', def: 'kings' },
+        'dux': { pos: 'noun', def: 'leader' }, 'ducis': { pos: 'noun', def: 'leader' }, 'ducem': { pos: 'noun', def: 'leader' },
+        'miles': { pos: 'noun', def: 'soldier' }, 'militis': { pos: 'noun', def: 'soldier' }, 'militem': { pos: 'noun', def: 'soldier' },
+        'deus': { pos: 'noun', def: 'god' }, 'dei': { pos: 'noun', def: 'god' }, 'deum': { pos: 'noun', def: 'god' }, 'di': { pos: 'noun', def: 'gods' }, 'dii': { pos: 'noun', def: 'gods' },
+        'dea': { pos: 'noun', def: 'goddess' }, 'deae': { pos: 'noun', def: 'goddess' }, 'deam': { pos: 'noun', def: 'goddess' },
+        'amicus': { pos: 'noun', def: 'friend' }, 'amici': { pos: 'noun', def: 'friend' }, 'amicum': { pos: 'noun', def: 'friend' },
+        'pater': { pos: 'noun', def: 'father' }, 'patris': { pos: 'noun', def: 'father' }, 'patrem': { pos: 'noun', def: 'father' }, 'patres': { pos: 'noun', def: 'fathers' },
+        'mater': { pos: 'noun', def: 'mother' }, 'matris': { pos: 'noun', def: 'mother' }, 'matrem': { pos: 'noun', def: 'mother' }, 'matres': { pos: 'noun', def: 'mothers' },
+        'filius': { pos: 'noun', def: 'son' }, 'filii': { pos: 'noun', def: 'son' }, 'filium': { pos: 'noun', def: 'son' },
+        'filia': { pos: 'noun', def: 'daughter' }, 'filiae': { pos: 'noun', def: 'daughter' }, 'filiam': { pos: 'noun', def: 'daughter' },
+        'frater': { pos: 'noun', def: 'brother' }, 'fratris': { pos: 'noun', def: 'brother' }, 'fratrem': { pos: 'noun', def: 'brother' },
+        'soror': { pos: 'noun', def: 'sister' }, 'sororis': { pos: 'noun', def: 'sister' }, 'sororem': { pos: 'noun', def: 'sister' },
+        'uxor': { pos: 'noun', def: 'wife' }, 'uxoris': { pos: 'noun', def: 'wife' }, 'uxorem': { pos: 'noun', def: 'wife' },
+        'dominus': { pos: 'noun', def: 'master, lord' }, 'domini': { pos: 'noun', def: 'master' }, 'dominum': { pos: 'noun', def: 'master' },
+        'domina': { pos: 'noun', def: 'mistress, lady' }, 'dominae': { pos: 'noun', def: 'mistress' }, 'dominam': { pos: 'noun', def: 'mistress' },
+        'servus': { pos: 'noun', def: 'slave, servant' }, 'servi': { pos: 'noun', def: 'slave' }, 'servum': { pos: 'noun', def: 'slave' },
+        'urbs': { pos: 'noun', def: 'city' }, 'urbis': { pos: 'noun', def: 'city' }, 'urbem': { pos: 'noun', def: 'city' },
+        'civitas': { pos: 'noun', def: 'state, citizenship' }, 'civitatis': { pos: 'noun', def: 'state' }, 'civitatem': { pos: 'noun', def: 'state' },
+        'domus': { pos: 'noun', def: 'house, home' }, 'domi': { pos: 'noun', def: 'at home' }, 'domum': { pos: 'noun', def: 'house' },
+        'villa': { pos: 'noun', def: 'country house, villa' }, 'villae': { pos: 'noun', def: 'villa' }, 'villam': { pos: 'noun', def: 'villa' },
+        'templum': { pos: 'noun', def: 'temple' }, 'templi': { pos: 'noun', def: 'temple' },
+        'bellum': { pos: 'noun', def: 'war' }, 'belli': { pos: 'noun', def: 'war' },
+        'pax': { pos: 'noun', def: 'peace' }, 'pacis': { pos: 'noun', def: 'peace' }, 'pacem': { pos: 'noun', def: 'peace' },
+        'terra': { pos: 'noun', def: 'earth, land' }, 'terrae': { pos: 'noun', def: 'earth' }, 'terram': { pos: 'noun', def: 'earth' },
+        'aqua': { pos: 'noun', def: 'water' }, 'aquae': { pos: 'noun', def: 'water' }, 'aquam': { pos: 'noun', def: 'water' },
+        'mare': { pos: 'noun', def: 'sea' }, 'maris': { pos: 'noun', def: 'sea' },
+        'navis': { pos: 'noun', def: 'ship' }, 'navis': { pos: 'noun', def: 'ship' }, 'navem': { pos: 'noun', def: 'ship' },
+        'porta': { pos: 'noun', def: 'gate' }, 'portae': { pos: 'noun', def: 'gate' }, 'portam': { pos: 'noun', def: 'gate' },
+        'via': { pos: 'noun', def: 'road, way' }, 'viae': { pos: 'noun', def: 'road' }, 'viam': { pos: 'noun', def: 'road' },
+        'corpus': { pos: 'noun', def: 'body' }, 'corporis': { pos: 'noun', def: 'body' },
+        'caput': { pos: 'noun', def: 'head' }, 'capitis': { pos: 'noun', def: 'head' },
+        'manus': { pos: 'noun', def: 'hand' }, 'manum': { pos: 'noun', def: 'hand' },
+        'pes': { pos: 'noun', def: 'foot' }, 'pedis': { pos: 'noun', def: 'foot' }, 'pedem': { pos: 'noun', def: 'foot' },
+        'oculus': { pos: 'noun', def: 'eye' }, 'oculi': { pos: 'noun', def: 'eye' }, 'oculum': { pos: 'noun', def: 'eye' },
+        'cor': { pos: 'noun', def: 'heart' }, 'cordis': { pos: 'noun', def: 'heart' },
+        'animus': { pos: 'noun', def: 'mind, soul' }, 'animi': { pos: 'noun', def: 'mind' }, 'animum': { pos: 'noun', def: 'mind' },
+        'anima': { pos: 'noun', def: 'soul, life' }, 'animae': { pos: 'noun', def: 'soul' }, 'animam': { pos: 'noun', def: 'soul' },
+        'vita': { pos: 'noun', def: 'life' }, 'vitae': { pos: 'noun', def: 'life' }, 'vitam': { pos: 'noun', def: 'life' },
+        'mors': { pos: 'noun', def: 'death' }, 'mortis': { pos: 'noun', def: 'death' }, 'mortem': { pos: 'noun', def: 'death' },
+        'tempus': { pos: 'noun', def: 'time' }, 'temporis': { pos: 'noun', def: 'time' },
+        'dies': { pos: 'noun', def: 'day' }, 'diei': { pos: 'noun', def: 'day' }, 'diem': { pos: 'noun', def: 'day' },
+        'nox': { pos: 'noun', def: 'night' }, 'noctis': { pos: 'noun', def: 'night' }, 'noctem': { pos: 'noun', def: 'night' },
+        'annus': { pos: 'noun', def: 'year' }, 'anni': { pos: 'noun', def: 'year' }, 'annum': { pos: 'noun', def: 'year' },
+        'hora': { pos: 'noun', def: 'hour' }, 'horae': { pos: 'noun', def: 'hour' }, 'horam': { pos: 'noun', def: 'hour' },
+        'lux': { pos: 'noun', def: 'light' }, 'lucis': { pos: 'noun', def: 'light' }, 'lucem': { pos: 'noun', def: 'light' },
+        'sol': { pos: 'noun', def: 'sun' }, 'solis': { pos: 'noun', def: 'sun' }, 'solem': { pos: 'noun', def: 'sun' },
+        'luna': { pos: 'noun', def: 'moon' }, 'lunae': { pos: 'noun', def: 'moon' }, 'lunam': { pos: 'noun', def: 'moon' },
+        'stella': { pos: 'noun', def: 'star' }, 'stellae': { pos: 'noun', def: 'star' }, 'stellam': { pos: 'noun', def: 'star' },
+        'caelum': { pos: 'noun', def: 'sky, heaven' }, 'caeli': { pos: 'noun', def: 'sky' },
+        'ignis': { pos: 'noun', def: 'fire' }, 'ignem': { pos: 'noun', def: 'fire' },
+        'ventus': { pos: 'noun', def: 'wind' }, 'venti': { pos: 'noun', def: 'wind' }, 'ventum': { pos: 'noun', def: 'wind' },
+        'mons': { pos: 'noun', def: 'mountain' }, 'montis': { pos: 'noun', def: 'mountain' }, 'montem': { pos: 'noun', def: 'mountain' },
+        'silva': { pos: 'noun', def: 'forest' }, 'silvae': { pos: 'noun', def: 'forest' }, 'silvam': { pos: 'noun', def: 'forest' },
+        'flumen': { pos: 'noun', def: 'river' }, 'fluminis': { pos: 'noun', def: 'river' },
+        'campus': { pos: 'noun', def: 'field, plain' }, 'campi': { pos: 'noun', def: 'field' }, 'campum': { pos: 'noun', def: 'field' },
+        'arbor': { pos: 'noun', def: 'tree' }, 'arboris': { pos: 'noun', def: 'tree' }, 'arborem': { pos: 'noun', def: 'tree' },
+        'flos': { pos: 'noun', def: 'flower' }, 'floris': { pos: 'noun', def: 'flower' }, 'florem': { pos: 'noun', def: 'flower' },
+        'equus': { pos: 'noun', def: 'horse' }, 'equi': { pos: 'noun', def: 'horse' }, 'equum': { pos: 'noun', def: 'horse' },
+        'canis': { pos: 'noun', def: 'dog' }, 'canem': { pos: 'noun', def: 'dog' },
+        'animal': { pos: 'noun', def: 'animal' }, 'animalis': { pos: 'noun', def: 'animal' },
+        'liber': { pos: 'noun', def: 'book' }, 'libri': { pos: 'noun', def: 'book' }, 'librum': { pos: 'noun', def: 'book' },
+        'verbum': { pos: 'noun', def: 'word' }, 'verbi': { pos: 'noun', def: 'word' },
+        'nomen': { pos: 'noun', def: 'name' }, 'nominis': { pos: 'noun', def: 'name' },
+        'vox': { pos: 'noun', def: 'voice, word' }, 'vocis': { pos: 'noun', def: 'voice' }, 'vocem': { pos: 'noun', def: 'voice' },
+        'res': { pos: 'noun', def: 'thing, matter' }, 'rei': { pos: 'noun', def: 'thing' }, 'rem': { pos: 'noun', def: 'thing' },
+        'causa': { pos: 'noun', def: 'cause, reason, case' }, 'causae': { pos: 'noun', def: 'cause' }, 'causam': { pos: 'noun', def: 'cause' },
+        'lex': { pos: 'noun', def: 'law' }, 'legis': { pos: 'noun', def: 'law' }, 'legem': { pos: 'noun', def: 'law' },
+        'ius': { pos: 'noun', def: 'right, law' }, 'iuris': { pos: 'noun', def: 'right' },
+        'virtus': { pos: 'noun', def: 'courage, virtue' }, 'virtutis': { pos: 'noun', def: 'virtue' }, 'virtutem': { pos: 'noun', def: 'virtue' },
+        'gloria': { pos: 'noun', def: 'glory' }, 'gloriae': { pos: 'noun', def: 'glory' }, 'gloriam': { pos: 'noun', def: 'glory' },
+        'amor': { pos: 'noun', def: 'love' }, 'amoris': { pos: 'noun', def: 'love' }, 'amorem': { pos: 'noun', def: 'love' },
+        'odium': { pos: 'noun', def: 'hatred' }, 'odii': { pos: 'noun', def: 'hatred' },
+        'gaudium': { pos: 'noun', def: 'joy' }, 'gaudii': { pos: 'noun', def: 'joy' },
+        'dolor': { pos: 'noun', def: 'pain, grief' }, 'doloris': { pos: 'noun', def: 'pain' }, 'dolorem': { pos: 'noun', def: 'pain' },
+        'spes': { pos: 'noun', def: 'hope' }, 'spei': { pos: 'noun', def: 'hope' }, 'spem': { pos: 'noun', def: 'hope' },
+        'timor': { pos: 'noun', def: 'fear' }, 'timoris': { pos: 'noun', def: 'fear' }, 'timorem': { pos: 'noun', def: 'fear' },
+        'consul': { pos: 'noun', def: 'consul' }, 'consulis': { pos: 'noun', def: 'consul' }, 'consulem': { pos: 'noun', def: 'consul' },
+        'senatus': { pos: 'noun', def: 'senate' }, 'senatus': { pos: 'noun', def: 'senate' },
+        'populus': { pos: 'noun', def: 'people' }, 'populi': { pos: 'noun', def: 'people' }, 'populum': { pos: 'noun', def: 'people' },
+        'plebs': { pos: 'noun', def: 'common people' }, 'plebis': { pos: 'noun', def: 'common people' }, 'plebem': { pos: 'noun', def: 'common people' },
+        'gens': { pos: 'noun', def: 'nation, clan' }, 'gentis': { pos: 'noun', def: 'nation' }, 'gentem': { pos: 'noun', def: 'nation' },
+        'locus': { pos: 'noun', def: 'place' }, 'loci': { pos: 'noun', def: 'place' }, 'locum': { pos: 'noun', def: 'place' },
+        'numerus': { pos: 'noun', def: 'number' }, 'numeri': { pos: 'noun', def: 'number' }, 'numerum': { pos: 'noun', def: 'number' },
+        'pars': { pos: 'noun', def: 'part' }, 'partis': { pos: 'noun', def: 'part' }, 'partem': { pos: 'noun', def: 'part' },
+        'modus': { pos: 'noun', def: 'manner, way' }, 'modi': { pos: 'noun', def: 'manner' }, 'modum': { pos: 'noun', def: 'manner' },
+        'consilium': { pos: 'noun', def: 'plan, advice' }, 'consilii': { pos: 'noun', def: 'plan' },
+        'imperium': { pos: 'noun', def: 'command, empire' }, 'imperii': { pos: 'noun', def: 'command' },
+        'regnum': { pos: 'noun', def: 'kingdom' }, 'regni': { pos: 'noun', def: 'kingdom' },
+        'arma': { pos: 'noun', def: 'arms, weapons' }, 'armorum': { pos: 'noun', def: 'arms' },
+        'telum': { pos: 'noun', def: 'weapon, javelin' }, 'teli': { pos: 'noun', def: 'weapon' },
+        'gladius': { pos: 'noun', def: 'sword' }, 'gladii': { pos: 'noun', def: 'sword' }, 'gladium': { pos: 'noun', def: 'sword' },
+        'copia': { pos: 'noun', def: 'abundance, forces' }, 'copiae': { pos: 'noun', def: 'forces' }, 'copiam': { pos: 'noun', def: 'abundance' },
+        'fortuna': { pos: 'noun', def: 'fortune, luck' }, 'fortunae': { pos: 'noun', def: 'fortune' }, 'fortunam': { pos: 'noun', def: 'fortune' },
+        'fatum': { pos: 'noun', def: 'fate' }, 'fati': { pos: 'noun', def: 'fate' },
+        'natura': { pos: 'noun', def: 'nature' }, 'naturae': { pos: 'noun', def: 'nature' }, 'naturam': { pos: 'noun', def: 'nature' },
+        'fides': { pos: 'noun', def: 'faith, trust' }, 'fidei': { pos: 'noun', def: 'faith' }, 'fidem': { pos: 'noun', def: 'faith' },
+        'veritas': { pos: 'noun', def: 'truth' }, 'veritatis': { pos: 'noun', def: 'truth' }, 'veritatem': { pos: 'noun', def: 'truth' },
+        
+        // Adjectives
+        'bonus': { pos: 'adjective', def: 'good' }, 'bona': { pos: 'adjective', def: 'good' }, 'bonum': { pos: 'adjective', def: 'good' },
+        'malus': { pos: 'adjective', def: 'bad, evil' }, 'mala': { pos: 'adjective', def: 'bad' }, 'malum': { pos: 'adjective', def: 'bad' },
+        'magnus': { pos: 'adjective', def: 'great, large' }, 'magna': { pos: 'adjective', def: 'great' }, 'magnum': { pos: 'adjective', def: 'great' },
+        'parvus': { pos: 'adjective', def: 'small' }, 'parva': { pos: 'adjective', def: 'small' }, 'parvum': { pos: 'adjective', def: 'small' },
+        'longus': { pos: 'adjective', def: 'long' }, 'longa': { pos: 'adjective', def: 'long' }, 'longum': { pos: 'adjective', def: 'long' },
+        'brevis': { pos: 'adjective', def: 'short, brief' }, 'breve': { pos: 'adjective', def: 'short' },
+        'altus': { pos: 'adjective', def: 'high, deep' }, 'alta': { pos: 'adjective', def: 'high' }, 'altum': { pos: 'adjective', def: 'high' },
+        'novus': { pos: 'adjective', def: 'new' }, 'nova': { pos: 'adjective', def: 'new' }, 'novum': { pos: 'adjective', def: 'new' },
+        'vetus': { pos: 'adjective', def: 'old' }, 'veteris': { pos: 'adjective', def: 'old' },
+        'multus': { pos: 'adjective', def: 'much, many' }, 'multa': { pos: 'adjective', def: 'much' }, 'multum': { pos: 'adjective', def: 'much' }, 'multi': { pos: 'adjective', def: 'many' },
+        'paucus': { pos: 'adjective', def: 'few' }, 'pauca': { pos: 'adjective', def: 'few' }, 'paucum': { pos: 'adjective', def: 'few' }, 'pauci': { pos: 'adjective', def: 'few' },
+        'totus': { pos: 'adjective', def: 'whole, all' }, 'tota': { pos: 'adjective', def: 'whole' }, 'totum': { pos: 'adjective', def: 'whole' },
+        'omnis': { pos: 'adjective', def: 'all, every' }, 'omne': { pos: 'adjective', def: 'all' }, 'omnes': { pos: 'adjective', def: 'all' },
+        'nullus': { pos: 'adjective', def: 'no, none' }, 'nulla': { pos: 'adjective', def: 'no' }, 'nullum': { pos: 'adjective', def: 'no' },
+        'primus': { pos: 'adjective', def: 'first' }, 'prima': { pos: 'adjective', def: 'first' }, 'primum': { pos: 'adjective', def: 'first' },
+        'ultimus': { pos: 'adjective', def: 'last, farthest' }, 'ultima': { pos: 'adjective', def: 'last' }, 'ultimum': { pos: 'adjective', def: 'last' },
+        'summus': { pos: 'adjective', def: 'highest, greatest' }, 'summa': { pos: 'adjective', def: 'highest' }, 'summum': { pos: 'adjective', def: 'highest' },
+        'medius': { pos: 'adjective', def: 'middle' }, 'media': { pos: 'adjective', def: 'middle' }, 'medium': { pos: 'adjective', def: 'middle' },
+        'alius': { pos: 'adjective', def: 'other, another' }, 'alia': { pos: 'adjective', def: 'other' }, 'aliud': { pos: 'adjective', def: 'other' },
+        'alter': { pos: 'adjective', def: 'other (of two)' }, 'altera': { pos: 'adjective', def: 'other' }, 'alterum': { pos: 'adjective', def: 'other' },
+        'unus': { pos: 'adjective', def: 'one' }, 'una': { pos: 'adjective', def: 'one' }, 'unum': { pos: 'adjective', def: 'one' },
+        'duo': { pos: 'adjective', def: 'two' }, 'duae': { pos: 'adjective', def: 'two' },
+        'tres': { pos: 'adjective', def: 'three' }, 'tria': { pos: 'adjective', def: 'three' },
+        'pulcher': { pos: 'adjective', def: 'beautiful' }, 'pulchra': { pos: 'adjective', def: 'beautiful' }, 'pulchrum': { pos: 'adjective', def: 'beautiful' },
+        'fortis': { pos: 'adjective', def: 'brave, strong' }, 'forte': { pos: 'adjective', def: 'brave' },
+        'felix': { pos: 'adjective', def: 'happy, fortunate' }, 'felicis': { pos: 'adjective', def: 'happy' }, 'felicem': { pos: 'adjective', def: 'happy' },
+        'miser': { pos: 'adjective', def: 'wretched, unhappy' }, 'misera': { pos: 'adjective', def: 'wretched' }, 'miserum': { pos: 'adjective', def: 'wretched' },
+        'laetus': { pos: 'adjective', def: 'happy, joyful' }, 'laeta': { pos: 'adjective', def: 'happy' }, 'laetum': { pos: 'adjective', def: 'happy' },
+        'tristis': { pos: 'adjective', def: 'sad' }, 'triste': { pos: 'adjective', def: 'sad' },
+        'clarus': { pos: 'adjective', def: 'clear, famous' }, 'clara': { pos: 'adjective', def: 'clear' }, 'clarum': { pos: 'adjective', def: 'clear' },
+        'notus': { pos: 'adjective', def: 'known, famous' }, 'nota': { pos: 'adjective', def: 'known' }, 'notum': { pos: 'adjective', def: 'known' },
+        'ignotus': { pos: 'adjective', def: 'unknown' }, 'ignota': { pos: 'adjective', def: 'unknown' }, 'ignotum': { pos: 'adjective', def: 'unknown' },
+        'certus': { pos: 'adjective', def: 'certain, sure' }, 'certa': { pos: 'adjective', def: 'certain' }, 'certum': { pos: 'adjective', def: 'certain' },
+        'verus': { pos: 'adjective', def: 'true, real' }, 'vera': { pos: 'adjective', def: 'true' }, 'verum': { pos: 'adjective', def: 'true' },
+        'falsus': { pos: 'adjective', def: 'false' }, 'falsa': { pos: 'adjective', def: 'false' }, 'falsum': { pos: 'adjective', def: 'false' },
+        'iustus': { pos: 'adjective', def: 'just, fair' }, 'iusta': { pos: 'adjective', def: 'just' }, 'iustum': { pos: 'adjective', def: 'just' },
+        'sanctus': { pos: 'adjective', def: 'holy, sacred' }, 'sancta': { pos: 'adjective', def: 'holy' }, 'sanctum': { pos: 'adjective', def: 'holy' },
+        'sacer': { pos: 'adjective', def: 'sacred' }, 'sacra': { pos: 'adjective', def: 'sacred' }, 'sacrum': { pos: 'adjective', def: 'sacred' },
+        'liber': { pos: 'adjective', def: 'free' }, 'libera': { pos: 'adjective', def: 'free' }, 'liberum': { pos: 'adjective', def: 'free' },
+        'gravis': { pos: 'adjective', def: 'heavy, serious' }, 'grave': { pos: 'adjective', def: 'heavy' },
+        'levis': { pos: 'adjective', def: 'light, slight' }, 'leve': { pos: 'adjective', def: 'light' },
+        'durus': { pos: 'adjective', def: 'hard' }, 'dura': { pos: 'adjective', def: 'hard' }, 'durum': { pos: 'adjective', def: 'hard' },
+        'mollis': { pos: 'adjective', def: 'soft' }, 'molle': { pos: 'adjective', def: 'soft' },
+        'celer': { pos: 'adjective', def: 'swift, quick' }, 'celeris': { pos: 'adjective', def: 'swift' }, 'celere': { pos: 'adjective', def: 'swift' },
+        'tardus': { pos: 'adjective', def: 'slow' }, 'tarda': { pos: 'adjective', def: 'slow' }, 'tardum': { pos: 'adjective', def: 'slow' },
+        'sapiens': { pos: 'adjective', def: 'wise' }, 'sapientis': { pos: 'adjective', def: 'wise' },
+        'stultus': { pos: 'adjective', def: 'foolish' }, 'stulta': { pos: 'adjective', def: 'foolish' }, 'stultum': { pos: 'adjective', def: 'foolish' },
+        'divinus': { pos: 'adjective', def: 'divine' }, 'divina': { pos: 'adjective', def: 'divine' }, 'divinum': { pos: 'adjective', def: 'divine' },
+        'humanus': { pos: 'adjective', def: 'human' }, 'humana': { pos: 'adjective', def: 'human' }, 'humanum': { pos: 'adjective', def: 'human' },
+        'publicus': { pos: 'adjective', def: 'public' }, 'publica': { pos: 'adjective', def: 'public' }, 'publicum': { pos: 'adjective', def: 'public' },
+        'privatus': { pos: 'adjective', def: 'private' }, 'privata': { pos: 'adjective', def: 'private' }, 'privatum': { pos: 'adjective', def: 'private' },
+        'proprius': { pos: 'adjective', def: 'one\'s own' }, 'propria': { pos: 'adjective', def: 'one\'s own' }, 'proprium': { pos: 'adjective', def: 'one\'s own' },
+        'communis': { pos: 'adjective', def: 'common, shared' }, 'commune': { pos: 'adjective', def: 'common' },
+        'perpetuus': { pos: 'adjective', def: 'continuous, perpetual' }, 'perpetua': { pos: 'adjective', def: 'continuous' }, 'perpetuum': { pos: 'adjective', def: 'continuous' },
+        'aeternus': { pos: 'adjective', def: 'eternal' }, 'aeterna': { pos: 'adjective', def: 'eternal' }, 'aeternum': { pos: 'adjective', def: 'eternal' },
+        'suus': { pos: 'adjective', def: 'his/her/its own' }, 'sua': { pos: 'adjective', def: 'his/her/its own' }, 'suum': { pos: 'adjective', def: 'his/her/its own' },
+        
+        // Pronouns
+        'ego': { pos: 'pronoun', def: 'I' }, 'mei': { pos: 'pronoun', def: 'me' }, 'mihi': { pos: 'pronoun', def: 'to me' }, 'me': { pos: 'pronoun', def: 'me' },
+        'tu': { pos: 'pronoun', def: 'you (sg.)' }, 'tui': { pos: 'pronoun', def: 'you' }, 'tibi': { pos: 'pronoun', def: 'to you' }, 'te': { pos: 'pronoun', def: 'you' },
+        'nos': { pos: 'pronoun', def: 'we' }, 'nostri': { pos: 'pronoun', def: 'us' }, 'nobis': { pos: 'pronoun', def: 'to us, us' },
+        'vos': { pos: 'pronoun', def: 'you (pl.)' }, 'vestri': { pos: 'pronoun', def: 'you' }, 'vobis': { pos: 'pronoun', def: 'to you, you' },
+        'is': { pos: 'pronoun', def: 'he, this' }, 'ea': { pos: 'pronoun', def: 'she, this' }, 'id': { pos: 'pronoun', def: 'it, this' },
+        'eum': { pos: 'pronoun', def: 'him' }, 'eam': { pos: 'pronoun', def: 'her' }, 'eos': { pos: 'pronoun', def: 'them (m.)' }, 'eas': { pos: 'pronoun', def: 'them (f.)' },
+        'hic': { pos: 'pronoun', def: 'this' }, 'haec': { pos: 'pronoun', def: 'this' }, 'hoc': { pos: 'pronoun', def: 'this' },
+        'ille': { pos: 'pronoun', def: 'that' }, 'illa': { pos: 'pronoun', def: 'that' }, 'illud': { pos: 'pronoun', def: 'that' },
+        'iste': { pos: 'pronoun', def: 'that (of yours)' }, 'ista': { pos: 'pronoun', def: 'that' }, 'istud': { pos: 'pronoun', def: 'that' },
+        'ipse': { pos: 'pronoun', def: 'himself, herself, itself' }, 'ipsa': { pos: 'pronoun', def: 'herself' }, 'ipsum': { pos: 'pronoun', def: 'itself' },
+        'qui': { pos: 'pronoun', def: 'who, which' }, 'quae': { pos: 'pronoun', def: 'who, which' }, 'quod': { pos: 'pronoun', def: 'which, that' },
+        'quem': { pos: 'pronoun', def: 'whom' }, 'quam': { pos: 'pronoun', def: 'whom, which' }, 'quo': { pos: 'pronoun', def: 'by whom/which' },
+        'quos': { pos: 'pronoun', def: 'whom (pl.)' }, 'quas': { pos: 'pronoun', def: 'whom (pl.)' },
+        'cui': { pos: 'pronoun', def: 'to whom' }, 'cuius': { pos: 'pronoun', def: 'whose' }, 'quorum': { pos: 'pronoun', def: 'whose (pl.)' }, 'quarum': { pos: 'pronoun', def: 'whose (pl.)' },
+        'quibus': { pos: 'pronoun', def: 'to/by whom (pl.)' },
+        'quis': { pos: 'pronoun', def: 'who?, what?' }, 'quid': { pos: 'pronoun', def: 'what?' },
+        'aliquis': { pos: 'pronoun', def: 'someone, something' }, 'aliquid': { pos: 'pronoun', def: 'something' },
+        'nemo': { pos: 'pronoun', def: 'no one' }, 'nihil': { pos: 'pronoun', def: 'nothing' },
+        
+        // Prepositions & Conjunctions
+        'in': { pos: 'preposition', def: 'in, into, on' },
+        'ad': { pos: 'preposition', def: 'to, toward, at' },
+        'ex': { pos: 'preposition', def: 'out of, from' }, 'e': { pos: 'preposition', def: 'out of, from' },
+        'de': { pos: 'preposition', def: 'from, down from, about, concerning' },
+        'cum': { pos: 'preposition', def: 'with' },
+        'sine': { pos: 'preposition', def: 'without' },
+        'pro': { pos: 'preposition', def: 'for, on behalf of, in front of' },
+        'per': { pos: 'preposition', def: 'through, by means of' },
+        'inter': { pos: 'preposition', def: 'between, among' },
+        'propter': { pos: 'preposition', def: 'on account of, because of' },
+        'post': { pos: 'preposition', def: 'after, behind' },
+        'ante': { pos: 'preposition', def: 'before, in front of' },
+        'sub': { pos: 'preposition', def: 'under, beneath' },
+        'super': { pos: 'preposition', def: 'over, above' },
+        'trans': { pos: 'preposition', def: 'across' },
+        'circum': { pos: 'preposition', def: 'around' },
+        'contra': { pos: 'preposition', def: 'against' },
+        'apud': { pos: 'preposition', def: 'at, near, among' },
+        'ab': { pos: 'preposition', def: 'from, by' }, 'a': { pos: 'preposition', def: 'from, by' },
+        'et': { pos: 'conjunction', def: 'and' },
+        'sed': { pos: 'conjunction', def: 'but' },
+        'aut': { pos: 'conjunction', def: 'or' },
+        'vel': { pos: 'conjunction', def: 'or' },
+        'ac': { pos: 'conjunction', def: 'and' },
+        'atque': { pos: 'conjunction', def: 'and' },
+        'neque': { pos: 'conjunction', def: 'and not, nor' }, 'nec': { pos: 'conjunction', def: 'and not, nor' },
+        'enim': { pos: 'conjunction', def: 'for' },
+        'autem': { pos: 'conjunction', def: 'but, however' },
+        'igitur': { pos: 'conjunction', def: 'therefore' },
+        'ergo': { pos: 'conjunction', def: 'therefore' },
+        'itaque': { pos: 'conjunction', def: 'and so, therefore' },
+        'quoque': { pos: 'adverb', def: 'also, too' },
+        'nam': { pos: 'conjunction', def: 'for' },
+        'tamen': { pos: 'conjunction', def: 'however, nevertheless' },
+        'si': { pos: 'conjunction', def: 'if' },
+        'nisi': { pos: 'conjunction', def: 'if not, unless' },
+        'ut': { pos: 'conjunction', def: 'as, when, that, so that' },
+        'ne': { pos: 'conjunction', def: 'that not, lest' },
+        'cum': { pos: 'conjunction', def: 'when, since, although' },
+        'dum': { pos: 'conjunction', def: 'while, until' },
+        'quod': { pos: 'conjunction', def: 'because, that' },
+        'quia': { pos: 'conjunction', def: 'because' },
+        'quoniam': { pos: 'conjunction', def: 'since, because' },
+        'quando': { pos: 'conjunction', def: 'when' },
+        'ubi': { pos: 'adverb', def: 'where, when' },
+        
+        // Adverbs
+        'semper': { pos: 'adverb', def: 'always' },
+        'numquam': { pos: 'adverb', def: 'never' },
+        'saepe': { pos: 'adverb', def: 'often' },
+        'iam': { pos: 'adverb', def: 'now, already' },
+        'nunc': { pos: 'adverb', def: 'now' },
+        'tunc': { pos: 'adverb', def: 'then' },
+        'tum': { pos: 'adverb', def: 'then' },
+        'hodie': { pos: 'adverb', def: 'today' },
+        'heri': { pos: 'adverb', def: 'yesterday' },
+        'cras': { pos: 'adverb', def: 'tomorrow' },
+        'mox': { pos: 'adverb', def: 'soon' },
+        'statim': { pos: 'adverb', def: 'immediately' },
+        'diu': { pos: 'adverb', def: 'for a long time' },
+        'bene': { pos: 'adverb', def: 'well' },
+        'male': { pos: 'adverb', def: 'badly' },
+        'valde': { pos: 'adverb', def: 'very, greatly' },
+        'nimis': { pos: 'adverb', def: 'too much' },
+        'satis': { pos: 'adverb', def: 'enough' },
+        'parum': { pos: 'adverb', def: 'too little' },
+        'ita': { pos: 'adverb', def: 'thus, so' },
+        'sic': { pos: 'adverb', def: 'thus, so' },
+        'tam': { pos: 'adverb', def: 'so' },
+        'quam': { pos: 'adverb', def: 'than, as' },
+        'magis': { pos: 'adverb', def: 'more' },
+        'maxime': { pos: 'adverb', def: 'most, especially' },
+        'minus': { pos: 'adverb', def: 'less' },
+        'minime': { pos: 'adverb', def: 'least, not at all' },
+        'etiam': { pos: 'adverb', def: 'also, even' },
+        'quoque': { pos: 'adverb', def: 'also' },
+        'tantum': { pos: 'adverb', def: 'only' },
+        'solum': { pos: 'adverb', def: 'only' },
+        'modo': { pos: 'adverb', def: 'only, just' },
+        'quidem': { pos: 'adverb', def: 'indeed' },
+        'certe': { pos: 'adverb', def: 'certainly' },
+        'vero': { pos: 'adverb', def: 'truly, indeed' },
+        'forte': { pos: 'adverb', def: 'by chance' },
+        'forsitan': { pos: 'adverb', def: 'perhaps' },
+        'fortasse': { pos: 'adverb', def: 'perhaps' },
+        'hic': { pos: 'adverb', def: 'here' },
+        'ibi': { pos: 'adverb', def: 'there' },
+        'illic': { pos: 'adverb', def: 'there' },
+        'hinc': { pos: 'adverb', def: 'from here' },
+        'inde': { pos: 'adverb', def: 'from there' },
+        'unde': { pos: 'adverb', def: 'from where' },
+        'quo': { pos: 'adverb', def: 'to where' },
+        'cur': { pos: 'adverb', def: 'why' },
+        'quare': { pos: 'adverb', def: 'why, wherefore' },
+        'quomodo': { pos: 'adverb', def: 'how' },
+        'quam': { pos: 'adverb', def: 'how' }
+    };
+
+    function lookupDefinition(word) {
+        const n = normalizeLatin(word);
+        return LEXICON[n]?.def;
+    }
+
+    // Initialize counts
+    updateWordCount();
+})();
+    </script>
+</body>
+</html>
+
