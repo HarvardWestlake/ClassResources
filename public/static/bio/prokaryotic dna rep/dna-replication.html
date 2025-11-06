@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DNA Replication (Prokaryotic) – Step-by-Step</title>
+    <link rel="stylesheet" href="replication.css" />
+  </head>
+  <body>
+    <main id="replication-demo">
+      <h1> Prokaryotic DNA Replication</h1>
+      <div class="stage">
+        <svg id="replication-svg" viewBox="0 0 1200 600" role="img" aria-label="DNA double helix visualization">
+          <desc>Static depiction of a double helix along the x-axis (no replication bubble)</desc>
+          <g id="double-helix"></g>
+        </svg>
+      </div>
+      <div class="controls" aria-label="Replication controls">
+        <button id="helicase-start" type="button">Unwind DNA Helix (Helicase)</button>
+        <button id="primase-start" type="button" aria-label="Lay down RNA primers (Primase)" style="display:none" disabled>Lay down primers (Primase)</button>
+        <button id="helicase-reset" type="button" style="display:none">Reset</button>
+        <span id="helicase-status" aria-hidden="true"></span>
+        <span id="primase-status" aria-hidden="true"></span>
+        <button id="pol3-start" type="button" style="display:none" disabled>DNA Pol III – leading strand</button>
+        <span id="pol3-status" aria-hidden="true"></span>
+      </div>
+
+    </main>
+    <script>
+      (function() {
+        const svg = document.getElementById('replication-svg');
+        const g = document.getElementById('double-helix');
+        if (!svg || !g) return;
+
+        const NS = 'http://www.w3.org/2000/svg';
+        const startX = 80;           // left margin
+        const endX = 1120;           // right margin
+        const centerY = 300;         // axis along x
+        const amplitude = 80;        // helical radius (vertical)
+        const wavelength = 200;      // length of one turn (px)
+        const step = 8;              // sampling resolution (px)
+        const basePairEvery = 20;    // spacing between base pairs (px)
+
+        // Helicase animation settings
+        const helicaseStartX = startX; // begin at the left edge of the helix
+        const helicaseEndX = 1000;
+        const helicaseSpeed = 220;   // px per second
+        const maxForkSpread = 140;   // maximum additional separation of single strands
+        const spreadScale = 140;     // controls how quickly fork opens
+
+        // Primase/primer visualization settings (compressed for clarity)
+        const okazakiSpacingPx = 200;
+        const primerLengthPx = 40;
+        const primerBlockWidth = 28;
+        const primerBlockHeight = 12;
+
+        // Elements
+        const basepairsGroup = document.createElementNS(NS, 'g');
+        basepairsGroup.setAttribute('class', 'basepairs');
+        const backboneAPath = document.createElementNS(NS, 'path');
+        backboneAPath.setAttribute('class', 'backbone backbone-a');
+        const backboneBPath = document.createElementNS(NS, 'path');
+        backboneBPath.setAttribute('class', 'backbone backbone-b');
+        const templateAPath = document.createElementNS(NS, 'path');
+        templateAPath.setAttribute('class', 'template template-a');
+        const templateBPath = document.createElementNS(NS, 'path');
+        templateBPath.setAttribute('class', 'template template-b');
+        // Group for synthesized leading strand (DNA Pol III)
+        const pol3Group = document.createElementNS(NS, 'g');
+        pol3Group.setAttribute('id', 'pol3-leading');
+        // Small connector segments drawn at completion to join unwound strands
+        // to the residual helical tail visually
+        const junctionTopPath = document.createElementNS(NS, 'path');
+        junctionTopPath.setAttribute('class', 'template template-a');
+        const junctionBottomPath = document.createElementNS(NS, 'path');
+        junctionBottomPath.setAttribute('class', 'template template-b');
+
+        // Group for primers (RNA) and labels
+        const primersGroup = document.createElementNS(NS, 'g');
+        primersGroup.setAttribute('id', 'primers');
+
+        const topLabel = document.createElementNS(NS, 'text');
+        topLabel.setAttribute('class', 'label prime');
+        topLabel.textContent = "3'";
+        const bottomLabel = document.createElementNS(NS, 'text');
+        bottomLabel.setAttribute('class', 'label prime');
+        bottomLabel.textContent = "5'";
+
+        const helicase = document.createElementNS(NS, 'polygon');
+        helicase.setAttribute('class', 'helicase');
+        // Helicase triangle geometry (isosceles, pointing right)
+        const helicaseLength = 32; // tip (front) to base distance
+        const helicaseHeight = 32; // base height
+        function setHelicasePoints(forkX) {
+          const xTip = forkX;
+          const xBase = forkX - helicaseLength;
+          const halfH = helicaseHeight / 2;
+          const points = `${xTip},${centerY} ${xBase},${centerY - halfH} ${xBase},${centerY + halfH}`;
+          helicase.setAttribute('points', points);
+        }
+        setHelicasePoints(helicaseStartX);
+
+        // Build initial basepairs and store x on elements
+        for (let x = startX; x <= endX; x += basePairEvery) {
+          const phase = (2 * Math.PI * (x - startX)) / wavelength;
+          const yA = centerY + amplitude * Math.sin(phase);
+          const yB = centerY + amplitude * Math.sin(phase + Math.PI);
+          const tilt = 8 * Math.cos(phase);
+          const ln = document.createElementNS(NS, 'line');
+          ln.setAttribute('x1', x);
+          ln.setAttribute('y1', yA - tilt);
+          ln.setAttribute('x2', x);
+          ln.setAttribute('y2', yB + tilt);
+          ln.dataset.x = String(x);
+          basepairsGroup.appendChild(ln);
+        }
+
+        // Easing for fork spread to avoid a sharp corner at the helicase
+        function forkOffsetLeft(x, forkX) {
+          const dx = forkX - x; // distance behind helicase
+          if (dx <= 0) return 0;
+          const t = 1 - Math.exp(-dx / spreadScale); // 0 -> 1
+          return maxForkSpread * t;
+        }
+
+        function buildPaths(forkX) {
+          let dBackA = '';
+          let dBackB = '';
+          let dTempA = '';
+          let dTempB = '';
+          let startedBackA = false;
+          let startedBackB = false;
+          let startedTempA = false;
+          let startedTempB = false;
+
+          for (let x = startX; x <= endX; x += step) {
+            const phase = (2 * Math.PI * (x - startX)) / wavelength;
+            const yHelixA = centerY + amplitude * Math.sin(phase);
+            const yHelixB = centerY + amplitude * Math.sin(phase + Math.PI);
+
+            if (x < forkX) {
+              // Behind helicase: single strands without sinusoidal shape
+              const off = forkOffsetLeft(x, forkX);
+              const yTop = centerY - off;
+              const yBottom = centerY + off;
+              if (!startedTempA) { dTempA += 'M ' + x + ' ' + yTop; startedTempA = true; }
+              else { dTempA += ' L ' + x + ' ' + yTop; }
+              if (!startedTempB) { dTempB += 'M ' + x + ' ' + yBottom; startedTempB = true; }
+              else { dTempB += ' L ' + x + ' ' + yBottom; }
+            } else {
+              // Ahead of helicase: intact double helix
+              if (!startedBackA) { dBackA += 'M ' + x + ' ' + yHelixA; startedBackA = true; }
+              else { dBackA += ' L ' + x + ' ' + yHelixA; }
+              if (!startedBackB) { dBackB += 'M ' + x + ' ' + yHelixB; startedBackB = true; }
+              else { dBackB += ' L ' + x + ' ' + yHelixB; }
+            }
+          }
+
+          return { dBackA, dBackB, dTempA, dTempB };
+        }
+
+        function updateBasepairs(forkX) {
+          const lines = basepairsGroup.children;
+          for (let i = 0; i < lines.length; i++) {
+            const ln = lines[i];
+            const x = Number(ln.dataset.x || '0');
+            // Show base pairs only ahead of helicase; hide at/behind fork
+            ln.style.display = x > forkX ? '' : 'none';
+          }
+        }
+
+        function makePrimer(x, y, isLeading) {
+          const ln = document.createElementNS(NS, 'line');
+          const half = primerLengthPx / 2;
+          ln.setAttribute('x1', String(x - half));
+          ln.setAttribute('y1', String(y));
+          ln.setAttribute('x2', String(x + half));
+          ln.setAttribute('y2', String(y));
+          ln.setAttribute('class', 'primer ' + (isLeading ? 'primer-leading' : 'primer-lagging'));
+          primersGroup.appendChild(ln);
+          return ln;
+        }
+
+        function makePrimerRect(xCenter, yCenter, isLeading) {
+          const rect = document.createElementNS(NS, 'rect');
+          const w = primerBlockWidth;
+          const h = primerBlockHeight;
+          rect.setAttribute('x', String(xCenter - w / 2));
+          rect.setAttribute('y', String(yCenter - h / 2));
+          rect.setAttribute('width', String(w));
+          rect.setAttribute('height', String(h));
+          rect.setAttribute('rx', '3');
+          rect.setAttribute('class', 'primer-block ' + (isLeading ? 'primer-block-leading' : 'primer-block-lagging'));
+          primersGroup.appendChild(rect);
+          return rect;
+        }
+
+        // Primase enzyme visualization (cyan oval)
+        const primase = document.createElementNS(NS, 'ellipse');
+        primase.setAttribute('class', 'primase');
+        const primaseRx = 14;
+        const primaseRy = 10;
+        function setPrimasePosition(xCenter, yCenter) {
+          primase.setAttribute('cx', String(xCenter));
+          primase.setAttribute('cy', String(yCenter));
+          primase.setAttribute('rx', String(primaseRx));
+          primase.setAttribute('ry', String(primaseRy));
+        }
+
+        function render(forkX) {
+          const { dBackA, dBackB, dTempA, dTempB } = buildPaths(forkX);
+          backboneAPath.setAttribute('d', dBackA || `M ${startX} ${centerY}`);
+          backboneBPath.setAttribute('d', dBackB || `M ${startX} ${centerY}`);
+          templateAPath.setAttribute('d', dTempA || `M ${forkX} ${centerY}`);
+          templateBPath.setAttribute('d', dTempB || `M ${forkX} ${centerY}`);
+          updateBasepairs(forkX);
+
+          // Update 3'/5' labels at the LEFTMOST end of the open fork
+          const xLeftEdge = startX;
+          const offLeftEdge = forkOffsetLeft(xLeftEdge, forkX);
+          topLabel.setAttribute('x', String(xLeftEdge - 22));
+          topLabel.setAttribute('y', String(centerY - offLeftEdge - 6));
+          bottomLabel.setAttribute('x', String(xLeftEdge - 22));
+          bottomLabel.setAttribute('y', String(centerY + offLeftEdge + 14));
+        }
+
+        // Create smooth connectors that continue the helix into the unwound strands
+        let junctionsAdded = false;
+        function addCompletionJunctions(forkX) {
+          if (junctionsAdded) return;
+          // Compute the exact tip x-position of the unwound strands (last sampled x before fork)
+          const eps = 1e-3;
+          const k = Math.max(0, Math.floor((forkX - startX - eps) / step));
+          const x0 = startX + k * step; // unwound tip
+          const x1 = forkX; // helix boundary
+
+          // Unwound strand positions
+          const y0Top = centerY - forkOffsetLeft(x0, forkX);
+          const y0Bottom = centerY + forkOffsetLeft(x0, forkX);
+
+          // Helix position and slope at the boundary
+          const phase = (2 * Math.PI * (x1 - startX)) / wavelength;
+          const y1Top = centerY + amplitude * Math.sin(phase);
+          const y1Bottom = centerY + amplitude * Math.sin(phase + Math.PI);
+          // Continue the helix pattern until it meets the unwound strands
+          function yHelixTopAt(x) {
+            const ph = (2 * Math.PI * (x - startX)) / wavelength;
+            return centerY + amplitude * Math.sin(ph);
+          }
+          function yHelixBottomAt(x) {
+            const ph = (2 * Math.PI * (x - startX)) / wavelength;
+            return centerY + amplitude * Math.sin(ph + Math.PI);
+          }
+          function yUnwoundTopAt(x) {
+            return centerY - forkOffsetLeft(x, forkX);
+          }
+          function yUnwoundBottomAt(x) {
+            return centerY + forkOffsetLeft(x, forkX);
+          }
+
+          // Find join x for top by searching left from fork for closest intersection
+          const searchWidth = 120;
+          const dx = Math.max(2, Math.min(6, step));
+          let bestTopX = x1, bestTopErr = Infinity, prevX = x1, prevErr = yUnwoundTopAt(x1) - yHelixTopAt(x1);
+          for (let x = x1 - dx; x >= Math.max(startX, x1 - searchWidth); x -= dx) {
+            const err = yUnwoundTopAt(x) - yHelixTopAt(x);
+            if (Math.abs(err) < bestTopErr) { bestTopErr = Math.abs(err); bestTopX = x; }
+            // sign change -> interpolate a tighter crossing estimate
+            if ((prevErr <= 0 && err >= 0) || (prevErr >= 0 && err <= 0)) {
+              const t = prevErr === err ? 0 : prevErr / (prevErr - err);
+              const xCross = prevX + t * (x - prevX);
+              bestTopX = xCross;
+              break;
+            }
+            prevX = x; prevErr = err;
+          }
+          // Build helix polyline from fork to join for top
+          let dTop = `M ${x1} ${y1Top}`;
+          for (let x = x1 - dx; x > bestTopX; x -= dx) {
+            dTop += ` L ${x} ${yHelixTopAt(x)}`;
+          }
+          dTop += ` L ${bestTopX} ${yHelixTopAt(bestTopX)}`;
+
+          // Find join x for bottom similarly
+          let bestBottomX = x1, bestBottomErr = Infinity, prevXB = x1, prevErrB = yUnwoundBottomAt(x1) - yHelixBottomAt(x1);
+          for (let x = x1 - dx; x >= Math.max(startX, x1 - searchWidth); x -= dx) {
+            const err = yUnwoundBottomAt(x) - yHelixBottomAt(x);
+            if (Math.abs(err) < bestBottomErr) { bestBottomErr = Math.abs(err); bestBottomX = x; }
+            if ((prevErrB <= 0 && err >= 0) || (prevErrB >= 0 && err <= 0)) {
+              const t = prevErrB === err ? 0 : prevErrB / (prevErrB - err);
+              const xCross = prevXB + t * (x - prevXB);
+              bestBottomX = xCross;
+              break;
+            }
+            prevXB = x; prevErrB = err;
+          }
+          let dBottom = `M ${x1} ${y1Bottom}`;
+          for (let x = x1 - dx; x > bestBottomX; x -= dx) {
+            dBottom += ` L ${x} ${yHelixBottomAt(x)}`;
+          }
+          dBottom += ` L ${bestBottomX} ${yHelixBottomAt(bestBottomX)}`;
+
+          junctionTopPath.setAttribute('d', dTop);
+          junctionBottomPath.setAttribute('d', dBottom);
+
+          g.appendChild(junctionTopPath);
+          g.appendChild(junctionBottomPath);
+          junctionsAdded = true;
+        }
+
+        // Initial scene: no fork, full helix, helicase parked
+        g.appendChild(basepairsGroup);
+        g.appendChild(backboneAPath);
+        g.appendChild(backboneBPath);
+        g.appendChild(templateAPath);
+        g.appendChild(templateBPath);
+        g.appendChild(pol3Group);
+        g.appendChild(primersGroup);
+        g.appendChild(topLabel);
+        g.appendChild(bottomLabel);
+        g.appendChild(helicase);
+        primase.style.display = 'none';
+        g.appendChild(primase);
+
+        render(startX - 1); // ensure entire length is double helix initially
+
+        // Animation
+        let animId = null;
+        let helicaseX = helicaseStartX;
+        let lastTs = null;
+        let running = false;
+
+        // Primase state
+        let primaseActive = false;
+        let primaseEnabled = false;
+        let leadingPrimerPlaced = false;
+        let laggingPrimersPlaced = false;
+
+        // Pol III state and controls
+        const pol3Btn = document.getElementById('pol3-start');
+        const pol3Status = document.getElementById('pol3-status');
+        let helicaseCompleted = false;
+        let pol3Active = false;
+        let pol3Completed = false;
+        let pol3AnimId = null;
+        let pol3LastTs = null;
+        let pol3FrontX = 0;
+        let pol3Enzyme = null; // moving enzyme circle
+
+        // Pol III visual/animation constants
+        const pol3BlockWidth = 20;
+        const pol3BlockHeight = primerBlockHeight;
+        const pol3BlockGap = 6;
+        const pol3Speed = 280; // px per second
+        const pol3Epsilon = 6; // gap from helicase
+        const nucleotideColors = ['#10b981', '#ef4444', '#3b82f6', '#a855f7']; // A, T, C, G
+        const pol3PathOffset = 10; // push final path further below top template
+        const pol3OffsetUnder = 2; // spacing under the template for blocks/enzyme
+
+        function updatePol3CTA() {
+          if (!pol3Btn) return;
+          if (helicaseCompleted && leadingPrimerPlaced && !pol3Completed) {
+            pol3Btn.style.display = '';
+            pol3Btn.disabled = false;
+          }
+        }
+
+        const primaseBtn = document.getElementById('primase-start');
+        const primaseStatus = document.getElementById('primase-status');
+
+        function placeLaggingPrimers(forkX) {
+          // Place multiple primers on the bottom (lagging) strand behind the helicase
+          const epsilon = 4; // small gap from the fork boundary
+          const marginLeft = 6; // avoid touching the extreme left edge
+          const w = primerBlockWidth;
+          const h = primerBlockHeight;
+          const offsetTowardCenter = 2; // place just inside toward the fork center
+          const xRightEdge = forkX - epsilon;
+
+          let count = 0;
+          // Start with a primer whose right edge is just left of the fork
+          let xCenter = xRightEdge - (w / 2) - 2;
+          // Lay primers every okazakiSpacingPx moving leftward
+          while (xCenter - w / 2 > startX + marginLeft) {
+            const yBottom = centerY + forkOffsetLeft(xCenter, forkX);
+            const yAbove = yBottom - (h / 2) - offsetTowardCenter; // slightly above bottom strand
+            makePrimerRect(xCenter, yAbove, false);
+            count++;
+            xCenter -= okazakiSpacingPx;
+          }
+          return count;
+        }
+
+        function stepAnim(ts) {
+          if (!lastTs) lastTs = ts;
+          const dt = (ts - lastTs) / 1000; // seconds
+          lastTs = ts;
+
+          helicaseX = Math.min(helicaseEndX, helicaseX + helicaseSpeed * dt);
+          setHelicasePoints(helicaseX);
+          render(helicaseX);
+
+          // Primase remains hidden until helicase completes
+
+          // Primase simplified: no lagging primers in this step
+
+          if (helicaseX >= helicaseEndX) {
+            running = false;
+            cancelAnimationFrame(animId);
+            animId = null;
+            document.getElementById('helicase-status').textContent = '';
+            const resetBtn = document.getElementById('helicase-reset');
+            const startBtn = document.getElementById('helicase-start');
+            if (resetBtn && startBtn) {
+              resetBtn.style.display = '';
+              startBtn.disabled = false;
+            }
+            // Now reveal and enable Primase
+            if (primaseBtn) {
+              primaseBtn.style.display = '';
+              primaseBtn.disabled = false;
+            }
+            primaseEnabled = true;
+            // Join the remaining helix tail to the unwound strands visually
+            addCompletionJunctions(helicaseX);
+            helicaseCompleted = true;
+            updatePol3CTA();
+            return;
+          }
+
+          animId = requestAnimationFrame(stepAnim);
+        }
+
+        // Controls
+        const startBtn = document.getElementById('helicase-start');
+        const resetBtn = document.getElementById('helicase-reset');
+        startBtn?.addEventListener('click', () => {
+          if (running) return;
+          running = true;
+          document.getElementById('helicase-status').textContent = 'Unwinding…';
+          startBtn.disabled = true;
+          resetBtn.style.display = 'none';
+          helicaseX = helicaseStartX;
+          lastTs = null;
+          // Ensure fork begins at the helicase location
+          setHelicasePoints(helicaseX);
+          // Keep fully formed helix at t=0; fork appears as motion begins
+          render(helicaseX - 1);
+          animId = requestAnimationFrame(stepAnim);
+        });
+
+        // Primase control
+        primaseBtn?.addEventListener('click', () => {
+          if (leadingPrimerPlaced && laggingPrimersPlaced) return;
+          if (primaseBtn) primaseBtn.disabled = true;
+          if (primaseStatus) primaseStatus.textContent = 'Placing primers…';
+
+          // Build primer placement positions (leading first, then lagging)
+          const xLeftEdge = startX; // leftmost edge of the unwound region
+          const yTop = centerY - forkOffsetLeft(xLeftEdge, helicaseX);
+          const offsetUnder = 2; // small visual gap below the strand
+          const yUnder = yTop + (primerBlockHeight / 2) + offsetUnder;
+          const positions = [{ x: xLeftEdge, y: yUnder, leading: true }];
+          // lagging primers from near fork moving leftwards
+          const laggingPositions = (function() {
+            const epsilon = 4;
+            const marginLeft = 6;
+            const w = primerBlockWidth;
+            const h = primerBlockHeight;
+            const offsetTowardCenter = 2;
+            const xRightEdge = helicaseX - epsilon;
+            const arr = [];
+            let xCenter = xRightEdge - (w / 2) - 2;
+            while (xCenter - w / 2 > startX + marginLeft) {
+              const yBottom = centerY + forkOffsetLeft(xCenter, helicaseX);
+              const yAbove = yBottom - (h / 2) - offsetTowardCenter;
+              arr.push({ x: xCenter, y: yAbove, leading: false });
+              xCenter -= okazakiSpacingPx;
+            }
+            return arr;
+          })();
+          positions.push(...laggingPositions);
+
+          // Show primase enzyme and place primers sequentially
+          primase.style.display = '';
+          const delayMs = 600;
+          let idx = 0;
+          function placeNext() {
+            const pos = positions[idx];
+            setPrimasePosition(pos.x, pos.y);
+            if (pos.leading && !leadingPrimerPlaced) {
+              makePrimerRect(pos.x, pos.y, true);
+              leadingPrimerPlaced = true;
+            } else if (!pos.leading) {
+              makePrimerRect(pos.x, pos.y, false);
+            }
+            idx++;
+            if (idx < positions.length) {
+              setTimeout(placeNext, delayMs);
+            } else {
+              primase.style.display = 'none';
+              laggingPrimersPlaced = true;
+              if (primaseStatus) primaseStatus.textContent = '';
+              updatePol3CTA();
+            }
+          }
+          placeNext();
+        });
+
+        function makePol3Block(xCenter, idx) {
+          const rect = document.createElementNS(NS, 'rect');
+          const yTop = centerY - forkOffsetLeft(xCenter, helicaseEndX);
+          const yCenter = yTop + (pol3BlockHeight / 2) + pol3OffsetUnder;
+          rect.setAttribute('x', String(xCenter - pol3BlockWidth / 2));
+          rect.setAttribute('y', String(yCenter - pol3BlockHeight / 2));
+          rect.setAttribute('width', String(pol3BlockWidth));
+          rect.setAttribute('height', String(pol3BlockHeight));
+          rect.setAttribute('rx', '3');
+          rect.setAttribute('class', 'pol3-block');
+          // Color by nucleotide cycling A->T->C->G
+          const color = nucleotideColors[idx % nucleotideColors.length];
+          rect.setAttribute('fill', color);
+          rect.setAttribute('style', 'fill: ' + color);
+          pol3Group.appendChild(rect);
+          return rect;
+        }
+
+        function ensurePol3Enzyme() {
+          if (pol3Enzyme) return pol3Enzyme;
+          const c = document.createElementNS(NS, 'circle');
+          c.setAttribute('r', String(Math.max(8, pol3BlockHeight / 2 + 6)));
+          c.setAttribute('fill', '#8b5cf6'); // purple
+          c.setAttribute('stroke', '#6d28d9');
+          c.setAttribute('stroke-width', '2');
+          pol3Group.appendChild(c);
+          pol3Enzyme = c;
+          return c;
+        }
+
+        function updatePol3EnzymePosition(x) {
+          if (!pol3Enzyme) return;
+          const leadOffsetX = (pol3BlockWidth / 2) + pol3BlockGap + 6; // place in front of newest block
+          const xMax = helicaseEndX - pol3Epsilon;
+          const xFront = Math.min(x + leadOffsetX, xMax);
+          const yTop = centerY - forkOffsetLeft(xFront, helicaseEndX);
+          const yCenter = yTop + (pol3BlockHeight / 2) + pol3OffsetUnder;
+          pol3Enzyme.setAttribute('cx', String(xFront));
+          pol3Enzyme.setAttribute('cy', String(yCenter));
+          // Keep enzyme on top of newly added blocks
+          pol3Group.appendChild(pol3Enzyme);
+        }
+
+        function mergePol3BlocksToPath(xStart, xEnd) {
+          // Build a smooth path along the top template slightly below it
+          const path = document.createElementNS(NS, 'path');
+          let d = '';
+          let started = false;
+          for (let x = xStart; x <= xEnd; x += step) {
+            const yTop = centerY - forkOffsetLeft(x, helicaseEndX);
+            const y = yTop + pol3PathOffset; // increased offset under the template
+            if (!started) { d += 'M ' + x + ' ' + y; started = true; }
+            else { d += ' L ' + x + ' ' + y; }
+          }
+          path.setAttribute('d', d || `M ${xStart} ${centerY}`);
+          path.setAttribute('class', 'pol3-path');
+          pol3Group.appendChild(path);
+
+          // Remove all block rects but keep the primer in its own group
+          const blocks = pol3Group.querySelectorAll('rect.pol3-block');
+          blocks.forEach(b => b.parentNode?.removeChild(b));
+
+          if (pol3Status) pol3Status.textContent = 'Leading strand synthesized';
+          pol3Active = false;
+          pol3Completed = true;
+          if (pol3Btn) pol3Btn.disabled = true;
+        }
+
+        function startPol3() {
+          if (pol3Active || pol3Completed) return;
+          // Determine synthesis bounds
+          const xStart = startX + (primerBlockWidth / 2) + pol3BlockGap;
+          const xEnd = Math.max(xStart, helicaseEndX - pol3Epsilon);
+          pol3FrontX = xStart;
+          pol3LastTs = null;
+          pol3Active = true;
+          if (pol3Status) pol3Status.textContent = 'DNA Pol III synthesizing…';
+
+          // Place blocks progressively as front advances
+          let nextBlockCenterX = xStart + (pol3BlockWidth / 2);
+          let nextBlockIndex = 0;
+
+          ensurePol3Enzyme();
+          updatePol3EnzymePosition(pol3FrontX);
+
+          function stepPol3(ts) {
+            if (!pol3LastTs) pol3LastTs = ts;
+            const dt = (ts - pol3LastTs) / 1000;
+            pol3LastTs = ts;
+
+            pol3FrontX = Math.min(xEnd, pol3FrontX + pol3Speed * dt);
+
+            while (nextBlockCenterX - (pol3BlockWidth / 2) <= pol3FrontX && nextBlockCenterX + (pol3BlockWidth / 2) <= xEnd) {
+              makePol3Block(nextBlockCenterX, nextBlockIndex++);
+              nextBlockCenterX += pol3BlockWidth + pol3BlockGap;
+              // Ensure enzyme renders above newly appended block
+              if (pol3Enzyme) pol3Group.appendChild(pol3Enzyme);
+            }
+
+            updatePol3EnzymePosition(pol3FrontX);
+
+            if (pol3FrontX >= xEnd) {
+              cancelAnimationFrame(pol3AnimId);
+              pol3AnimId = null;
+              // Remove enzyme when synthesis completes
+              if (pol3Enzyme && pol3Enzyme.parentNode) pol3Enzyme.parentNode.removeChild(pol3Enzyme);
+              pol3Enzyme = null;
+              mergePol3BlocksToPath(xStart, xEnd);
+              return;
+            }
+
+            pol3AnimId = requestAnimationFrame(stepPol3);
+          }
+
+          pol3AnimId = requestAnimationFrame(stepPol3);
+        }
+
+        pol3Btn?.addEventListener('click', () => {
+          if (pol3Btn) pol3Btn.disabled = true;
+          startPol3();
+        });
+
+        resetBtn?.addEventListener('click', () => {
+          if (animId) cancelAnimationFrame(animId);
+          animId = null;
+          running = false;
+          document.getElementById('helicase-status').textContent = '';
+          // Restore full double helix
+          render(startX - 1);
+          setHelicasePoints(helicaseStartX);
+          // Remove completion junctions if present
+          if (junctionsAdded) {
+            if (junctionTopPath.parentNode) junctionTopPath.parentNode.removeChild(junctionTopPath);
+            if (junctionBottomPath.parentNode) junctionBottomPath.parentNode.removeChild(junctionBottomPath);
+            junctionsAdded = false;
+          }
+          startBtn.disabled = false;
+          resetBtn.style.display = 'none';
+
+          // Clear primers and primase state
+          while (primersGroup.firstChild) primersGroup.removeChild(primersGroup.firstChild);
+          primaseActive = false;
+          primaseEnabled = false;
+          leadingPrimerPlaced = false;
+          laggingPrimersPlaced = false;
+          primase.style.display = 'none';
+          if (primaseBtn) { primaseBtn.disabled = true; primaseBtn.style.display = 'none'; }
+          if (primaseStatus) primaseStatus.textContent = '';
+
+          // Clear Pol III visuals and state
+          while (pol3Group.firstChild) pol3Group.removeChild(pol3Group.firstChild);
+          helicaseCompleted = false;
+          pol3Active = false;
+          pol3Completed = false;
+          if (pol3AnimId) cancelAnimationFrame(pol3AnimId);
+          pol3AnimId = null;
+          pol3LastTs = null;
+          pol3Enzyme = null;
+          if (pol3Btn) { pol3Btn.disabled = true; pol3Btn.style.display = 'none'; }
+          if (pol3Status) pol3Status.textContent = '';
+        });
+      })();
+    </script>
+    <script src="consent.js"></script>
+  </body>
+  </html>
+
+
