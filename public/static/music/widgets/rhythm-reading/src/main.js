@@ -211,7 +211,9 @@ import './styles.css';
     let scheduledMetronome = [];
     let scheduledGuides = [];
     function clickAt(time, isAccent) {
-        if (!el.metronome.checked) return;
+        // Always play sound in tutorial mode, regardless of settings
+        if (!tutorialMode && !el.metronome.checked) return;
+        if (!audioCtx) return; // Ensure audio context exists
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'square';
@@ -227,7 +229,9 @@ import './styles.css';
     }
 
     function guideClickAt(time) {
-        if (!el.guideClicks || !el.guideClicks.checked) return;
+        // Always play sound in tutorial mode, regardless of settings
+        if (!tutorialMode && (!el.guideClicks || !el.guideClicks.checked)) return;
+        if (!audioCtx) return; // Ensure audio context exists
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'triangle';
@@ -532,6 +536,15 @@ import './styles.css';
         // Clear any prior scheduled clicks before scheduling new ones
         stopAllScheduledMetronome(nowAudio);
         stopAllScheduledGuides(nowAudio);
+
+        // Ensure audio context is ready before scheduling sounds (especially important for tutorials)
+        if (!audioCtx || audioCtx.state !== 'running') {
+            try {
+                await ensureAudio();
+            } catch (e) {
+                console.warn('Audio context not available:', e);
+            }
+        }
 
         // Count-in clicks + visual (skip main overlay in tutorial mode)
         let t = baseTimeAudio;
@@ -1175,7 +1188,8 @@ import './styles.css';
     }
 
     function clearCanvas() {
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        // Use actual canvas dimensions (accounting for DPR) for optimal performance
+        ctx.clearRect(0, 0, el.sheet.width, el.sheet.height);
     }
 
     function drawEmpty() {
@@ -1665,10 +1679,9 @@ import './styles.css';
         {
             group: 'Swing & Bebop (4/4)',
             items: [
-                { id: 'swingRide', label: 'Swing ride pattern', desc: '“ding‑ding‑da‑ding” ride feel', timeSig: '4/4', tokens: ['q', 'e', 'trip', 'q'], bpm: 180 },
-                { id: 'charleston', label: 'Charleston rhythm', desc: 'Classic comping figure', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'q'], bpm: 160 },
-                { id: 'bebopComp', label: 'Bebop comping', desc: 'Syncopated hits', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'e'], bpm: 184 },
-                { id: 'walkingBass', label: 'Walking bass (quarters)', desc: 'Steady on all beats', timeSig: '4/4', tokens: ['q', 'q', 'q', 'q'], bpm: 140 }
+                { id: 'swingRide', label: 'Swing ride pattern', desc: '“ding‑ding‑da‑ding” ride feel', timeSig: '4/4', tokens: ['q', 'trip:101', 'q', 'trip:101'], bpm: 180 },
+                { id: 'charleston', label: 'Charleston rhythm', desc: 'Classic comping figure', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'q', 'rq'], bpm: 160 },
+                { id: 'bebopComp', label: 'Bebop comping', desc: 'Syncopated hits', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'e', 'r:e', 'e'], bpm: 184 },
             ]
         },
         {
@@ -1676,7 +1689,7 @@ import './styles.css';
             items: [
                 { id: 'sonClave32', label: 'Son clave (3‑2)', desc: 'Clave foundation (3‑2)', timeSig: '4/4', measures: 2, tokens: ['e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e'], bpm: 120 },
                 { id: 'rumbaClave23', label: 'Rumba clave (2‑3)', desc: 'Laid‑back clave (2‑3)', timeSig: '4/4', measures: 2, tokens: ['r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'r:e'], bpm: 120 },
-                { id: 'cascara', label: 'Cáscara pattern', desc: 'Timbales/shells motion', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'e', 'r:e', 'e', 'q'], bpm: 132 }
+                { id: 'cascara', label: 'Cáscara pattern', desc: 'Timbales/shells motion', timeSig: '4/4', measures: 2, tokens: ['e', 'r:e', 'e', 'q', 'e', 'r:e', 'e', 'q', 'rq'], bpm: 132 }
             ]
         },
         {
@@ -1684,7 +1697,7 @@ import './styles.css';
             items: [
                 { id: 'bossaDrums', label: 'Bossa (drums)', desc: 'Cross‑stick, soft groove', timeSig: '4/4', tokens: ['q', 'e', 'r:e', 'e', 'e', 'q'], bpm: 132 },
                 { id: 'bossaBass', label: 'Bossa bass', desc: 'Alternating root/fifth', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'q', 'r:e', 'e'], bpm: 120 },
-                { id: 'bossaGuitar', label: 'Bossa guitar', desc: 'Bass‑chord‑chord pattern', timeSig: '4/4', tokens: ['q', 'e', 'e', 'q', 'e'], bpm: 120 }
+                { id: 'bossaGuitar', label: 'Bossa guitar', desc: 'Bass‑chord‑chord pattern', timeSig: '4/4', tokens: ['q', 'e', 'e', 'q', 'e', 'r:e'], bpm: 120 }
             ]
         },
         {
@@ -1692,31 +1705,27 @@ import './styles.css';
             items: [
                 { id: 'hardBopShuffle', label: 'Hard bop shuffle', desc: 'Heavy triplet shuffle', timeSig: '4/4', tokens: ['trip', 'trip', 'trip', 'trip'], bpm: 160 },
                 { id: 'stopTime', label: 'Stop‑time hits', desc: 'Punchy ensemble hits', timeSig: '4/4', tokens: ['q', 'rq', 'q', 'q'], bpm: 160 },
-                { id: 'straight8Funk', label: 'Straight‑eighth funk', desc: 'Even eighths drive', timeSig: '4/4', tokens: ['e', 'e', 'e', 'e', 'e', 'e', 'e', 'e'], bpm: 110 },
-                { id: 'brokenTime', label: 'Broken‑time drumming', desc: 'Floating time feel', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'rq', 'e', 'q'], bpm: 170 }
+                { id: 'brokenTime', label: 'Broken‑time drumming', desc: 'Floating time feel', timeSig: '4/4', tokens: ['q', 'r:e', 'e', 'rq', 'e'], bpm: 170 }
             ]
         },
         {
             group: 'Afro‑Caribbean Extensions',
             items: [
                 { id: 'afro68', label: '6/8 Afro (modal jazz)', desc: 'Dotted 6/8 undercurrent', timeSig: '6/8', tokens: ['dq', 'e', 'q', 'e', 'dq'], bpm: 96 },
-                { id: 'mozambique', label: 'Mozambique', desc: 'Cuban pattern over 4/4', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'r:e', 'e', 'q'], bpm: 120 },
-                { id: 'guaguanco', label: 'Guaguancó', desc: 'Conversational syncopation', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'q'], bpm: 120 },
-                { id: 'calypso', label: 'Calypso feel', desc: 'Bright Caribbean jazz', timeSig: '4/4', tokens: ['q', 'e', 'r:e', 'q', 'e', 'r:e'], bpm: 132 }
+                { id: 'mozambique', label: 'Mozambique', desc: 'Cuban pattern over 4/4', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'q', 'r:e', 'e'], bpm: 120 },
+                { id: 'guaguanco', label: 'Guaguancó', desc: 'Conversational syncopation', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'r:e', 'e', 'r:e', 'q'], bpm: 120 }
             ]
         },
         {
             group: 'Brazilian & Latin‑Jazz',
             items: [
                 { id: 'samba24', label: 'Samba (2/4, approx)', desc: 'Fast forward motion', timeSig: '2/4', tokens: ['e', 'r:e', 'e', 'e'], bpm: 180 },
-                { id: 'partidoAlto', label: 'Partido alto (approx)', desc: 'Syncopated samba variant', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'e', 'r:e', 'e'], bpm: 140 },
-                { id: 'baion', label: 'Baión', desc: 'Slow hypnotic groove', timeSig: '4/4', tokens: ['q', 'e', 'r:e', 'q', 'e', 'r:e'], bpm: 110 }
+                { id: 'partidoAlto', label: 'Partido alto (approx)', desc: 'Syncopated samba variant', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'e', 'r:e', 'e', 'r:e', 'r:e'], bpm: 140 }
             ]
         },
         {
             group: 'Modern Fusion & Odd',
             items: [
-                { id: 'swing54', label: '5/4 swing (Take Five)', desc: '3+2 ride phrasing', timeSig: '5/4', tokens: ['q', 'q', 'q', 'q', 'q'], bpm: 160 },
                 { id: 'groove78', label: '7/8 groove', desc: '2+2+3 phrasing', timeSig: '7/8', tokens: ['q', 'e', 'q', 'e', 'e'], bpm: 128 },
                 { id: 'funkSync', label: 'Funk‑jazz syncopation', desc: 'Dense, punchy hits', timeSig: '4/4', tokens: ['e', 'r:e', 'e', 'e', 'e', 'r:e', 'e', 'e'], bpm: 100 }
             ]
@@ -2100,7 +2109,8 @@ import './styles.css';
             // Draw green overlay only (no base redraws/resizes)
             if (card.pattern && Array.isArray(card.pattern.items) && card.greenCtx) {
                 const gc = card.greenCtx;
-                const drawn = card._drawnIdx || (card._drawnIdx = new Set());
+                // Clear canvas each frame to redraw all due notes and beams correctly
+                gc.clearRect(0, 0, card.greenCanvas.width, card.greenCanvas.height);
                 const startBase = getStart();
                 const NOTE_RX = 7.5, NOTE_RY = 5.5;
                 const STEM_LEN = 36;
@@ -2109,12 +2119,20 @@ import './styles.css';
                 const ts = card.pattern.timeSig;
                 const beamGroupTicks = (ts.beatNote === 8 && (ts.beatsPerMeasure % 3 === 0)) ? tpb * 3 : tpb;
                 function beamCount(dur) { return (typeof getBeamCount === 'function') ? getBeamCount(dur, tpb) : (dur < tpb ? 1 : 0); }
-                function adjustAwayFromBar(x) {
-                    const left = card.dims.leftPad, right = (card.dims.cssW - card.dims.rightPad);
+                // Calculate bar positions to match preview exactly
+                const measureTicks = tpb * ts.beatsPerMeasure;
+                const totalMeasures = Math.max(1, card.pattern.measures || 1);
+                const rowBarXs = [card.dims.leftPad];
+                for (let m = 1; m < totalMeasures; m++) {
+                    const x = card.dims.leftPad + Math.round((measureTicks * m) * card.dims.pxPerTick);
+                    rowBarXs.push(x);
+                }
+                rowBarXs.push(card.dims.cssW - card.dims.rightPad);
+                function adjustAwayFromBar(x, barXs) {
+                    let nearest = null; let minD = Infinity;
+                    for (const bx of barXs) { const d = Math.abs(x - bx); if (d < minD) { minD = d; nearest = bx; } }
                     const minDist = NOTE_RX + 3;
-                    const dLeft = Math.abs(x - left), dRight = Math.abs(x - right);
-                    if (dLeft < minDist) return left + 4;
-                    if (dRight < minDist) return right + 4;
+                    if (nearest != null && Math.abs(x - nearest) < minDist) { const smallOffset = 4; return nearest + smallOffset; }
                     return x;
                 }
                 function stemUp(x, y, color) {
@@ -2135,40 +2153,100 @@ import './styles.css';
                     gc.closePath();
                     gc.fill();
                 }
-                // First pass: draw noteheads + stems for notes now due
+                function drawFlagUp(stemX, stemTopY, beamIndex, color) {
+                    // Curved flag approximating standard engraving
+                    const y0 = stemTopY + (beamIndex - 1) * (P_BEAM_THICK + P_BEAM_GAP);
+                    const height = 10;
+                    const width = 12;
+                    gc.fillStyle = color;
+                    gc.beginPath();
+                    gc.moveTo(stemX, y0);
+                    gc.bezierCurveTo(
+                        stemX + width * 0.4, y0 + 2,
+                        stemX + width, y0 + 1,
+                        stemX + width, y0 + height * 0.6
+                    );
+                    gc.bezierCurveTo(
+                        stemX + width * 0.9, y0 + height,
+                        stemX + width * 0.35, y0 + height * 0.9,
+                        stemX, y0 + height
+                    );
+                    gc.closePath();
+                    gc.fill();
+                }
+                // First pass: draw noteheads + stems for ALL notes that are due, calculate beam counts
                 const layouts = [];
                 for (let idx = 0; idx < card.pattern.items.length; idx++) {
                     const it = card.pattern.items[idx];
-                    if (it.isRest || drawn.has(idx)) continue;
+                    if (it.isRest) continue;
                     const et = startBase + (it.startTick * secondsPerTick);
                     if (now >= et) {
                         const x0 = card.dims.leftPad + it.startTick * card.dims.pxPerTick;
-                        const x = adjustAwayFromBar(x0);
+                        const x = adjustAwayFromBar(x0, rowBarXs);
                         const y = card.dims.midLineY;
+                        // Draw green notehead slightly larger to ensure full coverage of original black note
                         gc.save();
                         gc.translate(x, y);
                         gc.rotate(-20 * Math.PI / 180);
                         gc.beginPath();
-                        gc.ellipse(0, 0, NOTE_RX, NOTE_RY, 0, 0, Math.PI * 2);
+                        // Use slightly larger radius to fully cover the original note
+                        gc.ellipse(0, 0, NOTE_RX + 0.5, NOTE_RY + 0.5, 0, 0, Math.PI * 2);
                         gc.fillStyle = 'rgba(34,197,94,1)';
                         gc.fill();
                         gc.restore();
                         const stem = stemUp(x, y, 'rgba(34,197,94,1)');
-                        layouts.push({ idx, it, x, y, stemX: stem.stemX, stemTopY: stem.stemTopY });
-                        drawn.add(idx);
+                        // Calculate beam count (same logic as main drawing)
+                        const beamCount = (it.durTicks < tpb) ? 1 : 0;
+                        layouts.push({
+                            idx, it, x, y,
+                            stemX: stem.stemX,
+                            stemTopY: stem.stemTopY,
+                            beamCount,
+                            connectedLeft: {},
+                            connectedRight: {}
+                        });
                     }
                 }
-                // Second pass: green beams where neighbors in same group are already green
+                // Sort by start tick for proper beam connectivity
                 layouts.sort((a, b) => a.it.startTick - b.it.startTick);
+
+                // Second pass: calculate beam connectivity (same logic as main drawing)
+                function sameBeamGroup(a, b) {
+                    return Math.floor(a.it.startTick / beamGroupTicks) === Math.floor(b.it.startTick / beamGroupTicks);
+                }
                 for (let i = 0; i < layouts.length - 1; i++) {
                     const A = layouts[i], B = layouts[i + 1];
-                    const sameGroup = Math.floor(A.it.startTick / beamGroupTicks) === Math.floor(B.it.startTick / beamGroupTicks);
-                    const minBeams = Math.min(beamCount(A.it.durTicks), beamCount(B.it.durTicks));
-                    if (!sameGroup || minBeams <= 0) continue;
+                    if (!sameBeamGroup(A, B)) continue;
+                    const minBeams = Math.min(A.beamCount, B.beamCount);
+                    for (let b = 1; b <= minBeams; b++) {
+                        A.connectedRight[b] = true;
+                        B.connectedLeft[b] = true;
+                    }
+                }
+
+                // Third pass: draw green beams where connected
+                for (let i = 0; i < layouts.length - 1; i++) {
+                    const A = layouts[i], B = layouts[i + 1];
+                    if (!sameBeamGroup(A, B)) continue;
+                    const minBeams = Math.min(A.beamCount, B.beamCount);
+                    if (minBeams <= 0) continue;
                     for (let b = 1; b <= minBeams; b++) {
                         const yA = A.stemTopY + (b - 1) * (P_BEAM_THICK + P_BEAM_GAP);
                         const yB = B.stemTopY + (b - 1) * (P_BEAM_THICK + P_BEAM_GAP);
                         beamQuad(A.stemX, yA, B.stemX, yB, 'rgba(34,197,94,1)');
+                    }
+                }
+
+                // Fourth pass: draw flags for ungrouped eighths (matching preview logic exactly)
+                for (let i = 0; i < layouts.length; i++) {
+                    const L = layouts[i];
+                    const prev = layouts[i - 1];
+                    const next = layouts[i + 1];
+                    const hasNeighbor = (prev && Math.floor(prev.it.startTick / beamGroupTicks) === Math.floor(L.it.startTick / beamGroupTicks) && prev.it.durTicks < tpb)
+                        || (next && Math.floor(next.it.startTick / beamGroupTicks) === Math.floor(L.it.startTick / beamGroupTicks) && next.it.durTicks < tpb);
+                    // Draw flag for ungrouped eighth notes (and smaller) - same logic as preview
+                    if (L.it.durTicks < tpb && !hasNeighbor) {
+                        drawFlagUp(L.stemX, L.stemTopY, 1, 'rgba(34,197,94,1)');
                     }
                 }
                 // Triplet marker green when all three in group are due

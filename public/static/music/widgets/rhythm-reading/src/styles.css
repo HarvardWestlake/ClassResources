@@ -354,6 +354,8 @@ input[type="range"]::-moz-range-thumb {
     overflow-y: auto;
     border: 1px solid var(--panel-border);
     background: #fff;
+    /* Performance: hint for smooth scrolling without breaking fixed positioning */
+    will-change: scroll-position;
 }
 
 canvas {
@@ -363,6 +365,8 @@ canvas {
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.01));
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    /* Performance optimizations for old devices - using will-change only to avoid layout issues */
+    will-change: contents;
 }
 
 .start-overlay {
@@ -517,6 +521,9 @@ canvas {
     backdrop-filter: blur(36px);
     -webkit-backdrop-filter: blur(36px);
     z-index: 20;
+    /* Ensure proper centering */
+    margin: 0;
+    padding: 0;
 }
 
 .summary-card {
@@ -558,9 +565,12 @@ canvas {
 /* Tutorials overlay tweaks: make it scrollable and wider */
 #tutorialsOverlay {
     align-items: flex-start;
+    justify-content: center;
     overflow-y: auto;
     padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 20px);
     box-sizing: border-box;
+    /* Ensure proper positioning */
+    margin: 0;
 }
 
 #tutorialsOverlay .summary-card {
