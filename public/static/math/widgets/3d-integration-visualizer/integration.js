@@ -3,63 +3,97 @@
 (function() {
     const $ = (id) => document.getElementById(id);
 
-    // UI elements
-    const canvasHost = $('canvas3d');
-    const methodSelect = $('methodSelect');
-    const presetSelect = $('presetSelect');
-    const equationInput = $('equationInput');
-    const renderBtn = $('renderBtn');
-    const resetCameraBtn = $('resetCameraBtn');
-    const showSurface = $('showSurface');
-    const showColumns = $('showColumns');
-    const showRegion = $('showRegion');
-    const showWedge = $('showWedge');
-    const jacobianText = $('jacobianText');
-    const integralEstimate = $('integralEstimate');
-    const equationError = document.getElementById('equationError');
-
-    // Bounds
-    const xMin = $('xMin'), xMax = $('xMax'), yMin = $('yMin'), yMax = $('yMax');
-    const rMin = $('rMin'), rMax = $('rMax'), thetaMin = $('thetaMin'), thetaMax = $('thetaMax');
-    const rcMin = $('rcMin'), rcMax = $('rcMax'), thetacMin = $('thetacMin'), thetacMax = $('thetacMax'), zMin = $('zMin'), zMax = $('zMax');
-    const rhoMin = $('rhoMin'), rhoMax = $('rhoMax'), phiMin = $('phiMin'), phiMax = $('phiMax'), thetasMin = $('thetasMin'), thetasMax = $('thetasMax');
-    const nx = $('nx'), ny = $('ny'), nz = $('nz');
+    // UI elements - captured in init() after DOM is ready
+    let canvasHost, methodSelect, presetSelect, equationInput, renderBtn, resetCameraBtn;
+    let showSurface, showColumns, showRegion, showWedge;
+    let jacobianText, integralEstimate, compareBtn, compareResult, equationError;
+    let xMin, xMax, yMin, yMax;
+    let rMin, rMax, thetaMin, thetaMax;
+    let rcMin, rcMax, thetacMin, thetacMax, zMin, zMax;
+    let rhoMin, rhoMax, phiMin, phiMax, thetasMin, thetasMax;
+    let nx, ny, nz;
 
     // Three.js core
     let renderer, scene, camera, controls;
     let surfaceGroup, columnsGroup, regionGroup, wedgeGroup, axesHelper, gridHelper, gridHelperNeg;
     let lastEstimate = 0;
 
+    function captureElements() {
+        // Capture all DOM elements AFTER DOM is ready
+        canvasHost = $('canvas3d');
+        methodSelect = $('methodSelect');
+        presetSelect = $('presetSelect');
+        equationInput = $('equationInput');
+        renderBtn = $('renderBtn');
+        resetCameraBtn = $('resetCameraBtn');
+        showSurface = $('showSurface');
+        showColumns = $('showColumns');
+        showRegion = $('showRegion');
+        showWedge = $('showWedge');
+        jacobianText = $('jacobianText');
+        integralEstimate = $('integralEstimate');
+        compareBtn = $('compareBtn');
+        compareResult = $('compareResult');
+        equationError = $('equationError');
+        xMin = $('xMin'); xMax = $('xMax'); yMin = $('yMin'); yMax = $('yMax');
+        rMin = $('rMin'); rMax = $('rMax'); thetaMin = $('thetaMin'); thetaMax = $('thetaMax');
+        rcMin = $('rcMin'); rcMax = $('rcMax'); thetacMin = $('thetacMin'); thetacMax = $('thetacMax'); zMin = $('zMin'); zMax = $('zMax');
+        rhoMin = $('rhoMin'); rhoMax = $('rhoMax'); phiMin = $('phiMin'); phiMax = $('phiMax'); thetasMin = $('thetasMin'); thetasMax = $('thetasMax');
+        nx = $('nx'); ny = $('ny'); nz = $('nz');
+        
+        console.log('Elements captured. canvasHost:', canvasHost);
+    }
+
     function getHostSize() {
+        if (!canvasHost) {
+            console.error('canvasHost is null! Using fallback dimensions.');
+            return { w: 800, h: 600 };
+        }
         const rect = canvasHost.getBoundingClientRect();
         let w = Math.max(1, Math.floor(rect.width || canvasHost.clientWidth || 1));
         let h = Math.max(1, Math.floor(rect.height || canvasHost.clientHeight || 1));
-        if (w < 50 || h < 50) {
+        // Fallback when container is collapsed or dimensions invalid
+        if (!isFinite(w) || !isFinite(h) || w < 50 || h < 50) {
             // Fallback if layout hasn't sized yet
             w = Math.max(300, window.innerWidth - 380);
             h = Math.max(300, window.innerHeight - 24);
+        }
+        if (typeof console !== 'undefined') {
+            try { console.log('Canvas host size:', { w, h, rect }); } catch(e) {}
         }
         return { w, h };
     }
 
     function setupThree() {
-        const { w, h } = getHostSize();
-        const ratio = w / h;
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        if (THREE && THREE.sRGBEncoding) {
-            renderer.outputEncoding = THREE.sRGBEncoding;
-        } else if (THREE && THREE.OutputColorSpace) {
-            renderer.outputColorSpace = THREE.SRGBColorSpace;
-        }
-        renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1), 2));
-        renderer.setSize(w, h);
-        canvasHost.innerHTML = '';
-        canvasHost.appendChild(renderer.domElement);
+        try {
+            if (!window.THREE || !THREE.WebGLRenderer) {
+                console.error('THREE.js not ready in setupThree()');
+                return;
+            }
+            const { w, h } = getHostSize();
+            const ratio = w / h;
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            // Robust color management across three versions
+            if ('outputColorSpace' in renderer) {
+                renderer.outputColorSpace = THREE.SRGBColorSpace;
+            } else if ('outputEncoding' in renderer) {
+                renderer.outputEncoding = THREE.sRGBEncoding;
+            }
+            renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1), 2));
+            renderer.setSize(w, h);
+            try {
+                console.log('Renderer size set to:', w, h);
+                console.log('Canvas element size (px):', renderer.domElement.width, renderer.domElement.height);
+            } catch (e) {}
+            canvasHost.innerHTML = '';
+            canvasHost.appendChild(renderer.domElement);
+            // Ensure pointer/touch gestures are routed to the canvas (mobile/tablet)
+            renderer.domElement.style.touchAction = 'none';
 
-        // Switch to Z-up to match z = f(x, y)
-        THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
-        scene = new THREE.Scene();
-        scene.background = null;
+            // Switch to Z-up to match z = f(x, y)
+            THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf5f5f5);
 
         camera = new THREE.PerspectiveCamera(55, ratio, 0.1, 1000);
         camera.up.set(0, 0, 1);
@@ -104,20 +138,32 @@
         dir.position.set(5, 10, 7);
         scene.add(dir);
 
-        axesHelper = new THREE.AxesHelper(4);
-        scene.add(axesHelper);
-        gridHelper = new THREE.GridHelper(16, 32, 0xbbc2ca, 0xd7dde3);
-        gridHelper.material.transparent = true;
-        gridHelper.material.opacity = 0.55;
-        gridHelper.rotation.x = Math.PI / 2; // place on XY at z=0 in Z-up world
-        scene.add(gridHelper);
-        // subtle duplicate just below plane for negative z
-        gridHelperNeg = new THREE.GridHelper(16, 32, 0xdedede, 0xeeeeee);
-        gridHelperNeg.material.transparent = true;
-        gridHelperNeg.material.opacity = 0.3;
-        gridHelperNeg.rotation.x = Math.PI / 2;
-        gridHelperNeg.position.z = -0.0006;
-        scene.add(gridHelperNeg);
+            axesHelper = new THREE.AxesHelper(4);
+            scene.add(axesHelper);
+            // Darker grid colors for better contrast on light background
+            gridHelper = new THREE.GridHelper(16, 32, 0x9aa1a7, 0xb6bdc4);
+            if (gridHelper.material) {
+                const m = Array.isArray(gridHelper.material) ? gridHelper.material[0] : gridHelper.material;
+                m.transparent = true;
+                m.opacity = 0.55;
+            }
+            gridHelper.rotation.x = Math.PI / 2; // place on XY at z=0 in Z-up world
+            scene.add(gridHelper);
+            // subtle duplicate just below plane for negative z
+            gridHelperNeg = new THREE.GridHelper(16, 32, 0xc8cdd2, 0xd6dade);
+            if (gridHelperNeg.material) {
+                const m2 = Array.isArray(gridHelperNeg.material) ? gridHelperNeg.material[0] : gridHelperNeg.material;
+                m2.transparent = true;
+                m2.opacity = 0.3;
+            }
+            gridHelperNeg.rotation.x = Math.PI / 2;
+            gridHelperNeg.position.z = -0.0006;
+            scene.add(gridHelperNeg);
+
+            // Always-visible tiny origin marker to avoid totally blank scene
+            const originMarker = new THREE.AxesHelper(0.5);
+            originMarker.position.set(0, 0, 0);
+            scene.add(originMarker);
 
         surfaceGroup = new THREE.Group();
         columnsGroup = new THREE.Group();
@@ -125,11 +171,14 @@
         wedgeGroup = new THREE.Group();
         scene.add(surfaceGroup, columnsGroup, regionGroup, wedgeGroup);
 
-        window.addEventListener('resize', onResize);
-        onResize();
-        installPinchZoomPolyfill();
-        renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
-        animate();
+            window.addEventListener('resize', onResize);
+            onResize();
+            installPinchZoomPolyfill();
+            renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+            animate();
+        } catch (err) {
+            console.error('setupThree() failed:', err);
+        }
     }
 
     function onResize() {
@@ -170,13 +219,17 @@
                 hasAny = true;
             }
         }
-        if (!hasAny) return;
+        // If nothing is present, or box is invalid, fit to a sane default around origin
+        if (!hasAny || !isFinite(box.min.x) || !isFinite(box.max.x)) {
+            const d = 4;
+            box.set(new THREE.Vector3(-d, -d, -d), new THREE.Vector3(d, d, d));
+        }
         const size = new THREE.Vector3();
         box.getSize(size);
         const center = new THREE.Vector3();
         box.getCenter(center);
 
-        const maxDim = Math.max(size.x, size.y, size.z);
+        const maxDim = Math.max(size.x, size.y, size.z, 1e-3);
         const fitDist = maxDim * 1.6 / Math.tan((camera.fov * Math.PI / 180) / 2);
         const dir = new THREE.Vector3(1, 0.8, 1).normalize();
         camera.position.copy(center.clone().add(dir.multiplyScalar(fitDist)));
@@ -263,11 +316,11 @@
         geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         geom.computeVertexNormals();
 
-        const mat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide });
+        const mat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: Math.max(opacity, 0.45), side: THREE.DoubleSide });
         const mesh = new THREE.Mesh(geom, mat);
         // Add a crisp edge outline to make the surface visible on dark backgrounds
         const edges = new THREE.EdgesGeometry(geom);
-        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x7fd3ff, linewidth: 1 }));
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x1f6feb }));
         const g = new THREE.Group();
         g.add(mesh);
         g.add(line);
@@ -608,10 +661,13 @@
             const geom = new THREE.CylinderGeometry(dims.R, dims.R, dims.H, 64, 1, false);
             const mat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
             mesh = new THREE.Mesh(geom, mat);
+            // orient along Z
+            mesh.rotation.x = Math.PI / 2;
         } else if (dims.type === 'cone') {
             const geom = new THREE.ConeGeometry(dims.R, dims.H, 64, 1, false);
             const mat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
             mesh = new THREE.Mesh(geom, mat);
+            mesh.rotation.x = Math.PI / 2; // orient along Z
         } else if (dims.type === 'paraboloid') {
             const H = dims.H; const half = H / 2; const steps = 200;
             const pts = [];
@@ -623,14 +679,15 @@
             const geom = new THREE.LatheGeometry(pts, 128, 0, Math.PI * 2);
             const mat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
             const body = new THREE.Mesh(geom, mat);
+            body.rotation.x = Math.PI / 2; // orient along Z
             group.add(body);
             // Add a flat cap at top (y = +half) to close the volume
             const rTop = Math.sqrt(2 * H);
             const capGeom = new THREE.CircleGeometry(rTop, 96);
             const capMat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
             const cap = new THREE.Mesh(capGeom, capMat);
-            cap.rotation.x = -Math.PI / 2;
-            cap.position.y = half;
+            cap.rotation.z = 0;
+            cap.position.set(0, 0, half);
             group.add(cap);
         }
         if (mesh) group.add(mesh);
@@ -699,6 +756,18 @@
         jacobianText.textContent = 'In polar: dA = r dr dθ';
         clearGroup(surfaceGroup); clearGroup(columnsGroup); clearGroup(regionGroup); clearGroup(wedgeGroup);
         const expr = tryCompileEquation();
+        // Guard degenerate bounds; if invalid, render a default surface around origin
+        const degenerateBounds = !(isFinite(r0) && isFinite(r1) && (r1 > r0 + 1e-6));
+        if (degenerateBounds) {
+            console.warn('Polar bounds degenerate; using default surface in [-3,3]^2');
+            if (showSurface.checked) {
+                const x0 = -3, x1 = 3, y0 = -3, y1 = 3;
+                const surf = buildSurfaceFromFunction(expr, x0, x1, y0, y1, 64, 64);
+                surfaceGroup.add(surf);
+            }
+            fitCameraToContent();
+            return;
+        }
         if (showRegion.checked) addRegionPolar(r0, r1, t0, t1);
         if (showSurface.checked) {
             // sample surface over the bounding rectangle in xy
@@ -712,7 +781,7 @@
         }
         if (showWedge.checked) {
             const rc = (r0 + r1) / 2; const dt = (t1 - t0) / nt; const dr = (r1 - r0) / nr;
-            const geom = new THREE.BoxGeometry(dr, rc * dt, 0.02);
+            const geom = new THREE.BoxGeometry(dr, Math.max(0.001, rc * dt), 0.02);
             const mat = new THREE.MeshStandardMaterial({ color: 0xff3b7f, transparent: true, opacity: 0.8 });
             const box = new THREE.Mesh(geom, mat);
             const tc = t0 + dt / 2;
@@ -742,6 +811,7 @@
             estimate = addVoxelsCylindrical(r0, r1, t0, t1, z0, z1, nr, nt, nzp);
         }
         if (showWedge.checked) addDVWedgeCylindrical(r0, r1, t0, t1, z0, z1);
+        lastEstimate = estimate;
         integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
         fitCameraToContent();
     }
@@ -766,6 +836,7 @@
             estimate = addVoxelsSpherical(rh0, rh1, ph0, ph1, th0, th1, nr, nphi, nth);
         }
         if (showWedge.checked) addDVWedgeSpherical(rh0, rh1, ph0, ph1, th0, th1);
+        lastEstimate = estimate;
         integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
         fitCameraToContent();
     }
@@ -816,30 +887,71 @@
         if (method === 'triple_spherical') return renderTripleSpherical();
     }
 
+    function ensureSomethingVisible() {
+        const totalChildren = surfaceGroup.children.length + columnsGroup.children.length + regionGroup.children.length + wedgeGroup.children.length;
+        if (totalChildren === 0) {
+            // Add a simple fallback plane so the user sees something
+            const plane = new THREE.Mesh(
+                new THREE.PlaneGeometry(6, 6),
+                new THREE.MeshBasicMaterial({ color: 0x99c1ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+            );
+            plane.rotation.x = Math.PI / 2; // align to XY at z=0 in Z-up
+            surfaceGroup.add(plane);
+            console.warn('No visible content produced by render(); added fallback plane.');
+        }
+        console.log('Group sizes → surface:', surfaceGroup.children.length, 'columns:', columnsGroup.children.length, 'region:', regionGroup.children.length, 'wedge:', wedgeGroup.children.length);
+        fitCameraToContent();
+    }
+
     function init() {
+        captureElements();  // Capture DOM elements first
         setupThree();
         updatePanelsVisibility();
         applyPresetBounds();
         render();
+        ensureSomethingVisible();
 
         // Events
-        methodSelect.addEventListener('change', () => { updatePanelsVisibility(); render(); });
-        presetSelect.addEventListener('change', () => { applyPresetBounds(); render(); });
+        methodSelect.addEventListener('change', () => { updatePanelsVisibility(); render(); ensureSomethingVisible(); });
+        presetSelect.addEventListener('change', () => { applyPresetBounds(); render(); ensureSomethingVisible(); });
         [equationInput, xMin, xMax, yMin, yMax, rMin, rMax, thetaMin, thetaMax, nx, ny, nz,
          rcMin, rcMax, thetacMin, thetacMax, zMin, zMax, rhoMin, rhoMax, phiMin, phiMax, thetasMin, thetasMax]
-            .forEach(el => el.addEventListener('change', render));
-        [showSurface, showColumns, showRegion, showWedge].forEach(el => el.addEventListener('change', render));
-        renderBtn.addEventListener('click', render);
+            .forEach(el => el.addEventListener('change', () => { render(); ensureSomethingVisible(); }));
+        [showSurface, showColumns, showRegion, showWedge].forEach(el => el.addEventListener('change', () => { render(); ensureSomethingVisible(); }));
+        renderBtn.addEventListener('click', () => { render(); ensureSomethingVisible(); });
         resetCameraBtn.addEventListener('click', () => {
-            camera.position.set(8, 8, 8);
-            controls.target.set(0, 0, 0);
-            controls.update();
+            fitCameraToContent();
         });
+        if (compareBtn) {
+            compareBtn.addEventListener('click', () => {
+                const method = methodSelect.value;
+                const dims = getCurrentPresetDims();
+                const exact = analyticVolumeForPreset(dims);
+                const anglesFull = (
+                    parseFloat((phiMin?.value||0)) === 0 && parseFloat((phiMax?.value||180)) === 180 &&
+                    parseFloat((thetasMin?.value||0)) === 0 && parseFloat((thetasMax?.value||360)) === 360
+                );
+                if (!exact || !(method === 'triple_cylindrical' || (method === 'triple_spherical' && anglesFull))) {
+                    if (compareResult) compareResult.textContent = 'Select a stock solid in a triple mode (full angles for spherical).';
+                    return;
+                }
+                const rel = Math.abs(lastEstimate - exact) / exact;
+                if (compareResult) compareResult.textContent = `Exact ≈ ${exact.toFixed(3)}; error ${(rel*100).toFixed(2)}%`;
+            });
+        }
     }
 
-    // Kickoff when DOM ready
+    // Kickoff when DOM ready (THREE is guaranteed loaded by the ESM bridge)
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
+    function analyticVolumeForPreset(dims) {
+        if (!dims || dims.type === 'none') return null;
+        if (dims.type === 'sphere') return (4/3) * Math.PI * Math.pow(dims.R, 3);
+        if (dims.type === 'cylinder') return Math.PI * dims.R * dims.R * dims.H;
+        if (dims.type === 'cone') return (1/3) * Math.PI * dims.R * dims.R * dims.H;
+        return null;
+    }
+
 })();
 
 

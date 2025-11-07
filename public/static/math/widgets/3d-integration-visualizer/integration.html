@@ -19,8 +19,6 @@
     })();
     </script>
     <!-- External libraries -->
-    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mathjs@11.11.0/lib/browser/math.min.js"></script>
     <!-- Firebase (optional, for Firestore sync) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js" defer></script>
@@ -205,26 +203,48 @@
             <section class="panel info">
                 <div id="jacobianText">dA = dx dy</div>
                 <div id="integralEstimate">Approx ∬ f dA = …</div>
+                <div class="actions" style="margin-top:8px;gap:8px">
+                    <button id="compareBtn" class="btn btn--outline btn--sm" type="button">Check vs exact</button>
+                    <div id="compareResult" class="helper-text"></div>
+                </div>
             </section>
         </aside>
 
         <main class="viewport">
             <div id="canvas3d"></div>
             <div class="legend">
-                <span class="chip chip-surface">Surface/Volume</span>
-                <span class="chip chip-columns">Riemann elements</span>
-                <span class="chip chip-region">Region</span>
-                <span class="chip chip-wedge">dA/dV</span>
+                <span class="chip chip-surface" title="Surface for ∬ or solid volume for ∭">Surface/Volume</span>
+                <span class="chip chip-columns" title="Riemann rectangles/bricks used in the estimate">Riemann elements</span>
+                <span class="chip chip-region" title="Region projection from bounds">Region</span>
+                <span class="chip chip-wedge" title="Single highlighted dA or dV element showing Jacobian">dA/dV</span>
             </div>
         </main>
     </div>
 
     <script src="theme.js"></script>
-    <script src="integration.js"></script>
+    <script type="module">
+        import * as THREE_MOD from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { OrbitControls as OrbitControlsMod } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+        window.THREE = THREE_MOD;
+        window.THREE.OrbitControls = OrbitControlsMod;
+        
+        // Load integration.js only after THREE is ready AND DOM is ready
+        function loadIntegration() {
+            const script = document.createElement('script');
+            script.src = 'integration.js';
+            document.body.appendChild(script);
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadIntegration);
+        } else {
+            loadIntegration();
+        }
+    </script>
 </body>
 <script>
 // Prevent pinch-zoom from interfering with orbit controls on iOS
-document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
 </script>
 </html>
 
