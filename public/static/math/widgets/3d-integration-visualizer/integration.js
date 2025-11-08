@@ -2,6 +2,7 @@
 
 (function() {
     const $ = (id) => document.getElementById(id);
+    const THREE = window.THREE;
 
     // UI elements - captured in init() after DOM is ready
     let canvasHost, methodSelect, presetSelect, equationInput, renderBtn, resetCameraBtn;
@@ -66,7 +67,7 @@
 
     function setupThree() {
         try {
-            if (!window.THREE || !THREE.WebGLRenderer) {
+            if (!THREE || !THREE.WebGLRenderer) {
                 console.error('THREE.js not ready in setupThree()');
                 return;
             }
@@ -93,7 +94,7 @@
             // Switch to Z-up to match z = f(x, y)
             THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf5f5f5);
+            scene.background = new THREE.Color(0xe9edf5);
 
         camera = new THREE.PerspectiveCamera(55, ratio, 0.1, 1000);
         camera.up.set(0, 0, 1);
@@ -182,7 +183,7 @@
     }
 
     function onResize() {
-        if (!renderer || !camera) return;
+        if (!renderer || !camera || !scene) return;
         const { w, h } = getHostSize();
         renderer.setSize(w, h);
         camera.aspect = Math.max(1e-6, w / h);
@@ -192,12 +193,13 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        controls && controls.update();
-        renderer && renderer.render(scene, camera);
+        if (controls) controls.update();
+        if (renderer && scene && camera) renderer.render(scene, camera);
     }
 
     // Utilities
     function clearGroup(group) {
+        if (!group || !group.children) return;
         const toRemove = group.children.slice();
         for (const obj of toRemove) {
             group.remove(obj);
@@ -210,11 +212,15 @@
     }
 
     function fitCameraToContent() {
+        if (!camera || !controls) {
+            console.warn('fitCameraToContent called before camera/controls initialized');
+            return;
+        }
         const box = new THREE.Box3();
         const groups = [surfaceGroup, columnsGroup, regionGroup, wedgeGroup];
         let hasAny = false;
         for (const g of groups) {
-            if (g.children.length) {
+            if (g && g.children && g.children.length) {
                 box.expandByObject(g);
                 hasAny = true;
             }
@@ -251,6 +257,14 @@
 
     function tryCompileEquation() {
         const raw = equationInput.value || '0';
+        // Check if math.js is available
+        if (typeof math === 'undefined' || !math.parse) {
+            console.error('math.js not loaded');
+            equationInput.classList.add('input-error');
+            if (equationError) { equationError.style.display = 'block'; equationError.textContent = 'Math library not loaded. Please refresh the page.'; }
+            // Return a dummy compiled expression that returns 0
+            return { evaluate: () => 0 };
+        }
         try {
             const parsed = math.parse(raw);
             const compiled = parsed.compile();
@@ -271,7 +285,6 @@
     function buildSurfaceFromFunction(expr, x0, x1, y0, y1, nxSamples, nySamples, color = 0x4cc3ff, opacity = 0.25) {
         const geom = new THREE.BufferGeometry();
         const vertices = [];
-        const normals = [];
         const uvs = [];
         const indices = [];
 
@@ -328,6 +341,7 @@
     }
 
     function addRegionRectangle(x0, x1, y0, y1) {
+        if (!regionGroup) return;
         const geom = new THREE.PlaneGeometry(Math.abs(x1 - x0), Math.abs(y1 - y0));
         const mat = new THREE.MeshBasicMaterial({ color: 0x8bd450, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
         const mesh = new THREE.Mesh(geom, mat);
@@ -341,6 +355,7 @@
     }
 
     function addColumnsCartesian(expr, x0, x1, y0, y1, nxp, nyp) {
+        if (!columnsGroup) return 0;
         const dx = (x1 - x0) / nxp;
         const dy = (y1 - y0) / nyp;
         let estimate = 0;
@@ -378,6 +393,7 @@
 
     // Polar double integral visualization (sectors with Jacobian r)
     function addRegionPolar(r0, r1, t0, t1) {
+        if (!regionGroup) return;
         const shape = new THREE.Shape();
         const steps = 48;
         for (let k = 0; k <= steps; k++) {
@@ -390,6 +406,7 @@
             const x = r0 * Math.cos(t), y = r0 * Math.sin(t);
             shape.lineTo(x, y);
         }
+        shape.closePath();
         const geom = new THREE.ShapeGeometry(shape);
         const mat = new THREE.MeshBasicMaterial({ color: 0x8bd450, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
         const mesh = new THREE.Mesh(geom, mat);
@@ -400,6 +417,7 @@
     }
 
     function addColumnsPolar(expr, r0, r1, t0, t1, nr, nt) {
+        if (!columnsGroup) return 0;
         const dr = (r1 - r0) / nr;
         const dt = (t1 - t0) / nt;
         let estimate = 0;
@@ -441,6 +459,7 @@
     // (old addVolumePreset removed; replaced below with Z-up version)
 
     function addDVWedgeCylindrical(r0, r1, t0, t1, z0, z1) {
+        if (!wedgeGroup) return;
         // Show a representative small rectangular box for dV = r dr dθ dz at some center
         const rc = (r0 + r1) / 2;
         const tc = (t0 + t1) / 2;
@@ -461,6 +480,7 @@
     }
 
     function addDVWedgeSpherical(rho0, rho1, phi0, phi1, theta0, theta1) {
+        if (!wedgeGroup) return;
         // Show small curvilinear box ~ rho^2 sin phi d rho d phi d theta
         const rhoc = (rho0 + rho1) / 2;
         const phic = (phi0 + phi1) / 2;
@@ -718,23 +738,34 @@
 
     // Renderers per method
     function renderDoubleCartesian() {
+        if (!xMin || !xMax || !yMin || !yMax || !nx || !ny) {
+            console.error('Input elements not available in renderDoubleCartesian');
+            return;
+        }
         const x0 = parseFloat(xMin.value), x1 = parseFloat(xMax.value);
         const y0 = parseFloat(yMin.value), y1 = parseFloat(yMax.value);
-        const nxp = Math.max(2, parseInt(nx.value));
-        const nyp = Math.max(2, parseInt(ny.value));
-        jacobianText.textContent = 'dA = dx dy';
+        const nxp = Math.max(2, parseInt(nx.value) || 12);
+        const nyp = Math.max(2, parseInt(ny.value) || 12);
+        
+        // Validate parsed values
+        if (!isFinite(x0) || !isFinite(x1) || !isFinite(y0) || !isFinite(y1)) {
+            console.error('Invalid bounds in renderDoubleCartesian');
+            return;
+        }
+        
+        if (jacobianText) jacobianText.textContent = 'dA = dx dy';
         clearGroup(surfaceGroup); clearGroup(columnsGroup); clearGroup(regionGroup); clearGroup(wedgeGroup);
         const compiled = tryCompileEquation();
-        if (showSurface.checked) {
+        if (showSurface && showSurface.checked && surfaceGroup) {
             const surf = buildSurfaceFromFunction(compiled, x0, x1, y0, y1, 64, 64);
-            surfaceGroup.add(surf);
+            if (surf) surfaceGroup.add(surf);
         }
-        if (showRegion.checked) addRegionRectangle(x0, x1, y0, y1);
+        if (showRegion && showRegion.checked) addRegionRectangle(x0, x1, y0, y1);
         let estimate = 0;
-        if (showColumns.checked) {
+        if (showColumns && showColumns.checked) {
             estimate = addColumnsCartesian(compiled, x0, x1, y0, y1, nxp, nyp);
         }
-        if (showWedge.checked) {
+        if (showWedge && showWedge.checked && wedgeGroup) {
             // representative dA rectangle on XY plane (Z-up)
             const dx = (x1 - x0) / nxp, dy = (y1 - y0) / nyp;
             const geom = new THREE.BoxGeometry(dx, dy, 0.02);
@@ -744,42 +775,46 @@
             wedgeGroup.add(box);
         }
         lastEstimate = estimate;
-        integralEstimate.textContent = `Approx ∬ f dA ≈ ${estimate.toFixed(3)}`;
+        if (integralEstimate) integralEstimate.textContent = `Approx ∬ f dA ≈ ${estimate.toFixed(3)}`;
         fitCameraToContent();
     }
 
     function renderDoublePolar() {
+        if (!rMin || !rMax || !thetaMin || !thetaMax || !nx || !ny) {
+            console.error('Input elements not available in renderDoublePolar');
+            return;
+        }
         const r0 = parseFloat(rMin.value), r1 = parseFloat(rMax.value);
         const t0 = deg2rad(parseFloat(thetaMin.value)), t1 = deg2rad(parseFloat(thetaMax.value));
-        const nr = Math.max(2, parseInt(nx.value));
-        const nt = Math.max(2, parseInt(ny.value));
-        jacobianText.textContent = 'In polar: dA = r dr dθ';
+        const nr = Math.max(2, parseInt(nx.value) || 12);
+        const nt = Math.max(2, parseInt(ny.value) || 12);
+        if (jacobianText) jacobianText.textContent = 'In polar: dA = r dr dθ';
         clearGroup(surfaceGroup); clearGroup(columnsGroup); clearGroup(regionGroup); clearGroup(wedgeGroup);
         const expr = tryCompileEquation();
         // Guard degenerate bounds; if invalid, render a default surface around origin
         const degenerateBounds = !(isFinite(r0) && isFinite(r1) && (r1 > r0 + 1e-6));
         if (degenerateBounds) {
             console.warn('Polar bounds degenerate; using default surface in [-3,3]^2');
-            if (showSurface.checked) {
+            if (showSurface && showSurface.checked && surfaceGroup) {
                 const x0 = -3, x1 = 3, y0 = -3, y1 = 3;
                 const surf = buildSurfaceFromFunction(expr, x0, x1, y0, y1, 64, 64);
-                surfaceGroup.add(surf);
+                if (surf) surfaceGroup.add(surf);
             }
             fitCameraToContent();
             return;
         }
-        if (showRegion.checked) addRegionPolar(r0, r1, t0, t1);
-        if (showSurface.checked) {
+        if (showRegion && showRegion.checked) addRegionPolar(r0, r1, t0, t1);
+        if (showSurface && showSurface.checked && surfaceGroup) {
             // sample surface over the bounding rectangle in xy
             const x0 = -r1, x1 = r1, y0 = -r1, y1 = r1;
             const surf = buildSurfaceFromFunction(expr, x0, x1, y0, y1, 64, 64);
-            surfaceGroup.add(surf);
+            if (surf) surfaceGroup.add(surf);
         }
         let estimate = 0;
-        if (showColumns.checked) {
+        if (showColumns && showColumns.checked) {
             estimate = addColumnsPolar(expr, r0, r1, t0, t1, nr, nt);
         }
-        if (showWedge.checked) {
+        if (showWedge && showWedge.checked && wedgeGroup) {
             const rc = (r0 + r1) / 2; const dt = (t1 - t0) / nt; const dr = (r1 - r0) / nr;
             const geom = new THREE.BoxGeometry(dr, Math.max(0.001, rc * dt), 0.02);
             const mat = new THREE.MeshStandardMaterial({ color: 0xff3b7f, transparent: true, opacity: 0.8 });
@@ -790,54 +825,74 @@
             wedgeGroup.add(box);
         }
         lastEstimate = estimate;
-        integralEstimate.textContent = `Approx ∬ f dA ≈ ${estimate.toFixed(3)}`;
+        if (integralEstimate) integralEstimate.textContent = `Approx ∬ f dA ≈ ${estimate.toFixed(3)}`;
         fitCameraToContent();
     }
 
     function renderTripleCylindrical() {
+        if (!rcMin || !rcMax || !thetacMin || !thetacMax || !zMin || !zMax || !nx || !ny || !nz) {
+            console.error('Input elements not available in renderTripleCylindrical');
+            return;
+        }
         const r0 = parseFloat(rcMin.value), r1 = parseFloat(rcMax.value);
         const t0 = deg2rad(parseFloat(thetacMin.value)), t1 = deg2rad(parseFloat(thetacMax.value));
         const z0 = parseFloat(zMin.value), z1 = parseFloat(zMax.value);
-        jacobianText.textContent = 'In cylindrical: dV = r dr dθ dz';
+        
+        if (!isFinite(r0) || !isFinite(r1) || !isFinite(t0) || !isFinite(t1) || !isFinite(z0) || !isFinite(z1)) {
+            console.error('Invalid bounds in renderTripleCylindrical');
+            return;
+        }
+        
+        if (jacobianText) jacobianText.textContent = 'In cylindrical: dV = r dr dθ dz';
         clearGroup(surfaceGroup); clearGroup(columnsGroup); clearGroup(regionGroup); clearGroup(wedgeGroup);
-        const preset = presetSelect.value;
-        if (showSurface.checked && preset !== 'none') addVolumePreset(preset);
-        if (showRegion.checked) addRegionPolar(r0, r1, t0, t1);
+        const preset = presetSelect ? presetSelect.value : 'none';
+        if (showSurface && showSurface.checked && preset !== 'none') addVolumePreset(preset);
+        if (showRegion && showRegion.checked) addRegionPolar(r0, r1, t0, t1);
         let estimate = 0;
-        if (showColumns.checked) {
-            const nr = Math.max(2, parseInt(nx.value));
-            const nt = Math.max(2, parseInt(ny.value));
-            const nzp = Math.max(1, parseInt(nz.value));
+        if (showColumns && showColumns.checked) {
+            const nr = Math.max(2, parseInt(nx.value) || 12);
+            const nt = Math.max(2, parseInt(ny.value) || 12);
+            const nzp = Math.max(1, parseInt(nz.value) || 8);
             estimate = addVoxelsCylindrical(r0, r1, t0, t1, z0, z1, nr, nt, nzp);
         }
-        if (showWedge.checked) addDVWedgeCylindrical(r0, r1, t0, t1, z0, z1);
+        if (showWedge && showWedge.checked) addDVWedgeCylindrical(r0, r1, t0, t1, z0, z1);
         lastEstimate = estimate;
-        integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
+        if (integralEstimate) integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
         fitCameraToContent();
     }
 
     function renderTripleSpherical() {
+        if (!rhoMin || !rhoMax || !phiMin || !phiMax || !thetasMin || !thetasMax || !nx || !ny || !nz) {
+            console.error('Input elements not available in renderTripleSpherical');
+            return;
+        }
         const rh0 = parseFloat(rhoMin.value), rh1 = parseFloat(rhoMax.value);
         const ph0 = deg2rad(parseFloat(phiMin.value)), ph1 = deg2rad(parseFloat(phiMax.value));
         const th0 = deg2rad(parseFloat(thetasMin.value)), th1 = deg2rad(parseFloat(thetasMax.value));
-        jacobianText.textContent = 'In spherical: dV = ρ² sinφ dρ dφ dθ';
+        
+        if (!isFinite(rh0) || !isFinite(rh1) || !isFinite(ph0) || !isFinite(ph1) || !isFinite(th0) || !isFinite(th1)) {
+            console.error('Invalid bounds in renderTripleSpherical');
+            return;
+        }
+        
+        if (jacobianText) jacobianText.textContent = 'In spherical: dV = ρ² sinφ dρ dφ dθ';
         clearGroup(surfaceGroup); clearGroup(columnsGroup); clearGroup(regionGroup); clearGroup(wedgeGroup);
-        const preset = presetSelect.value;
-        if (showSurface.checked && preset !== 'none') addVolumePreset(preset);
-        if (showRegion.checked) {
+        const preset = presetSelect ? presetSelect.value : 'none';
+        if (showSurface && showSurface.checked && preset !== 'none') addVolumePreset(preset);
+        if (showRegion && showRegion.checked) {
             // approximate spherical sector by showing its projection ring
             addRegionPolar(0, rh1 * Math.sin((ph0 + ph1) / 2), th0, th1);
         }
         let estimate = 0;
-        if (showColumns.checked) {
-            const nr = Math.max(2, parseInt(nx.value));
-            const nphi = Math.max(2, parseInt(ny.value));
-            const nth = Math.max(2, parseInt(nz.value));
+        if (showColumns && showColumns.checked) {
+            const nr = Math.max(2, parseInt(nx.value) || 12);
+            const nphi = Math.max(2, parseInt(ny.value) || 12);
+            const nth = Math.max(2, parseInt(nz.value) || 8);
             estimate = addVoxelsSpherical(rh0, rh1, ph0, ph1, th0, th1, nr, nphi, nth);
         }
-        if (showWedge.checked) addDVWedgeSpherical(rh0, rh1, ph0, ph1, th0, th1);
+        if (showWedge && showWedge.checked) addDVWedgeSpherical(rh0, rh1, ph0, ph1, th0, th1);
         lastEstimate = estimate;
-        integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
+        if (integralEstimate) integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
         fitCameraToContent();
     }
 
@@ -855,7 +910,7 @@
         if (preset === 'cone') {
             xMin.value = -2; xMax.value = 2; yMin.value = -2; yMax.value = 2;
             rMin.value = 0; rMax.value = 2; thetaMin.value = 0; thetaMax.value = 360;
-            rcMin.value = 0; rcMax.value = 2; thetacMin.value = 0; thetacMax.value = 360; zMin.value = 0; zMax.value = 3;
+            rcMin.value = 0; rcMax.value = 2; thetacMin.value = 0; thetacMax.value = 360; zMin.value = -1.5; zMax.value = 1.5;
             rhoMin.value = 0; rhoMax.value = 3; phiMin.value = 0; phiMax.value = 90; thetasMin.value = 0; thetasMax.value = 360;
             equationInput.value = 'sqrt(x^2 + y^2)';
         } else if (preset === 'sphere') {
@@ -873,7 +928,7 @@
         } else if (preset === 'paraboloid') {
             xMin.value = -3; xMax.value = 3; yMin.value = -3; yMax.value = 3;
             rMin.value = 0; rMax.value = 3; thetaMin.value = 0; thetaMax.value = 360;
-            rcMin.value = 0; rcMax.value = 3; thetacMin.value = 0; thetacMax.value = 360; zMin.value = 0; zMax.value = 5;
+            rcMin.value = 0; rcMax.value = 3; thetacMin.value = 0; thetacMax.value = 360; zMin.value = -2.5; zMax.value = 2.5;
             rhoMin.value = 0; rhoMax.value = 5; phiMin.value = 0; phiMax.value = 120; thetasMin.value = 0; thetasMax.value = 360;
             equationInput.value = '0.5*(x^2 + y^2)';
         }
@@ -888,6 +943,10 @@
     }
 
     function ensureSomethingVisible() {
+        if (!surfaceGroup || !columnsGroup || !regionGroup || !wedgeGroup) {
+            console.error('Groups not initialized in ensureSomethingVisible');
+            return;
+        }
         const totalChildren = surfaceGroup.children.length + columnsGroup.children.length + regionGroup.children.length + wedgeGroup.children.length;
         if (totalChildren === 0) {
             // Add a simple fallback plane so the user sees something
@@ -895,7 +954,7 @@
                 new THREE.PlaneGeometry(6, 6),
                 new THREE.MeshBasicMaterial({ color: 0x99c1ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
             );
-            plane.rotation.x = Math.PI / 2; // align to XY at z=0 in Z-up
+            // PlaneGeometry is already in XY plane in Z-up world, no rotation needed
             surfaceGroup.add(plane);
             console.warn('No visible content produced by render(); added fallback plane.');
         }
@@ -905,7 +964,36 @@
 
     function init() {
         captureElements();  // Capture DOM elements first
+        
+        // Verify THREE.js is loaded
+        if (!THREE || !THREE.WebGLRenderer) {
+            console.error('THREE.js not available in init()');
+            if (canvasHost) {
+                canvasHost.innerHTML = '<div style="padding:20px;color:#c8102e;font-family:sans-serif;">Error: THREE.js library failed to load. Please refresh the page.</div>';
+            }
+            return;
+        }
+        
+        // Verify math.js is loaded
+        if (typeof math === 'undefined' || !math.parse) {
+            console.error('math.js not available in init()');
+            if (canvasHost) {
+                canvasHost.innerHTML = '<div style="padding:20px;color:#c8102e;font-family:sans-serif;">Error: Math.js library failed to load. Please refresh the page.</div>';
+            }
+            return;
+        }
+        
         setupThree();
+        
+        // Verify setupThree succeeded
+        if (!renderer || !scene || !camera) {
+            console.error('setupThree() failed to initialize properly');
+            if (canvasHost) {
+                canvasHost.innerHTML = '<div style="padding:20px;color:#c8102e;font-family:sans-serif;">Error: WebGL initialization failed. Your browser may not support WebGL.</div>';
+            }
+            return;
+        }
+        
         updatePanelsVisibility();
         applyPresetBounds();
         render();

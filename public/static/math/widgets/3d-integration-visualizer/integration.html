@@ -197,14 +197,14 @@
 
             <section class="panel actions">
                 <button id="renderBtn" class="btn">Render</button>
-                <button id="resetCameraBtn" class="btn btn--outline">Reset camera</button>
+                <button id="resetCameraBtn" class="btn btn-outline">Reset camera</button>
             </section>
 
             <section class="panel info">
                 <div id="jacobianText">dA = dx dy</div>
                 <div id="integralEstimate">Approx ∬ f dA = …</div>
                 <div class="actions" style="margin-top:8px;gap:8px">
-                    <button id="compareBtn" class="btn btn--outline btn--sm" type="button">Check vs exact</button>
+                    <button id="compareBtn" class="btn btn-outline btn-sm" type="button">Check vs exact</button>
                     <div id="compareResult" class="helper-text"></div>
                 </div>
             </section>
@@ -223,28 +223,18 @@
 
     <script src="theme.js"></script>
     <script type="module">
-        import * as THREE_MOD from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-        import { OrbitControls as OrbitControlsMod } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-        window.THREE = THREE_MOD;
-        window.THREE.OrbitControls = OrbitControlsMod;
-        
-        // Load integration.js only after THREE is ready AND DOM is ready
-        function loadIntegration() {
-            const script = document.createElement('script');
-            script.src = 'integration.js';
-            document.body.appendChild(script);
-        }
-        
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadIntegration);
-        } else {
-            loadIntegration();
-        }
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+        // Expose for the existing IIFE in integration.js
+        window.THREE = THREE;
+        window.THREE.OrbitControls = OrbitControls;
+        // Load the viewer code once THREE is present
+        import('./integration.js');
+    </script>
+    <script>
+    // Prevent pinch-zoom from interfering with orbit controls on iOS
+    document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
     </script>
 </body>
-<script>
-// Prevent pinch-zoom from interfering with orbit controls on iOS
-document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
-</script>
 </html>
 
