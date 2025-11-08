@@ -411,6 +411,8 @@
         const pol1LagSpeedFactor = 1.1; // lagging strand runs ~10% faster
         const pol1Color = '#3b82f6'; // blue enzyme fill
         const pol1Stroke = '#1d4ed8'; // blue enzyme stroke
+        // Visible nick gap between Pol I patches and Pol III products
+        const nickGapPx = 8;
 
         function updatePol3CTA() {
           if (!pol3Btn) return;
@@ -682,13 +684,36 @@
           return rect;
         }
 
-        function mergePol1PathTop(xLeft, xRight) {
-          const overlap = 12; // increased overlap to avoid any seams
-          const xs = Math.max(startX, xLeft - overlap);
-          const xe = Math.min(helicaseEndX, xRight + overlap);
+        function mergePol1PathTop(xLeft, xRight, pol3StartX) {
+          // Leave nick only where Pol I meets Pol III (to the right on leading)
+          const xs = Math.max(startX, xLeft);
+          const xe = Math.min(helicaseEndX, Math.min(xRight, pol3StartX - nickGapPx));
           const path = document.createElementNS(NS, 'path');
           let d = '';
           let started = false;
+          if (!(xe > xs)) {
+            // Fallback: draw a minimal segment inside the primer bounds
+            const xs2 = Math.max(startX, xLeft + 2);
+            const xe2 = Math.min(helicaseEndX, xRight - 2);
+            if (xe2 > xs2) {
+              for (let x = xs2; x <= xe2; x += step) {
+                const yTop = centerY - forkOffsetLeft(x, helicaseEndX);
+                const y = yTop + pol3PathOffset;
+                if (!started) { d += 'M ' + x + ' ' + y; started = true; }
+                else { d += ' L ' + x + ' ' + y; }
+              }
+              path.setAttribute('d', d || `M ${xs2} ${centerY}`);
+              path.setAttribute('class', 'pol3-path');
+              pol3Group.appendChild(path);
+              const blocks = pol1Group.querySelectorAll('rect.pol1-block');
+              blocks.forEach(b => b.parentNode?.removeChild(b));
+              return;
+            } else {
+              const blocks = pol1Group.querySelectorAll('rect.pol1-block');
+              blocks.forEach(b => b.parentNode?.removeChild(b));
+              return;
+            }
+          }
           for (let x = xs; x <= xe; x += step) {
             const yTop = centerY - forkOffsetLeft(x, helicaseEndX);
             const y = yTop + pol3PathOffset;
@@ -703,14 +728,37 @@
           blocks.forEach(b => b.parentNode?.removeChild(b));
         }
 
-        function mergePol1PathBottom(xRight, xLeft) {
-          const overlap = 12; // increased overlap to avoid any seams
-          const xr = Math.min(helicaseEndX, xRight + overlap);
-          const xl = Math.max(startX, xLeft - overlap);
+        function mergePol1PathBottom(xRight, xLeft, rightFragEnd, leftFragEnd) {
+          // Leave nick only where Pol I meets Pol III (to the left on lagging)
+          const xl = Math.max(startX, Math.max(xLeft, rightFragEnd + nickGapPx));
+          const xr = Math.min(helicaseEndX, xRight);
           const path = document.createElementNS(NS, 'path');
           let d = '';
           let started = false;
           const stepSize = Math.max(2, Math.min(6, step));
+          if (!(xr > xl)) {
+            // Fallback: draw a minimal segment inside the primer bounds
+            const xl2 = Math.max(startX, xLeft + 2);
+            const xr2 = Math.min(helicaseEndX, xRight - 2);
+            if (xr2 > xl2) {
+              for (let x = xr2; x >= xl2; x -= stepSize) {
+                const yBottom = centerY + forkOffsetLeft(x, helicaseEndX);
+                const y = yBottom - pol3PathOffset;
+                if (!started) { d += 'M ' + x + ' ' + y; started = true; }
+                else { d += ' L ' + x + ' ' + y; }
+              }
+              path.setAttribute('d', d || `M ${xr2} ${centerY}`);
+              path.setAttribute('class', 'pol3-path');
+              pol3LagGroup.appendChild(path);
+              const blocks = pol1Group.querySelectorAll('rect.pol1-block');
+              blocks.forEach(b => b.parentNode?.removeChild(b));
+              return;
+            } else {
+              const blocks = pol1Group.querySelectorAll('rect.pol1-block');
+              blocks.forEach(b => b.parentNode?.removeChild(b));
+              return;
+            }
+          }
           for (let x = xr; x >= xl; x -= stepSize) {
             const yBottom = centerY + forkOffsetLeft(x, helicaseEndX);
             const y = yBottom - pol3PathOffset;
@@ -961,7 +1009,8 @@
                   cancelAnimationFrame(pol1AnimId);
                   pol1AnimId = null;
                   // merge and remove primer
-                  mergePol1PathTop(seg.xLeft, seg.xRight);
+                  const pol3Start = startX + (primerBlockWidth / 2) + pol3BlockGap;
+                  mergePol1PathTop(seg.xLeft, seg.xRight, pol3Start);
                   segIndex++;
                   if (segIndex < segments.length) {
                     const nextSeg = segments[segIndex];
@@ -1005,7 +1054,14 @@
                 if (pol1FrontX <= seg.xLeft) {
                   cancelAnimationFrame(pol1AnimId);
                   pol1AnimId = null;
-                  mergePol1PathBottom(seg.xRight, seg.xLeft);
+                  // Determine neighboring Pol III fragment endpoints for trimming
+                  const rightFragEnd = seg.xLeft - pol3BlockGap;
+                  const leftClamp = startX + 10;
+                  const nextSeg = segments[segIndex + 1];
+                  const leftFragEnd = (nextSeg && nextSeg.type === 'bottom')
+                    ? nextSeg.xRight + pol3BlockGap
+                    : leftClamp;
+                  mergePol1PathBottom(seg.xRight, seg.xLeft, rightFragEnd, leftFragEnd);
                   segIndex++;
                   if (segIndex < segments.length) {
                     const nextSeg = segments[segIndex];
