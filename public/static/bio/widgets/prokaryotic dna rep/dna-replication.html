@@ -377,6 +377,8 @@
         g.appendChild(ligaseGroup);
         g.appendChild(topLabel);
         g.appendChild(bottomLabel);
+        // Hide helicase until helicase button is pressed
+        helicase.style.display = 'none';
         g.appendChild(helicase);
         topo.style.display = 'none';
         g.appendChild(topo);
@@ -576,6 +578,7 @@
           lastTs = null;
           // Ensure fork begins at the helicase location
           setHelicasePoints(helicaseX);
+          helicase.style.display = '';
           topo.style.display = '';
           setTopoisomerasePosition(helicaseX);
           // Keep fully formed helix at t=0; fork appears as motion begins
@@ -1428,6 +1431,7 @@
           // Restore full double helix
           render(startX - 1);
           setHelicasePoints(helicaseStartX);
+          helicase.style.display = 'none';
           topo.style.display = 'none';
           // Remove completion junctions if present
           if (junctionsAdded) {
