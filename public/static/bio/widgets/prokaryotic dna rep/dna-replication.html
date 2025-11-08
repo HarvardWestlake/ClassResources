@@ -22,6 +22,7 @@
         <span id="primase-status" aria-hidden="true"></span>
         <button id="pol3-start" type="button" style="display:none" disabled>DNA Pol III</button>
         <button id="pol1-start" type="button" aria-label="Replace RNA primers with DNA (DNA Pol I)" style="display:none" disabled>DNA Pol I</button>
+        <button id="ligase-start" type="button" style="display:none" disabled>DNA Ligase</button>
         <button id="helicase-reset" type="button" style="display:none">Reset</button>
       </div>
 
@@ -74,6 +75,9 @@
         // Group for DNA Pol I (primer replacement)
         const pol1Group = document.createElementNS(NS, 'g');
         pol1Group.setAttribute('id', 'pol1');
+        // Group for Ligase (enzyme + welds)
+        const ligaseGroup = document.createElementNS(NS, 'g');
+        ligaseGroup.setAttribute('id', 'ligase');
         // Small connector segments drawn at completion to join unwound strands
         // to the residual helical tail visually
         const junctionTopPath = document.createElementNS(NS, 'path');
@@ -213,7 +217,7 @@
           primase.setAttribute('ry', String(primaseRy));
         }
         // Primase travel animation helpers (to avoid teleporting between sites)
-        const primaseSpeed = 300; // px per second
+        const primaseSpeed = 380; // px per second
         function getPrimaseXY() {
           const cxAttr = primase.getAttribute('cx');
           const cyAttr = primase.getAttribute('cy');
@@ -351,6 +355,8 @@
         g.appendChild(pol3LagGroup);
         // Place Pol I group above primers and Pol III products
         g.appendChild(pol1Group);
+        // Place ligase on top of synthesis groups
+        g.appendChild(ligaseGroup);
         g.appendChild(topLabel);
         g.appendChild(bottomLabel);
         g.appendChild(helicase);
@@ -396,6 +402,11 @@
         let pol1AnimId = null;
         let pol1LastTs = null;
         let pol1Enzyme = null; // moving enzyme circle for Pol I
+        // Ligase state
+        let ligaseActive = false;
+        let ligaseCompleted = false;
+        let ligaseEnzyme = null;
+        let ligaseNicks = [];
 
         // Pol III visual/animation constants
         const pol3BlockWidth = 20;
@@ -438,6 +449,30 @@
             pol1Btn.style.display = 'none';
             pol1Btn.disabled = true;
           }
+        }
+
+        function updateLigaseCTA() {
+          const ligBtn = document.getElementById('ligase-start');
+          if (!ligBtn) return;
+          if (pol1Completed) {
+            ligBtn.style.display = '';
+            ligBtn.disabled = ligaseNicks.length === 0 || ligaseActive || ligaseCompleted;
+          } else {
+            ligBtn.style.display = 'none';
+            ligBtn.disabled = true;
+          }
+        }
+
+        function addLigaseNick(nick) {
+          const eps = 1;
+          for (const n of ligaseNicks) {
+            if (n.strand === nick.strand &&
+                Math.abs(n.xLeft - nick.xLeft) < eps &&
+                Math.abs(n.xRight - nick.xRight) < eps) {
+              return;
+            }
+          }
+          ligaseNicks.push(nick);
         }
 
         /* removed: separate lagging CTA (combined into single Pol III button) */
@@ -707,10 +742,14 @@
               pol3Group.appendChild(path);
               const blocks = pol1Group.querySelectorAll('rect.pol1-block');
               blocks.forEach(b => b.parentNode?.removeChild(b));
+              // Record the leading-strand nick at the junction with Pol III
+              addLigaseNick({ strand: 'top', xLeft: Math.max(startX, pol3StartX - nickGapPx), xRight: Math.max(startX, pol3StartX) });
+              updateLigaseCTA();
               return;
             } else {
               const blocks = pol1Group.querySelectorAll('rect.pol1-block');
               blocks.forEach(b => b.parentNode?.removeChild(b));
+              updateLigaseCTA();
               return;
             }
           }
@@ -726,10 +765,14 @@
 
           const blocks = pol1Group.querySelectorAll('rect.pol1-block');
           blocks.forEach(b => b.parentNode?.removeChild(b));
+          // Record the leading-strand nick at the junction with Pol III
+          addLigaseNick({ strand: 'top', xLeft: Math.max(startX, pol3StartX - nickGapPx), xRight: Math.max(startX, pol3StartX) });
+          updateLigaseCTA();
         }
 
         function mergePol1PathBottom(xRight, xLeft, rightFragEnd, leftFragEnd) {
-          // Leave nick only where Pol I meets Pol III (to the left on lagging)
+          // Leave a nick only where this segment meets the right-hand Pol III fragment.
+          // The left-hand junction nick will be handled by the next (left) segment.
           const xl = Math.max(startX, Math.max(xLeft, rightFragEnd + nickGapPx));
           const xr = Math.min(helicaseEndX, xRight);
           const path = document.createElementNS(NS, 'path');
@@ -752,10 +795,16 @@
               pol3LagGroup.appendChild(path);
               const blocks = pol1Group.querySelectorAll('rect.pol1-block');
               blocks.forEach(b => b.parentNode?.removeChild(b));
+              // Record the lagging-strand nick at the junction with the right Pol III fragment
+              addLigaseNick({ strand: 'bottom', xLeft: rightFragEnd, xRight: rightFragEnd + nickGapPx });
+              // Also record the left-hand junction nick (between this Pol I patch and the left Pol III fragment)
+              addLigaseNick({ strand: 'bottom', xLeft: Math.max(startX, leftFragEnd - nickGapPx), xRight: Math.max(startX, leftFragEnd) });
+              updateLigaseCTA();
               return;
             } else {
               const blocks = pol1Group.querySelectorAll('rect.pol1-block');
               blocks.forEach(b => b.parentNode?.removeChild(b));
+              updateLigaseCTA();
               return;
             }
           }
@@ -771,6 +820,11 @@
 
           const blocks = pol1Group.querySelectorAll('rect.pol1-block');
           blocks.forEach(b => b.parentNode?.removeChild(b));
+          // Record the lagging-strand nick at the junction with the right Pol III fragment
+          addLigaseNick({ strand: 'bottom', xLeft: rightFragEnd, xRight: rightFragEnd + nickGapPx });
+          // Also record the left-hand junction nick (between this Pol I patch and the left Pol III fragment)
+          addLigaseNick({ strand: 'bottom', xLeft: Math.max(startX, leftFragEnd - nickGapPx), xRight: Math.max(startX, leftFragEnd) });
+          updateLigaseCTA();
         }
 
         // Travel animation for Pol I enzyme between segment starts
@@ -978,6 +1032,7 @@
               if (pol1Enzyme && pol1Enzyme.parentNode) pol1Enzyme.parentNode.removeChild(pol1Enzyme);
               pol1Enzyme = null;
               if (pol1Btn) pol1Btn.disabled = true;
+              updateLigaseCTA();
               return;
             }
 
@@ -1085,6 +1140,122 @@
         pol1Btn?.addEventListener('click', () => {
           if (pol1Btn) pol1Btn.disabled = true;
           startPol1();
+        });
+
+        // ===== DNA Ligase (Seals nicks) =====
+        function ensureLigaseEnzyme() {
+          if (ligaseEnzyme) return ligaseEnzyme;
+          const c = document.createElementNS(NS, 'circle');
+          c.setAttribute('r', String(Math.max(8, pol3BlockHeight / 2 + 6)));
+          c.setAttribute('class', 'ligase-enzyme');
+          ligaseGroup.appendChild(c);
+          ligaseEnzyme = c;
+          return c;
+        }
+
+        function getLigaseXY() {
+          if (!ligaseEnzyme) return { x: NaN, y: NaN };
+          const cx = parseFloat(ligaseEnzyme.getAttribute('cx') || 'NaN');
+          const cy = parseFloat(ligaseEnzyme.getAttribute('cy') || 'NaN');
+          return { x: cx, y: cy };
+        }
+
+        function travelLigaseTo(xTarget, yTarget, durationMs, onDone) {
+          ensureLigaseEnzyme();
+          const start = getLigaseXY();
+          const xStart = Number.isFinite(start.x) ? start.x : xTarget;
+          const yStart = Number.isFinite(start.y) ? start.y : yTarget;
+          const t0 = performance.now();
+          function step(now) {
+            const t = Math.min(1, (now - t0) / durationMs);
+            const x = xStart + (xTarget - xStart) * t;
+            const y = yStart + (yTarget - yStart) * t;
+            ligaseEnzyme.setAttribute('cx', String(x));
+            ligaseEnzyme.setAttribute('cy', String(y));
+            ligaseGroup.appendChild(ligaseEnzyme);
+            if (t < 1) requestAnimationFrame(step);
+            else if (onDone) onDone();
+          }
+          requestAnimationFrame(step);
+        }
+
+        function sealNick(n, onDone) {
+          const overlapPx = 1;
+          const path = document.createElementNS(NS, 'path');
+          let d = '';
+          const stepSize = Math.max(2, Math.min(6, step));
+          if (n.strand === 'top') {
+            const xs = Math.max(startX, n.xLeft - overlapPx);
+            const xe = Math.min(helicaseEndX, n.xRight + overlapPx);
+            for (let x = xs; x <= xe; x += stepSize) {
+              const yTop = centerY - forkOffsetLeft(x, helicaseEndX);
+              const y = yTop + pol3PathOffset;
+              if (!d) d = 'M ' + x + ' ' + y;
+              else d += ' L ' + x + ' ' + y;
+            }
+          } else {
+            const xs = Math.max(startX, n.xLeft - overlapPx);
+            const xe = Math.min(helicaseEndX, n.xRight + overlapPx);
+            for (let x = xe; x >= xs; x -= stepSize) {
+              const yBottom = centerY + forkOffsetLeft(x, helicaseEndX);
+              const y = yBottom - pol3PathOffset;
+              if (!d) d = 'M ' + x + ' ' + y;
+              else d += ' L ' + x + ' ' + y;
+            }
+          }
+          path.setAttribute('d', d || `M ${n.xLeft} ${centerY}`);
+          path.setAttribute('class', 'ligase-weld');
+          ligaseGroup.appendChild(path);
+          if (onDone) onDone();
+        }
+
+        function startLigase() {
+          if (ligaseActive || ligaseCompleted) return;
+          if (!ligaseNicks.length) return;
+          ligaseActive = true;
+          ensureLigaseEnzyme();
+          // Order: top first (if any), then bottom from right to left
+          const topNicks = ligaseNicks.filter(n => n.strand === 'top');
+          const bottomNicks = ligaseNicks.filter(n => n.strand === 'bottom').sort((a, b) => b.xRight - a.xRight);
+          const seq = [...topNicks, ...bottomNicks];
+          let i = 0;
+          function next() {
+            if (i >= seq.length) {
+              ligaseActive = false;
+              ligaseCompleted = true;
+              // Remove enzyme after completion
+              if (ligaseEnzyme && ligaseEnzyme.parentNode) ligaseEnzyme.parentNode.removeChild(ligaseEnzyme);
+              ligaseEnzyme = null;
+              const ligBtn = document.getElementById('ligase-start');
+              if (ligBtn) ligBtn.disabled = true;
+              return;
+            }
+            const n = seq[i++];
+            const xTarget = n.strand === 'top' ? n.xLeft : n.xRight;
+            const yTarget = (function() {
+              if (n.strand === 'top') {
+                const yTop = centerY - forkOffsetLeft(xTarget, helicaseEndX);
+                return yTop + (pol3BlockHeight / 2) + pol3OffsetUnder;
+              } else {
+                const yBottom = centerY + forkOffsetLeft(xTarget, helicaseEndX);
+                return yBottom - (pol3BlockHeight / 2) - pol3OffsetUnder;
+              }
+            })();
+            const cur = getLigaseXY();
+            const dx = xTarget - (Number.isFinite(cur.x) ? cur.x : xTarget);
+            const dy = yTarget - (Number.isFinite(cur.y) ? cur.y : yTarget);
+            const travelMs = Math.max(200, (Math.hypot(dx, dy) / 380) * 1000);
+            travelLigaseTo(xTarget, yTarget, travelMs, () => {
+              sealNick(n, next);
+            });
+          }
+          next();
+        }
+
+        const ligaseBtn = document.getElementById('ligase-start');
+        ligaseBtn?.addEventListener('click', () => {
+          if (ligaseBtn) ligaseBtn.disabled = true;
+          startLigase();
         });
 
         function ensurePol3LagEnzyme() {
@@ -1282,6 +1453,14 @@
           pol1LastTs = null;
           pol1Enzyme = null;
           if (pol1Btn) { pol1Btn.disabled = true; pol1Btn.style.display = 'none'; }
+          // Clear Ligase visuals and state
+          while (ligaseGroup.firstChild) ligaseGroup.removeChild(ligaseGroup.firstChild);
+          ligaseActive = false;
+          ligaseCompleted = false;
+          ligaseNicks = [];
+          ligaseEnzyme = null;
+          const ligBtn = document.getElementById('ligase-start');
+          if (ligBtn) { ligBtn.disabled = true; ligBtn.style.display = 'none'; }
         });
       })();
     </script>

@@ -128,6 +128,19 @@ svg#replication-svg {
   stroke-width: 2;
 }
 
+.ligase-enzyme {
+  fill: #f59e0b;
+  stroke: #b45309;
+  stroke-width: 2;
+}
+
+.ligase-weld {
+  fill: none;
+  stroke: #10b981;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
 .label.prime {
   font-size: 14px;
   fill: var(--muted);
