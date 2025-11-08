@@ -212,6 +212,31 @@
           primase.setAttribute('rx', String(primaseRx));
           primase.setAttribute('ry', String(primaseRy));
         }
+        // Primase travel animation helpers (to avoid teleporting between sites)
+        const primaseSpeed = 300; // px per second
+        function getPrimaseXY() {
+          const cxAttr = primase.getAttribute('cx');
+          const cyAttr = primase.getAttribute('cy');
+          const cx = cxAttr == null ? NaN : parseFloat(cxAttr);
+          const cy = cyAttr == null ? NaN : parseFloat(cyAttr);
+          return { x: cx, y: cy, hasPos: Number.isFinite(cx) && Number.isFinite(cy) };
+        }
+        function travelPrimaseTo(xTarget, yTarget, durationMs, onDone) {
+          const { x: xStart, y: yStart } = getPrimaseXY();
+          const t0 = performance.now();
+          function step(now) {
+            const t = Math.min(1, (now - t0) / durationMs);
+            const x = (Number.isFinite(xStart) ? xStart : xTarget) + ((xTarget - (Number.isFinite(xStart) ? xStart : xTarget)) * t);
+            const y = (Number.isFinite(yStart) ? yStart : yTarget) + ((yTarget - (Number.isFinite(yStart) ? yStart : yTarget)) * t);
+            setPrimasePosition(x, y);
+            if (t < 1) {
+              requestAnimationFrame(step);
+            } else {
+              if (onDone) onDone();
+            }
+          }
+          requestAnimationFrame(step);
+        }
 
         function render(forkX) {
           const { dBackA, dBackB, dTempA, dTempB } = buildPaths(forkX);
@@ -529,30 +554,47 @@
           })();
           positions.push(...laggingPositions);
 
-          // Show primase enzyme and place primers sequentially
+          // Show primase enzyme and place primers sequentially with travel animation
           primase.style.display = '';
-          const delayMs = 600;
-          let idx = 0;
-          function placeNext() {
-            const pos = positions[idx];
-            setPrimasePosition(pos.x, pos.y);
+          const placePrimerAt = (pos) => {
             if (pos.leading && !leadingPrimerPlaced) {
               makePrimerRect(pos.x, pos.y, true);
               leadingPrimerPlaced = true;
             } else if (!pos.leading) {
               makePrimerRect(pos.x, pos.y, false);
             }
-            idx++;
-            if (idx < positions.length) {
-              setTimeout(placeNext, delayMs);
-            } else {
+          };
+          let idx = 0;
+          if (positions.length === 0) {
+            primase.style.display = 'none';
+            laggingPrimersPlaced = true;
+            updatePol3CTA();
+            return;
+          }
+          // Place the first primer immediately at its target position
+          setPrimasePosition(positions[0].x, positions[0].y);
+          placePrimerAt(positions[0]);
+          idx = 1;
+          function moveNext() {
+            if (idx >= positions.length) {
               primase.style.display = 'none';
               laggingPrimersPlaced = true;
               // no status text
               updatePol3CTA();
+              return;
             }
+            const target = positions[idx];
+            const cur = getPrimaseXY();
+            const dx = target.x - (cur.hasPos ? cur.x : target.x);
+            const dy = target.y - (cur.hasPos ? cur.y : target.y);
+            const durationMs = Math.max(200, (Math.hypot(dx, dy) / primaseSpeed) * 1000);
+            travelPrimaseTo(target.x, target.y, durationMs, () => {
+              placePrimerAt(target);
+              idx++;
+              moveNext();
+            });
           }
-          placeNext();
+          moveNext();
         });
 
         function getLaggingPrimers() {
