@@ -16,7 +16,7 @@
         </svg>
       </div>
       <div class="controls" aria-label="Replication controls">
-        <button id="helicase-start" type="button">Unwind DNA Helix (Helicase)</button>
+        <button id="helicase-start" type="button">Unwind DNA Helix (Helicase + Topoisomerase)</button>
         <button id="primase-start" type="button" aria-label="Lay down RNA primers (Primase)" style="display:none" disabled>Lay down primers (Primase)</button>
         <span id="helicase-status" aria-hidden="true"></span>
         <span id="primase-status" aria-hidden="true"></span>
@@ -109,6 +109,24 @@
           helicase.setAttribute('points', points);
         }
         setHelicasePoints(helicaseStartX);
+
+        // Topoisomerase (vertical bar) ahead of helicase, centered on DNA band
+        const topo = document.createElementNS(NS, 'rect');
+        topo.setAttribute('class', 'topoisomerase');
+        const topoLeadPx = 28; // distance ahead of helicase along x
+        const topoBarWidth = 8;
+        const topoBarHeight = (amplitude * 2) + 20; // span both strands with margin
+        topo.setAttribute('width', String(topoBarWidth));
+        topo.setAttribute('height', String(topoBarHeight));
+        topo.setAttribute('rx', '3');
+        function setTopoisomerasePosition(forkX) {
+          const xAhead = Math.min(helicaseEndX, forkX + topoLeadPx);
+          // Center the bar vertically over the DNA region
+          const xLeft = xAhead - (topoBarWidth / 2);
+          const yTop = centerY - (topoBarHeight / 2);
+          topo.setAttribute('x', String(xLeft));
+          topo.setAttribute('y', String(yTop));
+        }
 
         // Build initial basepairs and store x on elements
         for (let x = startX; x <= endX; x += basePairEvery) {
@@ -360,6 +378,8 @@
         g.appendChild(topLabel);
         g.appendChild(bottomLabel);
         g.appendChild(helicase);
+        topo.style.display = 'none';
+        g.appendChild(topo);
         primase.style.display = 'none';
         g.appendChild(primase);
 
@@ -509,6 +529,7 @@
 
           helicaseX = Math.min(helicaseEndX, helicaseX + helicaseSpeed * dt);
           setHelicasePoints(helicaseX);
+          setTopoisomerasePosition(helicaseX);
           render(helicaseX);
 
           // Primase remains hidden until helicase completes
@@ -555,6 +576,8 @@
           lastTs = null;
           // Ensure fork begins at the helicase location
           setHelicasePoints(helicaseX);
+          topo.style.display = '';
+          setTopoisomerasePosition(helicaseX);
           // Keep fully formed helix at t=0; fork appears as motion begins
           render(helicaseX - 1);
           animId = requestAnimationFrame(stepAnim);
@@ -1405,6 +1428,7 @@
           // Restore full double helix
           render(startX - 1);
           setHelicasePoints(helicaseStartX);
+          topo.style.display = 'none';
           // Remove completion junctions if present
           if (junctionsAdded) {
             if (junctionTopPath.parentNode) junctionTopPath.parentNode.removeChild(junctionTopPath);

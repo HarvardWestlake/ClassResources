@@ -79,6 +79,12 @@ svg#replication-svg {
   stroke-width: 2;
 }
 
+.topoisomerase {
+  fill: #ec4899;
+  stroke: #be185d;
+  stroke-width: 2;
+}
+
 .primer {
   fill: none;
   stroke-width: 6;
