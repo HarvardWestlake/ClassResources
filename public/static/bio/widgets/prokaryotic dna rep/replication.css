@@ -186,6 +186,12 @@ svg#replication-svg {
   font-variant-numeric: tabular-nums;
 }
 
+.controls #order-notice {
+  margin-left: 8px;
+  color: #dc2626; /* red for error */
+  font-size: 0.9rem;
+}
+
 #caption {
   margin: 10px 2px 0 2px;
   color: var(--muted);
