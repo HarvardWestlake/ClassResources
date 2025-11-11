@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <title>Card Games Compendium</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='20' y='15' width='60' height='70' rx='8' fill='%23d8f1ff' stroke='%23232a38' stroke-width='2'/%3E%3Ctext x='50' y='55' font-size='40' text-anchor='middle' fill='%23ff3b30' font-family='serif' font-weight='bold'%3E♥%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+    <meta
+      name="description"
+      content="A compendium of classic card games with playable Blackjack and High-Low."
+    />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.155.0/build/three.module.js",
+          "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+          "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+          "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <h1 class="site-title">Card Games Compendium</h1>
+        <nav class="site-nav" aria-label="Primary">
+          <a href="#/" class="nav-link">Home</a>
+          <a href="#/blackjack" class="nav-link">Blackjack</a>
+          <a href="#/highlow" class="nav-link">High-Low</a>
+          <a href="#/gems" class="nav-link">Gems</a>
+          <a href="#/pong" class="nav-link">Pong</a>
+          <a href="#/compendium" class="nav-link">Compendium</a>
+          <a href="#/imfs" class="nav-link">IMFs</a>
+          <a href="#/apchem" class="nav-link">AP Chem</a>
+          <a href="#/mvcalc" class="nav-link">MV Calc</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="app" class="container app-root">
+      <noscript
+        >This site requires JavaScript to run the games. Please enable
+        JavaScript.</noscript
+      >
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>Made with ♥ for cards. No downloads, no tracking.</p>
+      </div>
+    </footer>
+
+    <script type="module" src="scripts/main.js"></script>
+  </body>
+</html>
