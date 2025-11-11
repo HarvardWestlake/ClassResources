@@ -526,11 +526,15 @@
                   ><input type="checkbox" id="tsw-show-geom" /> Show
                   geometry</label
                 >
+                <label style="display: flex; gap: 6px; align-items: center"
+                  ><input type="checkbox" id="tsw-indef" /> Indefinite
+                  integral</label
+                >
               </div>
             </div>
           </div>
 
-          <div class="row" style="margin-top: 8px">
+          <div class="row" style="margin-top: 8px" id="tsw-bounds-row">
             <div>
               <label for="tsw-L">Left bound L</label>
               <input
@@ -887,6 +891,8 @@
         const metrics = document.getElementById("tsw-metrics");
         const showSub = document.getElementById("tsw-show-sub");
         const showGeom = document.getElementById("tsw-show-geom");
+        const indefToggle = document.getElementById("tsw-indef");
+        const boundsRow = document.getElementById("tsw-bounds-row");
         const subPanel = document.getElementById("tsw-subpanel");
         const mapBox = document.getElementById("tsw-map");
         const thetaBox = document.getElementById("tsw-theta");
@@ -957,6 +963,7 @@
           R: 2,
           showSub: true,
           showGeom: false,
+          indef: false,
         };
 
         // Load saved widget preferences (URL params take precedence later)
@@ -975,6 +982,7 @@
           const R = parseFloat(url.searchParams.get("R"));
           const ss = url.searchParams.get("showSub");
           const sg = url.searchParams.get("showGeom");
+          const si = url.searchParams.get("indef");
           if (f && configs[f]) state.funcId = f;
           if (Number.isFinite(a) && a > 0) state.a = a;
           const dom = configs[state.funcId].domain(state.a);
@@ -988,6 +996,7 @@
           }
           if (ss != null) state.showSub = ss === "1" || ss === "true";
           if (sg != null) state.showGeom = sg === "1" || sg === "true";
+          if (si != null) state.indef = si === "1" || si === "true";
         }
 
         function writeParams() {
@@ -998,6 +1007,7 @@
           url.searchParams.set("R", String(state.R));
           url.searchParams.set("showSub", state.showSub ? "1" : "0");
           url.searchParams.set("showGeom", state.showGeom ? "1" : "0");
+          url.searchParams.set("indef", state.indef ? "1" : "0");
           history.replaceState(null, "", url.toString());
         }
 
@@ -1009,6 +1019,7 @@
             R: state.R,
             showSub: state.showSub,
             showGeom: state.showGeom,
+            indef: state.indef,
           };
           try {
             localStorage.setItem("tsw_prefs", JSON.stringify(prefs));
@@ -1026,6 +1037,8 @@
           RInput.value = String(state.R);
           showSub.checked = state.showSub;
           showGeom.checked = state.showGeom;
+          if (indefToggle) indefToggle.checked = state.indef;
+          if (boundsRow) boundsRow.style.display = state.indef ? "none" : "";
         }
 
         function linspace(lo, hi, n) {
@@ -1253,40 +1266,45 @@
           curve.setAttribute("class", "tsw-curve");
           svg.appendChild(curve);
 
-          const area = make("path");
-          area.setAttribute("d", buildAreaPath(cfg, state.a, range));
-          area.setAttribute("class", "tsw-area");
-          svg.appendChild(area);
+          if (!state.indef) {
+            const area = make("path");
+            area.setAttribute("d", buildAreaPath(cfg, state.a, range));
+            area.setAttribute("class", "tsw-area");
+            svg.appendChild(area);
+          }
 
           const { xToPx, yToPx } = range._scales;
           const y0 = yToPx(0);
-          const lline = make("line");
-          lline.setAttribute("x1", String(xToPx(state.L)));
-          lline.setAttribute("x2", String(xToPx(state.L)));
-          lline.setAttribute("y1", String(m.top));
-          lline.setAttribute("y2", String(H - m.bottom));
-          lline.setAttribute("class", "tsw-bound");
-          svg.appendChild(lline);
-          const rline = make("line");
-          rline.setAttribute("x1", String(xToPx(state.R)));
-          rline.setAttribute("x2", String(xToPx(state.R)));
-          rline.setAttribute("y1", String(m.top));
-          rline.setAttribute("y2", String(H - m.bottom));
-          rline.setAttribute("class", "tsw-bound");
-          svg.appendChild(rline);
+          let lh, rh;
+          if (!state.indef) {
+            const lline = make("line");
+            lline.setAttribute("x1", String(xToPx(state.L)));
+            lline.setAttribute("x2", String(xToPx(state.L)));
+            lline.setAttribute("y1", String(m.top));
+            lline.setAttribute("y2", String(H - m.bottom));
+            lline.setAttribute("class", "tsw-bound");
+            svg.appendChild(lline);
+            const rline = make("line");
+            rline.setAttribute("x1", String(xToPx(state.R)));
+            rline.setAttribute("x2", String(xToPx(state.R)));
+            rline.setAttribute("y1", String(m.top));
+            rline.setAttribute("y2", String(H - m.bottom));
+            rline.setAttribute("class", "tsw-bound");
+            svg.appendChild(rline);
 
-          const lh = make("circle");
-          lh.setAttribute("cx", String(xToPx(state.L)));
-          lh.setAttribute("cy", String(y0));
-          lh.setAttribute("r", "6");
-          lh.setAttribute("class", "tsw-handle");
-          svg.appendChild(lh);
-          const rh = make("circle");
-          rh.setAttribute("cx", String(xToPx(state.R)));
-          rh.setAttribute("cy", String(y0));
-          rh.setAttribute("r", "6");
-          rh.setAttribute("class", "tsw-handle");
-          svg.appendChild(rh);
+            lh = make("circle");
+            lh.setAttribute("cx", String(xToPx(state.L)));
+            lh.setAttribute("cy", String(y0));
+            lh.setAttribute("r", "6");
+            lh.setAttribute("class", "tsw-handle");
+            svg.appendChild(lh);
+            rh = make("circle");
+            rh.setAttribute("cx", String(xToPx(state.R)));
+            rh.setAttribute("cy", String(y0));
+            rh.setAttribute("r", "6");
+            rh.setAttribute("class", "tsw-handle");
+            svg.appendChild(rh);
+          }
 
           renderGeomOverlay(cfg, state.a, range);
 
@@ -1322,18 +1340,20 @@
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
           }
-          lh.addEventListener("pointerdown", (ev) => {
-            dragging = "L";
-            lh.setPointerCapture(ev.pointerId);
-            window.addEventListener("pointermove", onMove);
-            window.addEventListener("pointerup", onUp);
-          });
-          rh.addEventListener("pointerdown", (ev) => {
-            dragging = "R";
-            rh.setPointerCapture(ev.pointerId);
-            window.addEventListener("pointermove", onMove);
-            window.addEventListener("pointerup", onUp);
-          });
+          if (!state.indef && lh && rh) {
+            lh.addEventListener("pointerdown", (ev) => {
+              dragging = "L";
+              lh.setPointerCapture(ev.pointerId);
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+            });
+            rh.addEventListener("pointerdown", (ev) => {
+              dragging = "R";
+              rh.setPointerCapture(ev.pointerId);
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+            });
+          }
         }
 
         function renderSubPanel() {
@@ -1346,11 +1366,13 @@
           const fmt = (x) => (Math.abs(x) < 1e-3 ? "0" : x.toFixed(3));
           const mapTex = `${sub.xTex},\\quad ${sub.dxTex},\\quad ${sub.yTex}`;
           const gTex = sub.gTex(state.a);
-          const thetaTex = `\\theta_L = ${fmt(thL)},\\ \n\\theta_R = ${fmt(
-            thR
-          )}\\qquad\\text{and}\\qquad \\int_{${fmt(thL)}}^{${fmt(
-            thR
-          )}} ${gTex}\\,d\\theta`;
+          const thetaTex = state.indef
+            ? `\\int ${gTex}\\,d\\theta`
+            : `\\theta_L = ${fmt(thL)},\\ \n\\theta_R = ${fmt(
+                thR
+              )}\\qquad\\text{and}\\qquad \\int_{${fmt(thL)}}^{${fmt(
+                thR
+              )}} ${gTex}\\,d\\theta`;
           if (window.katex) {
             katex.render(mapTex, mapBox, { throwOnError: false });
             katex.render(thetaTex, thetaBox, {
@@ -1365,6 +1387,10 @@
 
         function updateMetrics() {
           const cfg = configs[state.funcId];
+          if (state.indef) {
+            metrics.textContent = "Indefinite integral mode: no numeric area.";
+            return;
+          }
           const val = integrate(cfg, state.a, state.L, state.R);
           if (!Number.isFinite(val)) {
             metrics.textContent =
@@ -1431,6 +1457,13 @@
           state.showGeom = showGeom.checked;
           updateAll();
         });
+        if (indefToggle) {
+          indefToggle.addEventListener("change", () => {
+            state.indef = indefToggle.checked;
+            syncUI();
+            updateAll();
+          });
+        }
         copyBtn.addEventListener("click", async () => {
           try {
             await navigator.clipboard.writeText(window.location.href);
