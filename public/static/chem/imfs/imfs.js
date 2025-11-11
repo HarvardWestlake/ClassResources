@@ -251,17 +251,19 @@ class IMFSim {
   // Lennard–Jones force (soft-capped)
   ljForce(rVec) {
     const r = vLen(rVec) + 1e-9;
-    const { sigma } = this.params;
-    // Base cohesion from viscosity (stronger to promote clumping)
-    const epsilon = 0.3 + 0.5 * (this.params.viscosity || 0);
+    const { sigma, epsilon } = this.params;
+    // Use material-specific epsilon directly (from scenarioDefaults)
+    // This ensures hexane gets very weak LDF (epsilon=0.05) while honey/DMSO get proper values
     const sr = sigma / r;
     const sr2 = sr * sr;
     const sr6 = sr2 * sr2 * sr2;
     const sr12 = sr6 * sr6;
     // F = 24*epsilon*(2*(sigma/r)^12 - (sigma/r)^6) * (1/r) * rhat
     let mag = 24 * epsilon * (2 * sr12 - sr6) * (1 / r);
-    // Cutoff & smoothing
-    const rCut = 2.5 * sigma;
+    // Cutoff & smoothing - shorter range for weak LDFs (hexane)
+    // For hexane (epsilon < 0.1), use shorter range to prevent excessive clustering
+    const baseRCut = 2.5 * sigma;
+    const rCut = epsilon < 0.1 ? 2.0 * sigma : baseRCut; // Shorter range for hexane
     if (r > rCut) mag = 0;
     // Soft clip
     mag = clamp(mag, -60, 60);
@@ -273,10 +275,15 @@ class IMFSim {
     const r = vLen(rVec) + 1e-9;
     const E = this.params.hbStrength;
     if (E <= 0) return [0, 0];
-    const rCut = 1.8 * this.params.sigma;
+    // Increase range for H-bonds - they should have longer reach than LJ
+    // Use 2.8 * sigma for H-bonds (longer than LJ's 2.5 * sigma)
+    const rCut = 2.8 * this.params.sigma;
     if (r > rCut) return [0, 0];
     const align = 1; // simple scalar; could read particle angles for more fidelity
-    const f = -E * align * Math.max(0, 1 - r / rCut);
+    // Use gentler falloff: (1 - r/rCut)^0.7 instead of linear
+    const falloff = Math.pow(Math.max(0, 1 - r / rCut), 0.7);
+    // Force magnitude should be positive for attraction (pulling particles together)
+    const f = E * align * falloff;
     return vMul(vNorm(rVec), f);
   }
 
@@ -287,7 +294,8 @@ class IMFSim {
     if (D <= 0) return [0, 0];
     const rCut = 2.2 * this.params.sigma;
     if (r > rCut) return [0, 0];
-    const f = -D * (1 / (r * r)) * Math.max(0.1, 1 - r / rCut);
+    // Force magnitude should be positive for attraction (pulling particles together)
+    const f = D * (1 / (r * r)) * Math.max(0.1, 1 - r / rCut);
     return vMul(vNorm(rVec), f);
   }
 
@@ -650,13 +658,18 @@ class IMFSim {
       // Higher energy threshold for escaping dense liquid (boiling)
       // Viscosity makes it harder to evaporate - scale threshold with viscosity
       // Stronger intermolecular forces (via cohesion coefficients) naturally reduce evaporation
-      // Map viscosity to escape multiplier: honey (10) -> 4.0, DMSO (1.2) -> 2.0, hexane (0.05) -> 1.5
+      // Map viscosity to escape multiplier: honey (10) -> 4.0, DMSO (1.2) -> 2.2, hexane (0.05) -> 1.5
       const v = this.params.viscosity || 0;
-      const escapeMultiplier = v > 5 ? 1.5 + (v - 5) * 0.5 : 1.5 + v * 0.1; // Honey: 4.0, DMSO: 1.62, Hexane: 1.505
-      // Map viscosity to thermal threshold [0,1]: honey (10) -> 0.85, DMSO (1.2) -> 0.55, hexane (0.05) -> 0.25
+      // Better separation: DMSO should be significantly harder to evaporate than hexane
+      const escapeMultiplier = v > 5 
+        ? 1.5 + (v - 5) * 0.5  // Honey: 4.0
+        : v > 1 
+          ? 1.5 + (v - 0.05) * 0.5  // DMSO: 1.5 + 1.15*0.5 = 2.075 (increased from 1.62)
+          : 1.5 + v * 0.1;  // Hexane: 1.505
+      // Map viscosity to thermal threshold [0,1]: honey (10) -> 0.85, DMSO (1.2) -> 0.6, hexane (0.05) -> 0.26
       // Piecewise: low v uses linear, high v uses slower scaling
       const thermalBoilingThreshold = v <= 2 
-        ? Math.min(0.95, 0.25 + v * 0.25)  // DMSO: 0.25 + 1.2*0.25 = 0.55, Hexane: 0.25 + 0.05*0.25 = 0.2625
+        ? Math.min(0.95, 0.25 + v * 0.29)  // DMSO: 0.25 + 1.2*0.29 = 0.598, Hexane: 0.25 + 0.05*0.29 = 0.2645
         : Math.min(0.95, 0.5 + (v - 2) * 0.04375); // Honey: 0.5 + 8*0.04375 = 0.85
 
       for (let i = 0; i < this.particles.length; i++) {
@@ -679,17 +692,29 @@ class IMFSim {
           // Surface particles can evaporate more easily
           if (p.localNeighbors < rhoMin) {
             // Surface/edge particles: material-dependent evaporation threshold
-            // Honey needs higher threshold, hexane needs lower
-            const surfaceMultiplier = v > 5 ? 1.8 : v > 1 ? 1.2 : 0.8; // Honey: 1.8, DMSO: 1.2, Hexane: 0.8
+            // Honey needs highest threshold, DMSO needs moderate-high, hexane needs lowest
+            // Better separation between DMSO and hexane
+            const surfaceMultiplier = v > 5 
+              ? 1.8  // Honey: 1.8
+              : v > 1 
+                ? 1.5  // DMSO: 1.5 (increased from 1.2)
+                : 0.7;  // Hexane: 0.7 (reduced from 0.8 for faster evaporation)
             const surfaceThreshold = vGas2 * surfaceMultiplier;
-            const surfaceThermalThreshold = v <= 2 ? 0.15 + v * 0.2 : 0.4 + (v - 2) * 0.05; // Honey: 0.8, DMSO: 0.39, Hexane: 0.16
+            // Surface thermal threshold: DMSO needs significantly more thermal energy than hexane
+            const surfaceThermalThreshold = v > 5 
+              ? 0.4 + (v - 2) * 0.05  // Honey: 0.8
+              : v > 1 
+                ? 0.2 + v * 0.3  // DMSO: 0.2 + 1.2*0.3 = 0.56 (increased from 0.39)
+                : 0.12 + v * 0.15;  // Hexane: 0.12 + 0.05*0.15 = 0.1275 (reduced from 0.16)
             if (v2 > surfaceThreshold && thermalEnergy > surfaceThermalThreshold) {
               p.state = "gas";
               p.gasUntil = nowS + 1500;
               p.lastStateChange = nowS;
-              // Give upward boost to help escape
+              // Give upward boost to help escape - hexane gets stronger boost for faster evaporation
+              const isHexane = (this.params.viscosity || 0) < 0.1;
+              const upwardBoost = isHexane ? -60 : -30; // Hexane: -60, others: -30
               if (p.vel[1] < 50) {
-                p.vel[1] -= 30;
+                p.vel[1] += upwardBoost;
               }
             }
           } else {
@@ -712,9 +737,11 @@ class IMFSim {
               p.state = "gas";
               p.gasUntil = nowS + 2000;
               p.lastStateChange = nowS;
-              // Give upward boost to help escape the liquid blob
+              // Give upward boost to help escape the liquid blob - hexane gets stronger boost
+              const isHexane = (this.params.viscosity || 0) < 0.1;
+              const upwardBoost = isHexane ? -80 : -40; // Hexane: -80, others: -40
               if (p.vel[1] < 50) {
-                p.vel[1] -= 40;
+                p.vel[1] += upwardBoost;
               }
             }
           }
@@ -2090,24 +2117,27 @@ function scenarioColor(kind) {
 function applyIMFCoeffsFor(sim, kind) {
   const v = Math.max(0, Number(sim.params.viscosity || 0));
   if (kind === "honey") {
-    sim.params.hbStrength = 2.5 * v; // Increased from 2.0 * v to make HB stronger
+    // Hydrogen bonds: strongest IMF
+    sim.params.hbStrength = 3.0 * v; // Increased to make H-bonds clearly strongest
     sim.params.dipole = 0.0;
-    sim.params.cohLJ = 2.0 + 1.0 * v; // Increased from 1.5 + 0.8*v (stronger Lennard-Jones attraction)
-    sim.params.cohHB = 2.0 + 1.2 * v; // Increased from 1.5 + 1.0*v (stronger hydrogen bonding)
+    sim.params.cohLJ = 1.5 + 0.8 * v; // Moderate LJ contribution
+    sim.params.cohHB = 3.0 + 1.5 * v; // Significantly increased to make H-bonds dominant (was 2.0 + 1.2*v)
     sim.params.cohDP = 1.0;
   } else if (kind === "dmso") {
+    // Dipole-dipole: moderate strength, stronger than LDFs but weaker than H-bonds
     sim.params.hbStrength = 0.0;
-    sim.params.dipole = 1.5 * v; // Increased from 1.3 * v
-    sim.params.cohLJ = 1.0 + 0.6 * v; // Increased from 0.9 + 0.5*v
+    sim.params.dipole = 1.5 * v;
+    sim.params.cohLJ = 0.8 + 0.5 * v; // Moderate LJ contribution
     sim.params.cohHB = 1.0;
-    sim.params.cohDP = 1.2 + 0.8 * v; // Increased from 1.1 + 0.7*v
+    sim.params.cohDP = 1.2 + 0.8 * v; // Moderate dipole-dipole strength
   } else {
     // Hexane - extremely weak attractions (only very weak London dispersion)
+    // LDFs should be weakest: reduce cohLJ significantly
     sim.params.hbStrength = 0.0;
     sim.params.dipole = 0.0;
-    sim.params.cohLJ = 0.05 + 0.1 * v; // Extremely weak base and minimal scaling
-    sim.params.cohHB = 0.1; // Essentially no hydrogen bonding
-    sim.params.cohDP = 0.1; // Essentially no dipole-dipole
+    sim.params.cohLJ = 0.01 + 0.02 * v; // Much weaker: was 0.05 + 0.1*v, now ~0.01-0.02 range
+    sim.params.cohHB = 0.0; // No hydrogen bonding
+    sim.params.cohDP = 0.0; // No dipole-dipole
   }
 }
 
@@ -2147,7 +2177,9 @@ export function mountIMFs(root) {
     .scenario:hover { border-color: #ffd60a; background: #fff7cc; box-shadow: 0 0 0 2px #ffd60a inset, 0 0 12px rgba(255,214,10,0.55); }
     .scenario.is-active { border-color: #ffd60a; background: #fff7cc; box-shadow: 0 0 0 2px #ffd60a inset, 0 0 16px rgba(255,214,10,0.66); }
     /* Molecule/3D panels glow with scenario accent */
-    .imfs-shell[data-kind] .imfs-mol, .imfs-shell[data-kind] .imfs-3d { box-shadow: 0 0 0 2px var(--imfs-accent, #ffd60a) inset, 0 0 16px color-mix(in srgb, var(--imfs-accent, #ffd60a) 55%, transparent); }
+    .imfs-shell[data-kind] .imfs-mol { box-shadow: 0 0 0 2px var(--imfs-accent, #ffd60a) inset, 0 0 16px color-mix(in srgb, var(--imfs-accent, #ffd60a) 55%, transparent); }
+    .imfs-shell[data-kind] .imfs-3d { box-shadow: none; }
+    .imfs-shell[data-kind] .imfs-3d canvas { pointer-events: none; }
     /* High-contrast overrides inside Shadow DOM (HW red CTAs) */
     .imfs-shell .panel { background: #ffffff; color: #0e1116; border: 1px solid #d1d5db; }
     .imfs-shell .muted { color: #4b5563; }
@@ -2182,7 +2214,20 @@ export function mountIMFs(root) {
       display: none;
     }
     .debug-panel.active { display: block; }
-    .debug-panel h4 { margin: 0 0 8px 0; color: #dc2626; font-size: 13px; font-weight: 600; }
+    .debug-panel h4 { 
+      margin: 0 0 8px 0; 
+      color: #dc2626; 
+      font-size: 13px; 
+      font-weight: 600; 
+      cursor: move;
+      user-select: none;
+      padding: 4px;
+      margin: -4px -4px 8px -4px;
+      border-radius: 4px;
+    }
+    .debug-panel h4:hover {
+      background: #fef2f2;
+    }
     .debug-panel .debug-section { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
     .debug-panel .debug-section:last-child { border-bottom: none; }
     .debug-panel .debug-row { display: flex; justify-content: space-between; margin: 4px 0; }
@@ -2276,6 +2321,27 @@ export function mountIMFs(root) {
     if (!window.$3Dmol) return null;
     const bg = getComputedStyle(refs.mol3d).backgroundColor || "#ffffff";
     viewer = $3Dmol.createViewer(refs.mol3d, { backgroundColor: bg.trim() });
+    // Disable zoom interactions after viewer is created
+    if (refs.mol3d) {
+      // Prevent wheel zoom
+      const preventZoom = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      };
+      refs.mol3d.addEventListener("wheel", preventZoom, { passive: false });
+      refs.mol3d.addEventListener("touchstart", preventZoom, { passive: false });
+      refs.mol3d.addEventListener("touchmove", preventZoom, { passive: false });
+      // Disable mouse interactions that could cause zoom/rotation
+      refs.mol3d.addEventListener("mousedown", preventZoom, { passive: false });
+      // Find canvas inside viewer and disable pointer events
+      setTimeout(() => {
+        const canvas = refs.mol3d.querySelector("canvas");
+        if (canvas) {
+          canvas.style.pointerEvents = "none";
+        }
+      }, 100);
+    }
     themeObserver = new MutationObserver(() => {
       const newBg = getComputedStyle(refs.mol3d).backgroundColor || "#ffffff";
       try {
@@ -2383,6 +2449,13 @@ M  END
       );
       v.zoomTo();
       v.render();
+      // Ensure zoom is disabled after loading
+      if (refs.mol3d) {
+        const canvas = refs.mol3d.querySelector("canvas");
+        if (canvas) {
+          canvas.style.pointerEvents = "none";
+        }
+      }
     }
   }
   function choosePreviewCID(kind) {
@@ -2528,6 +2601,47 @@ M  END
   // Debug panel functionality
   let selectedParticle = null;
   let debugUpdateInterval = null;
+  
+  // Make debug panel draggable
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let panelStartX = 0;
+  let panelStartY = 0;
+  
+  if (refs.debugPanel) {
+    const debugHeader = refs.debugPanel.querySelector("h4");
+    if (debugHeader) {
+      debugHeader.addEventListener("mousedown", (e) => {
+        if (!refs.debugPanel.classList.contains("active")) return;
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        const rect = refs.debugPanel.getBoundingClientRect();
+        panelStartX = rect.left;
+        panelStartY = rect.top;
+        e.preventDefault();
+      });
+    }
+    
+    document.addEventListener("mousemove", (e) => {
+      if (!isDragging || !refs.debugPanel.classList.contains("active")) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      const newX = panelStartX + dx;
+      const newY = panelStartY + dy;
+      // Keep panel within viewport bounds
+      const maxX = window.innerWidth - refs.debugPanel.offsetWidth;
+      const maxY = window.innerHeight - refs.debugPanel.offsetHeight;
+      refs.debugPanel.style.left = `${Math.max(0, Math.min(newX, maxX))}px`;
+      refs.debugPanel.style.top = `${Math.max(0, Math.min(newY, maxY))}px`;
+      refs.debugPanel.style.right = "auto";
+    });
+    
+    document.addEventListener("mouseup", () => {
+      isDragging = false;
+    });
+  }
 
   function updateDebugPanel() {
     if (!refs.debugPanel || !refs.debugContent) return;
