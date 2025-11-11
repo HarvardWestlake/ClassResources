@@ -51,6 +51,21 @@ button.ghost {
   color: #B1001A;
   border: none;
 }
+.controls button:disabled {
+  cursor: not-allowed;
+}
+.controls button.primary:disabled {
+  background: #cbd5e1; /* gray */
+  color: #ffffff;
+}
+.controls button.outline:disabled {
+  background: #f1f5f9; /* light gray fill */
+  color: #94a3b8;      /* gray text */
+  border-color: #cbd5e1;
+}
+.controls button.ghost:disabled {
+  color: #94a3b8; /* gray text only */
+}
 .badge.primary { background: #B1001A; color: #ffffff; }
 .badge.accent { background: #F4C542; color: #000000; }
 .alert.info { background: #e3f4fd; color: #0c3a53; }
@@ -74,9 +89,14 @@ button.ghost {
 * { box-sizing: border-box; }
 
 #replication-demo {
-  max-width: 1200px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 24px 16px 40px;
+}
+
+/* Widen the inner container specifically for this replication widget */
+#replication-demo .container--narrow {
+  max-width: 1120px;
 }
 
 .stage {
