@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <title>Card Games Compendium</title>
+    <title>Class Resources</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='20' y='15' width='60' height='70' rx='8' fill='%23d8f1ff' stroke='%23232a38' stroke-width='2'/%3E%3Ctext x='50' y='55' font-size='40' text-anchor='middle' fill='%23ff3b30' font-family='serif' font-weight='bold'%3E♥%3C/text%3E%3C/svg%3E"
@@ -19,7 +19,7 @@
     <script src="https://3dmol.org/build/3Dmol-min.js"></script>
     <meta
       name="description"
-      content="A compendium of classic card games with playable Blackjack and High-Low."
+      content="Interactive educational widgets and resources."
     />
     <script type="importmap">
       {
@@ -35,34 +35,207 @@
   <body>
     <header class="site-header">
       <div class="container header-inner">
-        <h1 class="site-title">Card Games Compendium</h1>
+        <h1 class="site-title">Class Resources</h1>
         <nav class="site-nav" aria-label="Primary">
-          <a href="#/" class="nav-link">Home</a>
-          <a href="#/blackjack" class="nav-link">Blackjack</a>
-          <a href="#/highlow" class="nav-link">High-Low</a>
-          <a href="#/gems" class="nav-link">Gems</a>
-          <a href="#/pong" class="nav-link">Pong</a>
-          <a href="#/compendium" class="nav-link">Compendium</a>
-          <a href="#/imfs" class="nav-link">IMFs</a>
-          <a href="#/apchem" class="nav-link">AP Chem</a>
-          <a href="#/mvcalc" class="nav-link">MV Calc</a>
+          <a href="/static/chem/index.html" class="nav-link">Chemistry</a>
+          <a href="/static/math/index.html" class="nav-link">Math</a>
+          <a href="/static/code/index.html" class="nav-link">Code</a>
+          <a href="/static/econ/index.html" class="nav-link">Economics</a>
+          <a href="/static/history/index.html" class="nav-link">History</a>
+          <a href="/static/stats/index.html" class="nav-link">Statistics</a>
         </nav>
       </div>
     </header>
 
-    <main id="app" class="container app-root">
-      <noscript
-        >This site requires JavaScript to run the games. Please enable
-        JavaScript.</noscript
-      >
+    <main class="container app-root">
+      <section class="panel compact">
+        <h2 class="section-title">Welcome to Class Resources</h2>
+        <p>Explore interactive educational widgets organized by subject.</p>
+        <div
+          class="grid"
+          style="
+            margin-top: 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+          "
+        >
+          <a
+            href="/static/chem/index.html"
+            style="
+              background: #fff;
+              border-radius: 12px;
+              padding: 1.75rem;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+              border: 1px solid rgba(0, 0, 0, 0.05);
+              color: inherit;
+              text-decoration: none;
+              display: block;
+              transition: 0.3s;
+            "
+          >
+            <h3
+              style="
+                margin: 0 0 0.5rem;
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #000;
+              "
+            >
+              Chemistry
+            </h3>
+            <p style="color: #666; margin: 0">
+              Hands-on chemistry demos and visualizations.
+            </p>
+          </a>
+          <a
+            href="/static/math/index.html"
+            style="
+              background: #fff;
+              border-radius: 12px;
+              padding: 1.75rem;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+              border: 1px solid rgba(0, 0, 0, 0.05);
+              color: inherit;
+              text-decoration: none;
+              display: block;
+              transition: 0.3s;
+            "
+          >
+            <h3
+              style="
+                margin: 0 0 0.5rem;
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #000;
+              "
+            >
+              Math
+            </h3>
+            <p style="color: #666; margin: 0">
+              Interactive math learning widgets and explorations.
+            </p>
+          </a>
+          <a
+            href="/static/code/index.html"
+            style="
+              background: #fff;
+              border-radius: 12px;
+              padding: 1.75rem;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+              border: 1px solid rgba(0, 0, 0, 0.05);
+              color: inherit;
+              text-decoration: none;
+              display: block;
+              transition: 0.3s;
+            "
+          >
+            <h3
+              style="
+                margin: 0 0 0.5rem;
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #000;
+              "
+            >
+              Code
+            </h3>
+            <p style="color: #666; margin: 0">
+              Programming visualizations, data structures, and crypto demos.
+            </p>
+          </a>
+          <a
+            href="/static/econ/index.html"
+            style="
+              background: #fff;
+              border-radius: 12px;
+              padding: 1.75rem;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+              border: 1px solid rgba(0, 0, 0, 0.05);
+              color: inherit;
+              text-decoration: none;
+              display: block;
+              transition: 0.3s;
+            "
+          >
+            <h3
+              style="
+                margin: 0 0 0.5rem;
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #000;
+              "
+            >
+              Economics
+            </h3>
+            <p style="color: #666; margin: 0">
+              Micro and macro interactive widgets.
+            </p>
+          </a>
+          <a
+            href="/static/history/index.html"
+            style="
+              background: #fff;
+              border-radius: 12px;
+              padding: 1.75rem;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+              border: 1px solid rgba(0, 0, 0, 0.05);
+              color: inherit;
+              text-decoration: none;
+              display: block;
+              transition: 0.3s;
+            "
+          >
+            <h3
+              style="
+                margin: 0 0 0.5rem;
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #000;
+              "
+            >
+              History
+            </h3>
+            <p style="color: #666; margin: 0">
+              Historical visualizations and timelines.
+            </p>
+          </a>
+          <a
+            href="/static/stats/index.html"
+            style="
+              background: #fff;
+              border-radius: 12px;
+              padding: 1.75rem;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+              border: 1px solid rgba(0, 0, 0, 0.05);
+              color: inherit;
+              text-decoration: none;
+              display: block;
+              transition: 0.3s;
+            "
+          >
+            <h3
+              style="
+                margin: 0 0 0.5rem;
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #000;
+              "
+            >
+              Statistics
+            </h3>
+            <p style="color: #666; margin: 0">
+              Stats tools, visualizations, and calculators.
+            </p>
+          </a>
+        </div>
+      </section>
     </main>
 
     <footer class="site-footer">
       <div class="container">
-        <p>Made with ♥ for cards. No downloads, no tracking.</p>
+        <p>Made with ♥ for education. No downloads, no tracking.</p>
       </div>
     </footer>
-
-    <script type="module" src="scripts/main.js"></script>
   </body>
 </html>
