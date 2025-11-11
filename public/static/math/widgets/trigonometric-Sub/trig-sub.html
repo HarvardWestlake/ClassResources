@@ -126,6 +126,20 @@
       .card h3 {
         margin: 0 0 8px 0;
       }
+      /* Collapsible card header */
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .collapse-btn {
+        padding: 6px 10px;
+        font-size: 0.9rem;
+      }
+      .collapsible.collapsed #tsw-body {
+        display: none;
+      }
 
       /* Yellow helper box (Quick Reference) */
       .helper-box {
@@ -468,105 +482,117 @@
       </section>
 
       <!-- Trig Substitution Explorer (interactive) -->
-      <section class="card" id="tsw">
-        <h3>Area Under the Curve — Trig Substitution Explorer</h3>
-        <div class="row-3">
-          <div>
-            <label for="tsw-function">Function</label>
-            <select id="tsw-function" aria-label="function">
-              <option value="sqrt_minus">sqrt(a^2 - x^2)</option>
-              <option value="sqrt_plus">sqrt(a^2 + x^2)</option>
-              <option value="inv_sqrt_minus">1/sqrt(a^2 - x^2)</option>
-              <option value="inv_plus">1/(a^2 + x^2)</option>
-            </select>
-          </div>
-          <div>
-            <label for="tsw-a">a</label>
-            <input
-              id="tsw-a"
-              type="number"
-              step="0.1"
-              min="0.5"
-              value="2"
-              aria-label="parameter a"
-            />
-          </div>
-          <div>
-            <label>&nbsp;</label>
-            <div style="display: flex; gap: 12px; align-items: center">
-              <label style="display: flex; gap: 6px; align-items: center"
-                ><input type="checkbox" id="tsw-show-sub" checked /> Show trig
-                substitution</label
-              >
-              <label style="display: flex; gap: 6px; align-items: center"
-                ><input type="checkbox" id="tsw-show-geom" /> Show
-                geometry</label
-              >
-            </div>
-          </div>
+      <section class="card collapsible" id="tsw">
+        <div class="card-header">
+          <h3>Area Under the Curve — Trig Substitution Explorer</h3>
+          <button
+            class="btn secondary collapse-btn"
+            id="tsw-toggle"
+            aria-expanded="true"
+            aria-controls="tsw-body"
+          >
+            Collapse
+          </button>
         </div>
-
-        <div class="row" style="margin-top: 8px">
-          <div>
-            <label for="tsw-L">Left bound L</label>
-            <input
-              id="tsw-L"
-              type="number"
-              step="0.1"
-              aria-label="left bound"
-            />
-          </div>
-          <div>
-            <label for="tsw-R">Right bound R</label>
-            <input
-              id="tsw-R"
-              type="number"
-              step="0.1"
-              aria-label="right bound"
-            />
-          </div>
-        </div>
-
-        <div class="row" style="align-items: center; margin-top: 8px">
-          <div>
-            <button class="btn" id="tsw-copy">Copy shareable link</button>
-          </div>
-          <div class="output" id="tsw-metrics" aria-live="polite"></div>
-        </div>
-
-        <div style="margin-top: 12px">
-          <svg
-            id="tsw-svg"
-            viewBox="0 0 800 420"
-            style="
-              width: 100%;
-              height: auto;
-              border: 1px solid var(--hw-gray-200);
-              border-radius: 10px;
-              background: #fff;
-            "
-          ></svg>
-        </div>
-
-        <div
-          id="tsw-subpanel"
-          class="subpanel-box"
-          style="margin-top: 12px; display: none"
-        >
-          <h3>Trig Substitution</h3>
-          <div class="row">
+        <div id="tsw-body">
+          <div class="row-3">
             <div>
-              <div class="section-title">Mapping</div>
-              <div id="tsw-map"></div>
+              <label for="tsw-function">Function</label>
+              <select id="tsw-function" aria-label="function">
+                <option value="sqrt_minus">sqrt(a^2 - x^2)</option>
+                <option value="sqrt_plus">sqrt(a^2 + x^2)</option>
+                <option value="inv_sqrt_minus">1/sqrt(a^2 - x^2)</option>
+                <option value="inv_plus">1/(a^2 + x^2)</option>
+              </select>
             </div>
             <div>
-              <div class="section-title">θ‑bounds and integrand</div>
-              <div id="tsw-theta"></div>
+              <label for="tsw-a">a</label>
+              <input
+                id="tsw-a"
+                type="number"
+                step="0.1"
+                min="0.5"
+                value="2"
+                aria-label="parameter a"
+              />
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <div style="display: flex; gap: 12px; align-items: center">
+                <label style="display: flex; gap: 6px; align-items: center"
+                  ><input type="checkbox" id="tsw-show-sub" checked /> Show trig
+                  substitution</label
+                >
+                <label style="display: flex; gap: 6px; align-items: center"
+                  ><input type="checkbox" id="tsw-show-geom" /> Show
+                  geometry</label
+                >
+              </div>
             </div>
           </div>
-          <div class="hint" style="margin-top: 8px">
-            We show the θ‑space setup and transformed integrand only — no
-            closed‑form solutions.
+
+          <div class="row" style="margin-top: 8px">
+            <div>
+              <label for="tsw-L">Left bound L</label>
+              <input
+                id="tsw-L"
+                type="number"
+                step="0.1"
+                aria-label="left bound"
+              />
+            </div>
+            <div>
+              <label for="tsw-R">Right bound R</label>
+              <input
+                id="tsw-R"
+                type="number"
+                step="0.1"
+                aria-label="right bound"
+              />
+            </div>
+          </div>
+
+          <div class="row" style="align-items: center; margin-top: 8px">
+            <div>
+              <button class="btn" id="tsw-copy">Copy shareable link</button>
+            </div>
+            <div class="output" id="tsw-metrics" aria-live="polite"></div>
+          </div>
+
+          <div style="margin-top: 12px">
+            <svg
+              id="tsw-svg"
+              viewBox="0 0 800 420"
+              style="
+                width: 100%;
+                height: auto;
+                border: 1px solid var(--hw-gray-200);
+                border-radius: 10px;
+                background: #fff;
+              "
+            ></svg>
+          </div>
+
+          <div
+            id="tsw-subpanel"
+            class="subpanel-box"
+            style="margin-top: 12px; display: none"
+          >
+            <h3>Trig Substitution</h3>
+            <div class="row">
+              <div>
+                <div class="section-title">Mapping</div>
+                <div id="tsw-map"></div>
+              </div>
+              <div>
+                <div class="section-title">θ‑bounds and integrand</div>
+                <div id="tsw-theta"></div>
+              </div>
+            </div>
+            <div class="hint" style="margin-top: 8px">
+              We show the θ‑space setup and transformed integrand only — no
+              closed‑form solutions.
+            </div>
           </div>
         </div>
       </section>
@@ -1458,6 +1484,28 @@
             }
             tries += 1;
           }, 150);
+        }
+        // Collapsible card behavior for the main explorer
+        const tswEl = document.getElementById("tsw");
+        const tswToggle = document.getElementById("tsw-toggle");
+        function setCollapsed(collapsed) {
+          if (!tswEl || !tswToggle) return;
+          tswEl.classList.toggle("collapsed", collapsed);
+          tswToggle.setAttribute("aria-expanded", (!collapsed).toString());
+          tswToggle.textContent = collapsed ? "Expand" : "Collapse";
+          try {
+            localStorage.setItem("tsw_collapsed", collapsed ? "1" : "0");
+          } catch {}
+        }
+        if (tswEl && tswToggle) {
+          let init = null;
+          try {
+            init = localStorage.getItem("tsw_collapsed");
+          } catch {}
+          setCollapsed(init === "1");
+          tswToggle.addEventListener("click", function () {
+            setCollapsed(!tswEl.classList.contains("collapsed"));
+          });
         }
       })();
     </script>
