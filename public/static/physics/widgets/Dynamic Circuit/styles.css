@@ -1,0 +1,728 @@
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Comic Neue', cursive;
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 25%, #FF69B4 50%, #FFD700 75%, #FFA500 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 8s ease infinite;
+    min-height: 100vh;
+    color: #2C1810;
+    overflow-x: hidden;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Header Styles */
+.header {
+    text-align: center;
+    padding: 2rem 1rem;
+    position: relative;
+    background: linear-gradient(45deg, #FFD700, #FFA500);
+    border-radius: 0 0 50px 50px;
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+    margin-bottom: 2rem;
+}
+
+.floating-bees {
+    position: absolute;
+    top: 10px;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.bee {
+    position: absolute;
+    font-size: 2rem;
+    animation: fly 6s infinite linear;
+}
+
+.bee1 {
+    top: 20%;
+    left: 10%;
+    animation-delay: 0s;
+}
+
+.bee2 {
+    top: 60%;
+    right: 15%;
+    animation-delay: 2s;
+}
+
+.bee3 {
+    top: 40%;
+    left: 80%;
+    animation-delay: 4s;
+}
+
+@keyframes fly {
+    0% { transform: translateX(-50px) translateY(0px); }
+    25% { transform: translateX(50px) translateY(-20px); }
+    50% { transform: translateX(100px) translateY(0px); }
+    75% { transform: translateX(50px) translateY(20px); }
+    100% { transform: translateX(-50px) translateY(0px); }
+}
+
+.main-title {
+    font-family: 'Fredoka One', cursive;
+    font-size: 3.5rem;
+    color: #8B4513;
+    text-shadow: 3px 3px 0px #FFD700, 6px 6px 0px #FF69B4;
+    margin-bottom: 1rem;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-10px); }
+    60% { transform: translateY(-5px); }
+}
+
+.subtitle {
+    font-size: 1.3rem;
+    color: #2C1810;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(255, 215, 0, 0.5);
+}
+
+/* Navigation */
+.nav {
+    background: linear-gradient(90deg, #FF69B4, #FFD700, #FF69B4);
+    padding: 1rem;
+    border-radius: 25px;
+    margin: 0 2rem 2rem 2rem;
+    box-shadow: 0 5px 15px rgba(255, 105, 180, 0.3);
+}
+
+.nav ul {
+    list-style: none;
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+}
+
+.nav-link {
+    text-decoration: none;
+    color: #2C1810;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 0.8rem 1.5rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.7);
+    transition: all 0.3s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link:hover {
+    background: #FFD700;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
+}
+
+/* Sections */
+.section {
+    margin: 3rem 2rem;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: 3px solid #FFD700;
+}
+
+.section-title {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2.5rem;
+    text-align: center;
+    color: #8B4513;
+    margin-bottom: 2rem;
+    text-shadow: 2px 2px 0px #FFD700;
+}
+
+/* Content Grid */
+.content-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.info-card {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    padding: 2rem;
+    border-radius: 25px;
+    text-align: center;
+    box-shadow: 0 8px 25px rgba(255, 215, 0, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 3px solid #FF69B4;
+}
+
+.info-card:hover {
+    transform: translateY(-10px) scale(1.05);
+    box-shadow: 0 15px 35px rgba(255, 215, 0, 0.5);
+}
+
+.card-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.info-card h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.5rem;
+    color: #2C1810;
+    margin-bottom: 1rem;
+}
+
+.info-card p {
+    font-size: 1.1rem;
+    color: #2C1810;
+    margin-bottom: 1rem;
+}
+
+.learn-more-btn {
+    background: #FF69B4;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 20px;
+    font-family: 'Comic Neue', cursive;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 3px 10px rgba(255, 105, 180, 0.3);
+}
+
+.learn-more-btn:hover {
+    background: #FF1493;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 105, 180, 0.5);
+}
+
+/* Bee Importance Section */
+.bee-importance-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: center;
+    margin-bottom: 3rem;
+}
+
+.importance-text h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2rem;
+    color: #8B4513;
+    margin-bottom: 1.5rem;
+    text-shadow: 1px 1px 0px #FFD700;
+}
+
+.importance-list {
+    list-style: none;
+    font-size: 1.2rem;
+    line-height: 2;
+}
+
+.importance-list li {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(255, 215, 0, 0.2);
+}
+
+.bee-image-container {
+    position: relative;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.bee-image {
+    width: 100%;
+    max-width: 400px;
+    height: auto;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    object-fit: cover;
+}
+
+.bee-image:hover {
+    transform: scale(1.05);
+}
+
+.image-popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 215, 0, 0.95);
+    padding: 2rem;
+    border-radius: 20px;
+    border: 3px solid #FF69B4;
+    display: none;
+    z-index: 10;
+    max-width: 300px;
+    text-align: center;
+    font-weight: 700;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Endangerment Alert */
+.endangerment-alert {
+    background: linear-gradient(135deg, #FF69B4, #FFD700);
+    padding: 2rem;
+    border-radius: 25px;
+    margin: 2rem 0;
+    border: 3px solid #8B4513;
+}
+
+.endangerment-alert h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2rem;
+    color: #2C1810;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.endangerment-alert ul {
+    list-style: none;
+    margin: 1rem 0;
+}
+
+.endangerment-alert li {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 1rem;
+    margin: 0.5rem 0;
+    border-radius: 15px;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.help-tips h4 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.5rem;
+    color: #2C1810;
+    margin: 2rem 0 1rem 0;
+    text-align: center;
+}
+
+.help-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.help-card {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.help-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Fun Facts Section */
+.facts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+}
+
+.fact-card {
+    background: linear-gradient(135deg, #FF69B4, #FFD700);
+    padding: 2rem;
+    border-radius: 25px;
+    text-align: center;
+    box-shadow: 0 8px 25px rgba(255, 105, 180, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 3px solid #8B4513;
+}
+
+.fact-card:hover {
+    transform: translateY(-10px) rotate(2deg);
+    box-shadow: 0 15px 35px rgba(255, 105, 180, 0.5);
+}
+
+.fact-card h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.5rem;
+    color: #2C1810;
+    margin-bottom: 1rem;
+}
+
+.fact-card p {
+    font-size: 1.1rem;
+    color: #2C1810;
+    font-weight: 700;
+}
+
+/* Honey Gallery */
+.honey-gallery {
+    margin-top: 3rem;
+}
+
+.honey-gallery h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2rem;
+    color: #8B4513;
+    text-align: center;
+    margin-bottom: 2rem;
+    text-shadow: 1px 1px 0px #FFD700;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 2rem;
+}
+
+.gallery-item {
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.gallery-item:hover {
+    transform: scale(1.1);
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    border: 3px solid #FFD700;
+}
+
+.gallery-item p {
+    margin-top: 1rem;
+    font-weight: 700;
+    color: #2C1810;
+    font-size: 1.1rem;
+}
+
+/* Recipes Section */
+.recipes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 3rem;
+    margin-bottom: 3rem;
+}
+
+.recipe-card {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    border-radius: 25px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+    border: 3px solid #FF69B4;
+    transition: transform 0.3s ease;
+}
+
+.recipe-card:hover {
+    transform: translateY(-10px);
+}
+
+.recipe-image {
+    height: 200px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.recipe-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.recipe-card h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.8rem;
+    color: #2C1810;
+    text-align: center;
+    padding: 1.5rem 1rem 1rem 1rem;
+    text-shadow: 1px 1px 0px #FF69B4;
+}
+
+.recipe-content {
+    padding: 0 2rem 2rem 2rem;
+}
+
+.recipe-content h4 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.3rem;
+    color: #8B4513;
+    margin: 1rem 0 0.5rem 0;
+}
+
+.recipe-content ul, .recipe-content ol {
+    margin: 0.5rem 0 1rem 1.5rem;
+}
+
+.recipe-content li {
+    margin: 0.5rem 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+/* Honey Uses */
+.honey-uses {
+    background: linear-gradient(135deg, #FF69B4, #FFD700);
+    padding: 2rem;
+    border-radius: 25px;
+    margin-top: 3rem;
+    border: 3px solid #8B4513;
+}
+
+.honey-uses h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2rem;
+    color: #2C1810;
+    text-align: center;
+    margin-bottom: 2rem;
+    text-shadow: 1px 1px 0px #FFD700;
+}
+
+.uses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.use-item {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.use-item:hover {
+    transform: translateY(-5px);
+}
+
+/* Video Container */
+.video-container {
+    margin: 3rem 0;
+    text-align: center;
+}
+
+.video-container h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2rem;
+    color: #8B4513;
+    margin-bottom: 2rem;
+    text-shadow: 1px 1px 0px #FFD700;
+}
+
+.video-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border: 3px solid #FFD700;
+}
+
+.video-wrapper iframe {
+    width: 100%;
+    height: 315px;
+    border: none;
+}
+
+/* Footer */
+.footer {
+    background: linear-gradient(45deg, #8B4513, #FFD700, #8B4513);
+    padding: 3rem 2rem;
+    text-align: center;
+    margin-top: 4rem;
+    border-radius: 30px 30px 0 0;
+}
+
+.footer-content h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2rem;
+    color: #FFD700;
+    margin-bottom: 1rem;
+    text-shadow: 2px 2px 0px #8B4513;
+}
+
+.footer-content p {
+    font-size: 1.2rem;
+    color: #2C1810;
+    font-weight: 700;
+    margin-bottom: 2rem;
+}
+
+.footer-bees {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+}
+
+.bouncing-bee {
+    font-size: 2rem;
+    animation: bounce 1s infinite;
+}
+
+.bouncing-bee:nth-child(2) {
+    animation-delay: 0.3s;
+}
+
+.bouncing-bee:nth-child(3) {
+    animation-delay: 0.6s;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    margin: 10% auto;
+    padding: 2rem;
+    border-radius: 25px;
+    width: 80%;
+    max-width: 600px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    border: 3px solid #FF69B4;
+    position: relative;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.close {
+    color: #8B4513;
+    float: right;
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+}
+
+.close:hover {
+    color: #FF69B4;
+}
+
+#popup-content {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: #2C1810;
+    font-weight: 700;
+}
+
+#popup-content h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2rem;
+    color: #8B4513;
+    margin-bottom: 1rem;
+    text-shadow: 1px 1px 0px #FFD700;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .main-title {
+        font-size: 2.5rem;
+    }
+    
+    .nav ul {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .nav-link {
+        margin: 0.5rem 0;
+    }
+    
+    .bee-importance-content {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .facts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .recipes-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 5% auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .section {
+        margin: 2rem 1rem;
+        padding: 1.5rem;
+    }
+    
+    .main-title {
+        font-size: 2rem;
+    }
+    
+    .section-title {
+        font-size: 2rem;
+    }
+    
+    .info-card, .fact-card {
+        padding: 1.5rem;
+    }
+}
