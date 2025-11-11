@@ -27,7 +27,7 @@
 
     // Three.js core
     let renderer, scene, camera, controls;
-    let surfaceGroup, columnsGroup, regionGroup, wedgeGroup, axesHelper, gridHelper, gridHelperNeg;
+    let contentRoot, surfaceGroup, columnsGroup, regionGroup, wedgeGroup, axesHelper, gridHelper, gridHelperNeg;
     // Auto-rotation around Z axis for demonstration
     let autoRotateZ = true;
     let autoRotateSpeed = 0.5; // radians per second
@@ -170,10 +170,10 @@
                             controls.update();
                         } else {
                             const rotSpeed = 0.01;
-                            if (surfaceGroup) { surfaceGroup.rotation.y += dx * rotSpeed; surfaceGroup.rotation.x += dy * rotSpeed; }
-                            if (columnsGroup) { columnsGroup.rotation.y += dx * rotSpeed; columnsGroup.rotation.x += dy * rotSpeed; }
-                            if (regionGroup) { regionGroup.rotation.y += dx * rotSpeed; regionGroup.rotation.x += dy * rotSpeed; }
-                            if (wedgeGroup) { wedgeGroup.rotation.y += dx * rotSpeed; wedgeGroup.rotation.x += dy * rotSpeed; }
+                            if (contentRoot) {
+                                contentRoot.rotation.y += dx * rotSpeed;
+                                contentRoot.rotation.x += dy * rotSpeed;
+                            }
                         }
                     } catch (err) {
                         // no-op
@@ -242,11 +242,13 @@
         gridHelperNeg.position.y = -0.0006;
         scene.add(gridHelperNeg);
 
+        contentRoot = new THREE.Group();
         surfaceGroup = new THREE.Group();
         columnsGroup = new THREE.Group();
         regionGroup = new THREE.Group();
         wedgeGroup = new THREE.Group();
-        scene.add(surfaceGroup, columnsGroup, regionGroup, wedgeGroup);
+        contentRoot.add(surfaceGroup, columnsGroup, regionGroup, wedgeGroup);
+        scene.add(contentRoot);
 
         window.addEventListener('resize', onResize);
         onResize();
@@ -268,12 +270,9 @@
         const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
         const dt = Math.max(0, (now - _lastFrameTime) / 1000);
         _lastFrameTime = now;
-        if (autoRotateZ) {
+        if (autoRotateZ && contentRoot) {
             const dAng = autoRotateSpeed * dt;
-            if (surfaceGroup) surfaceGroup.rotation.z += dAng;
-            if (columnsGroup) columnsGroup.rotation.z += dAng;
-            if (regionGroup) regionGroup.rotation.z += dAng;
-            if (wedgeGroup) wedgeGroup.rotation.z += dAng;
+            contentRoot.rotation.z += dAng;
         }
         controls && controls.update();
         renderer && renderer.render(scene, camera);
@@ -293,27 +292,29 @@
     }
 
     function fitCameraToContent() {
-        const box = new THREE.Box3();
-        const groups = [surfaceGroup, columnsGroup, regionGroup, wedgeGroup];
-        let hasAny = false;
-        for (const g of groups) {
-            if (g.children.length) {
-                box.expandByObject(g);
-                hasAny = true;
-            }
-        }
-        if (!hasAny) return;
+        if (!contentRoot) return;
+        // If no renderables yet, bail
+        const anyChildren = contentRoot.children.some(g => g.children && g.children.length);
+        if (!anyChildren) return;
+        // Compute world-space bounding box of content
+        const box = new THREE.Box3().setFromObject(contentRoot);
         const size = new THREE.Vector3();
         box.getSize(size);
         const center = new THREE.Vector3();
         box.getCenter(center);
-
+        // Recenter content so its center sits at the world origin
+        contentRoot.position.sub(center);
+        // Compute distance to frame content from current view direction
         const maxDim = Math.max(size.x, size.y, size.z);
         const fitDist = maxDim * 1.6 / Math.tan((camera.fov * Math.PI / 180) / 2);
-        const dir = new THREE.Vector3(1, 0.8, 1).normalize();
-        camera.position.copy(center.clone().add(dir.multiplyScalar(fitDist)));
-        controls.target.copy(center);
-        controls.update();
+        const prevTarget = (controls && controls.target) ? controls.target.clone() : new THREE.Vector3(0, 0, 0);
+        const viewDir = camera.position.clone().sub(prevTarget).normalize();
+        const dir = viewDir.lengthSq() > 0 ? viewDir : new THREE.Vector3(1, 0.8, 1).normalize();
+        // Lock target at origin and place camera along the view direction
+        if (controls && controls.target) controls.target.set(0, 0, 0);
+        camera.position.copy(dir.multiplyScalar(fitDist));
+        camera.lookAt(controls && controls.target ? controls.target : new THREE.Vector3(0, 0, 0));
+        controls && controls.update && controls.update();
     }
 
     function deg2rad(d) { return d * Math.PI / 180; }
