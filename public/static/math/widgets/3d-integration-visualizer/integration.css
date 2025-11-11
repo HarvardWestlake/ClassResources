@@ -29,7 +29,7 @@ body {
 }
 
 .app { display: grid; grid-template-columns: 360px 1fr; min-height: 100vh; }
-.sidebar { position: relative; background: var(--panel); padding: 16px; overflow: auto; border-right: 1px solid var(--hw-border); }
+.sidebar { background: var(--panel); padding: 16px; overflow: auto; border-right: 1px solid var(--hw-border); }
 .brand h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: .3px; }
 .brand .subtitle { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
 
@@ -63,9 +63,9 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 
 .info { font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
 
-.viewport { position: relative; min-height: 100vh; height: 100vh; width: 100%; }
-#canvas3d { position: absolute; inset: 0; width: 100%; height: 100%; }
-.legend { position: absolute; right: 16px; top: 16px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
+.viewport { position: relative; min-height: 100vh; }
+#canvas3d { position: absolute; inset: 0; }
+.legend { position: absolute; right: 16px; top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: 12px; background: #ffffff; border: 1px solid var(--hw-border); color: #000; }
 .chip-surface { border-color: rgba(45,108,223,.4); }
 .chip-columns { border-color: rgba(194,74,46,.4); }
@@ -74,9 +74,6 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 
 /* Canvas helpers */
 .watermark { position: absolute; left: 16px; bottom: 16px; font-size: 12px; color: rgba(0,0,0,0.5); }
-
-/* Ensure three.js canvas fully fills the host */
-#canvas3d canvas { height: 100% !important; width: 100% !important; max-width: none !important; display: block; pointer-events: auto; }
 
 /* Light theme overrides */
 html.theme-light {
