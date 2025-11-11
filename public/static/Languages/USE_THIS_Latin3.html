@@ -511,7 +511,8 @@
                 <h1>Latin Text Analyzer</h1>
                 <div class="user-directions">
                     <p><strong>Welcome!</strong> This website will help you translate sentences that are in Latin!</p>
-                    <p>First, type in the lines that you need help translating. Click "Examine!" and then you can take your mouse and hover over words to know the definition, case, number, and gender of the word. Words that are highlighted with the same color go together. Any complex grammar will be listed below the lines where you typed the Latin. You can try typing your translation in the box below and then click the button "Check Translation" and the website will tell you if your translation is correct or not.</p>
+                    <p>First, type in the lines that you need help translating. Click "Examine!" and then you can take your mouse and hover over words to know the definition, case, number, and gender of the word. Words that are highlighted with the same color indicate different translation chunks in which you can break down the sentence(s) and translate them. Any complex grammar will be listed below the lines where you typed the Latin. You can try typing your translation of those lines of Latin in the "Your translation" box and then click "Check Translation". The website will then tell you if your translation is correct or not.</p>
+                    <p><strong>Note:</strong> This website works better for simpler Latin sentences! When asking for help with more complex Latin lines such as that from Caesar or Vergil please don't expect the website's analysis to be 100% accurate!</p>
                 </div>
             </div>
 
@@ -2285,41 +2286,36 @@ console.log('[DEBUG] Final subject:', structure.subject);
 
         return { isCorrect: true, reason: '' };
     }
-
     function wordsMatch(word1, word2) {
-        if (!word1 || !word2) return false;
+    if (!word1 || !word2) return false;
 
-        const w1 = normalizeWord(word1);
-        const w2 = normalizeWord(word2);
+    const w1 = normalizeWord(word1);
+    const w2 = normalizeWord(word2);
 
-        // If word1 contains multiple definitions (comma-separated), check if word2 matches ANY of them
-        if (w1.includes(',')) {
-            const definitions = w1.split(',').map(def => def.trim());
-            for (const def of definitions) {
-                // Direct match
-                if (def === w2) return true;
-
-                // Fuzzy match (allow small differences)
-                if (levenshteinDistance(def, w2) <= 2) return true;
-
-                // Stem match
-                if (def.startsWith(w2) || w2.startsWith(def)) return true;
-            }
-            return false;
+    // If word1 contains multiple definitions (comma-separated), check if word2 matches ANY of them
+    if (w1.includes(',')) {
+        const definitions = w1.split(',').map(def => def.trim());
+        for (const def of definitions) {
+            // Direct match only for multiple definitions
+            if (def === w2) return true;
         }
-
-        // Single definition - standard matching
-        // Direct match
-        if (w1 === w2) return true;
-
-        // Fuzzy match (allow small differences)
-        if (levenshteinDistance(w1, w2) <= 2) return true;
-
-        // Stem match
-        if (w1.startsWith(w2) || w2.startsWith(w1)) return true;
-
         return false;
     }
+
+    // Single definition - standard matching
+    // Direct match
+    if (w1 === w2) return true;
+
+    // STRICTER: Only allow 1 character difference (was 2)
+    if (levenshteinDistance(w1, w2) <= 1) return true;
+
+    // STRICTER: Only allow stem match if one word is a clear prefix (min 4 chars)
+    if (w1.length >= 4 && w2.length >= 4) {
+        if (w1.startsWith(w2) || w2.startsWith(w1)) return true;
+    }
+
+    return false;
+}
 
     function sameCaseBucket(a, b) {
         const aCases = extractCaseTags(a);
@@ -2527,6 +2523,78 @@ console.log('[DEBUG] Final subject:', structure.subject);
             .replace(/j/g, 'i')
             .replace(/v/g, 'u');
     }
+    function getLemma(word, pos) {
+    // Simple lemmatization rules to find base form
+    const w = normalizeLatin(word);
+    
+    if (pos === 'adjective' || pos === 'noun') {
+        // Try removing common endings to find base form
+        const endings = [
+            'as', 'os', 'es', 'is',           // accusative plurals
+            'arum', 'orum', 'ium', 'erum',    // genitive plurals  
+            'ibus', 'ebus',                   // dative/ablative plurals
+            'am', 'um', 'em',                 // accusative singulars
+            'ae', 'i', 'ei'                   // genitive/dative singulars
+        ];
+        
+        for (const ending of endings) {
+            if (w.endsWith(ending) && w.length > ending.length + 1) {
+                const base = w.slice(0, -ending.length);
+                
+                // Try different base forms based on declension patterns
+                const candidates = [
+                    base + 'us',   // 2nd declension masculine (certus)
+                    base + 'a',    // 1st declension feminine (sagitta)
+                    base + 'um',   // 2nd declension neuter
+                    base + 'is',   // 3rd declension
+                    base + 'e',    // 3rd declension neuter
+                    base + 'or',   // 3rd declension (amor)
+                    base + 'o',    // 3rd declension (homo)
+                    base + 'ex',   // 3rd declension (rex)
+                    base + 'x'     // 3rd declension (dux, vox)
+                ];
+                
+                for (const candidate of candidates) {
+                    if (LEXICON[candidate]) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+    }
+    
+    if (pos === 'verb') {
+        // Try removing verb endings to find infinitive
+        const verbEndings = [
+            'nt', 't', 'mus', 'tis', 'ntur', 'tur',  // present
+            'o', 'm', 'or',                           // 1st person
+            'bat', 'bant', 'batur', 'bantur',        // imperfect
+            'vi', 'vit', 'verunt', 'visti'           // perfect
+        ];
+        
+        for (const ending of verbEndings) {
+            if (w.endsWith(ending) && w.length > ending.length + 2) {
+                const base = w.slice(0, -ending.length);
+                
+                // Try different infinitive forms
+                const candidates = [
+                    base + 'are',   // 1st conjugation
+                    base + 'ere',   // 2nd conjugation
+                    base + 'ere',   // 3rd conjugation
+                    base + 'ire'    // 4th conjugation
+                ];
+                
+                for (const candidate of candidates) {
+                    if (LEXICON[candidate]) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+    }
+    
+    return null;
+}
 
     function annotateToken(t, bias) {
         const w = t.normalized;
@@ -2585,9 +2653,41 @@ console.log('[DEBUG] Final subject:', structure.subject);
                     t.features.tense = 'future';
                 }
             }
+
             return;
         }
-       
+ // TRY LEMMATIZATION: If word not in lexicon, try to find its base form
+ if (!lexEntry || !lexEntry.def) {
+        // First do basic POS detection if we don't have it yet
+        if (!t.pos || t.pos === 'unknown') {
+            // Quick POS detection based on endings (simplified version)
+            if (/(us|a|um|is|e|as|os|es|arum|orum)$/i.test(w)) {
+                t.pos = 'adjective'; // Could be noun or adjective, try both
+            } else if (/(o|or|m|t|nt|mus|tis|re)$/i.test(w)) {
+                t.pos = 'verb';
+            }
+        }
+        
+        const lemma = getLemma(w, t.pos);
+        if (lemma && LEXICON[lemma]) {
+            console.log(`[LEMMA] Found lemma for "${w}": "${lemma}" → ${LEXICON[lemma].def}`);
+            t.definition = LEXICON[lemma].def;
+            t.pos = LEXICON[lemma].pos;
+            return;
+        }
+        
+        // If adjective didn't work, try as noun
+        if (t.pos === 'adjective') {
+            const nounLemma = getLemma(w, 'noun');
+            if (nounLemma && LEXICON[nounLemma]) {
+                console.log(`[LEMMA] Found noun lemma for "${w}": "${nounLemma}" → ${LEXICON[nounLemma].def}`);
+                t.definition = LEXICON[nounLemma].def;
+                t.pos = LEXICON[nounLemma].pos;
+                return;
+            }
+        }
+    }
+        
         // SECOND: Fall back to morphology heuristics if not in LEXICON
         // Check for participles FIRST (before verbs) to avoid misclassification
        
@@ -2943,169 +3043,236 @@ console.log('[DEBUG] Final subject:', structure.subject);
     }
 
     function buildTranslationChunks(rawText, tokens, bias) {
-        if (!tokens || tokens.length === 0) return [];
+    if (!tokens || tokens.length === 0) return [];
 
-        const chunks = [];
+    const chunks = [];
 
-        // Helper: Check if segment has a finite verb
-        function hasFiniteVerb(startIdx, endIdx) {
-            for (let i = startIdx; i <= endIdx; i++) {
-                const t = tokens[i];
-                if (t && t.pos === 'verb' && t.features.tense !== 'infinitive') {
+    // Helper: Check if segment has a finite verb
+    function hasFiniteVerb(startIdx, endIdx) {
+        for (let i = startIdx; i <= endIdx; i++) {
+            const t = tokens[i];
+            if (t && t.pos === 'verb' && t.features.tense !== 'infinitive') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Helper: Check if segment has an infinitive
+    function hasInfinitive(startIdx, endIdx) {
+        for (let i = startIdx; i <= endIdx; i++) {
+            const t = tokens[i];
+            if (t && t.pos === 'verb' && t.features.tense === 'infinitive') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Helper: Check if segment contains a purpose clause (ut/ne + verb)
+    function hasPurposeClause(startIdx, endIdx) {
+        for (let i = startIdx; i < endIdx; i++) {
+            const t = tokens[i];
+            if (t && (t.normalized === 'ut' || t.normalized === 'ne')) {
+                // Look for verb within next 5 words
+                for (let j = i + 1; j <= Math.min(endIdx, i + 5); j++) {
+                    if (tokens[j] && tokens[j].pos === 'verb') {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // Helper: Check if segment starts with ablative absolute (abl noun + abl participle at start)
+    function startsWithAblativeAbsolute(startIdx, endIdx) {
+        if (endIdx - startIdx < 1) return false;
+        
+        for (let i = startIdx; i <= Math.min(startIdx + 3, endIdx - 1); i++) {
+            const t1 = tokens[i];
+            const t2 = tokens[i + 1];
+            
+            if ((t1.pos === 'noun' || t1.pos === 'pronoun') && t2.pos === 'participle') {
+                const t1Case = t1.features.case || '';
+                const t2Case = t2.features.case || '';
+                if (/abl/.test(t1Case) && /abl/.test(t2Case)) {
                     return true;
                 }
             }
-            return false;
         }
+        return false;
+    }
 
-        // Helper: Find all finite verb indices in a segment
-        function findFiniteVerbs(startIdx, endIdx) {
-            const verbs = [];
-            for (let i = startIdx; i <= endIdx; i++) {
-                const t = tokens[i];
-                if (t && t.pos === 'verb' && t.features.tense !== 'infinitive') {
-                    verbs.push(i);
-                }
-            }
-            return verbs;
+    // Step 1: Find all punctuation marks and their types
+    const punctuationMarks = [];
+
+    for (let i = 0; i < tokens.length - 1; i++) {
+        const t = tokens[i];
+        const next = tokens[i + 1];
+        const between = rawText.slice(t.end, next.start);
+
+        if (between.includes('.')) {
+            punctuationMarks.push({ idx: i, type: 'period' });
+        } else if (between.includes(';')) {
+            punctuationMarks.push({ idx: i, type: 'semicolon' });
+        } else if (between.includes(',')) {
+            punctuationMarks.push({ idx: i, type: 'comma' });
         }
+    }
 
-        // Step 1: Find all punctuation marks and their types
-        const punctuationMarks = []; // {idx: token index, type: 'comma'|'period'|'semicolon'}
+    // Step 2: Split by periods and semicolons first (always boundaries)
+    const majorBoundaries = punctuationMarks
+        .filter(p => p.type === 'period' || p.type === 'semicolon')
+        .map(p => p.idx);
 
-        for (let i = 0; i < tokens.length - 1; i++) {
-            const t = tokens[i];
-            const next = tokens[i + 1];
-            const between = rawText.slice(t.end, next.start);
+    // Add end of tokens as final boundary
+    majorBoundaries.push(tokens.length - 1);
 
-            if (between.includes('.')) {
-                punctuationMarks.push({ idx: i, type: 'period' });
-            } else if (between.includes(';')) {
-                punctuationMarks.push({ idx: i, type: 'semicolon' });
-            } else if (between.includes(',')) {
-                punctuationMarks.push({ idx: i, type: 'comma' });
-            }
-        }
+    // Step 3: For each major segment, decide if commas create sub-chunks
+    let segmentStart = 0;
 
-        // Step 2: Split by periods and semicolons first (always boundaries)
-        const majorBoundaries = punctuationMarks
-            .filter(p => p.type === 'period' || p.type === 'semicolon')
+    for (const majorBoundaryIdx of majorBoundaries) {
+        // Get all commas within this segment
+        const commasInSegment = punctuationMarks
+            .filter(p => p.type === 'comma' && p.idx >= segmentStart && p.idx < majorBoundaryIdx)
             .map(p => p.idx);
 
-        // Add end of tokens as final boundary
-        majorBoundaries.push(tokens.length - 1);
+        if (commasInSegment.length === 0) {
+            // No commas - entire segment is one chunk
+            const chunkTokens = [];
+            for (let i = segmentStart; i <= majorBoundaryIdx; i++) {
+                chunkTokens.push(i);
+            }
+            if (chunkTokens.length > 0) {
+                chunks.push({ tokens: chunkTokens, type: 'main', name: 'Main Clause' });
+            }
+        } else {
+            // Has commas - use improved splitting logic
+            const potentialBoundaries = [segmentStart - 1, ...commasInSegment, majorBoundaryIdx];
+            const validChunks = [];
+            let currentChunkStart = segmentStart;
 
-        // Step 3: For each major segment, decide if commas create sub-chunks
-        let segmentStart = 0;
+            for (let i = 1; i < potentialBoundaries.length; i++) {
+                const boundaryIdx = potentialBoundaries[i];
+                const segmentEnd = boundaryIdx;
 
-        for (const majorBoundaryIdx of majorBoundaries) {
-            // Get all commas within this segment
-            const commasInSegment = punctuationMarks
-                .filter(p => p.type === 'comma' && p.idx >= segmentStart && p.idx < majorBoundaryIdx)
-                .map(p => p.idx);
+                // Check various conditions for this segment
+                const hasVerb = hasFiniteVerb(currentChunkStart, segmentEnd);
+                const hasInf = hasInfinitive(currentChunkStart, segmentEnd);
+                const hasPurpose = hasPurposeClause(currentChunkStart, segmentEnd);
+                const hasAblAbs = startsWithAblativeAbsolute(currentChunkStart, segmentEnd);
 
-            if (commasInSegment.length === 0) {
-                // No commas - entire segment is one chunk
-                const chunkTokens = [];
-                for (let i = segmentStart; i <= majorBoundaryIdx; i++) {
-                    chunkTokens.push(i);
-                }
-                if (chunkTokens.length > 0) {
-                    chunks.push({ tokens: chunkTokens, type: 'main', name: 'Main Clause' });
-                }
-            } else {
-                // Has commas - check if they should split the chunk
-                // Strategy: Split at comma ONLY if both sides have finite verbs
-                // This keeps dependent clauses together
-
-                const potentialBoundaries = [segmentStart - 1, ...commasInSegment, majorBoundaryIdx];
-                const validChunks = [];
-                let currentChunkStart = segmentStart;
-
-                for (let i = 1; i < potentialBoundaries.length; i++) {
-                    const boundaryIdx = potentialBoundaries[i];
-                    const segmentEnd = boundaryIdx;
-
-                    // Check if this segment (from currentChunkStart to segmentEnd) should be a chunk
-                    const hasVerb = hasFiniteVerb(currentChunkStart, segmentEnd);
-
-                    // Look ahead: does the NEXT segment also have a verb?
-                    let nextSegmentHasVerb = false;
-                    if (i < potentialBoundaries.length - 1) {
-                        const nextStart = boundaryIdx + 1;
-                        const nextEnd = potentialBoundaries[i + 1];
-                        nextSegmentHasVerb = hasFiniteVerb(nextStart, nextEnd);
-                    }
-
-                    // Split at this comma if:
-                    // 1. Current segment has a verb AND next segment has a verb
-                    // OR
-                    // 2. This is the major boundary (end of sentence)
-                    if ((hasVerb && nextSegmentHasVerb) || boundaryIdx === majorBoundaryIdx) {
-                        const chunkTokens = [];
-                        for (let j = currentChunkStart; j <= segmentEnd; j++) {
-                            chunkTokens.push(j);
-                        }
-                        if (chunkTokens.length > 0) {
-                            validChunks.push(chunkTokens);
-                        }
-                        currentChunkStart = segmentEnd + 1;
-                    }
-                    // Otherwise, don't split - continue accumulating tokens
+                // Look ahead: does the NEXT segment also have content?
+                let nextSegmentHasVerb = false;
+                let nextSegmentHasInf = false;
+                let nextSegmentHasPurpose = false;
+                
+                if (i < potentialBoundaries.length - 1) {
+                    const nextStart = boundaryIdx + 1;
+                    const nextEnd = potentialBoundaries[i + 1];
+                    nextSegmentHasVerb = hasFiniteVerb(nextStart, nextEnd);
+                    nextSegmentHasInf = hasInfinitive(nextStart, nextEnd);
+                    nextSegmentHasPurpose = hasPurposeClause(nextStart, nextEnd);
                 }
 
-                // Add remaining tokens if any (in case we didn't split at last comma)
-                if (currentChunkStart <= majorBoundaryIdx) {
+                // DECISION: Split at this comma if any of these conditions are met:
+                const shouldSplit = 
+                    // 1. Both sides have finite verbs (original rule)
+                    (hasVerb && nextSegmentHasVerb) ||
+                    
+                    // 2. Current has infinitive AND next has infinitive (coordinated infinitives)
+                    (hasInf && nextSegmentHasInf) ||
+                    
+                    // 3. Current has purpose clause (always split after purpose clauses)
+                    hasPurpose ||
+                    
+                    // 4. This is the major boundary (end of sentence)
+                    (boundaryIdx === majorBoundaryIdx) ||
+                    
+                    // 5. Current has ablative absolute at start AND has verb (keep abl abs with its clause)
+                    (hasAblAbs && hasVerb && (nextSegmentHasVerb || nextSegmentHasInf));
+
+                if (shouldSplit) {
                     const chunkTokens = [];
-                    for (let j = currentChunkStart; j <= majorBoundaryIdx; j++) {
+                    for (let j = currentChunkStart; j <= segmentEnd; j++) {
                         chunkTokens.push(j);
                     }
                     if (chunkTokens.length > 0) {
                         validChunks.push(chunkTokens);
                     }
+                    currentChunkStart = segmentEnd + 1;
+                }
+                // Otherwise, don't split - continue accumulating tokens
+            }
+
+            // Add remaining tokens if any
+            if (currentChunkStart <= majorBoundaryIdx) {
+                const chunkTokens = [];
+                for (let j = currentChunkStart; j <= majorBoundaryIdx; j++) {
+                    chunkTokens.push(j);
+                }
+                if (chunkTokens.length > 0) {
+                    validChunks.push(chunkTokens);
+                }
+            }
+
+            // Add all valid chunks for this segment with appropriate labels
+            validChunks.forEach(chunkTokens => {
+                const chunkTokenObjs = chunkTokens.map(idx => tokens[idx]);
+                
+                // Determine chunk type based on content
+                const hasRelativePronoun = chunkTokenObjs.some(t =>
+                    ['qui', 'quae', 'quod', 'quem', 'quam', 'quos', 'quas', 'quo', 'qua', 'quibus', 'cui', 'cuius', 'quorum', 'quarum'].includes(t.normalized)
+                );
+                const hasCum = chunkTokenObjs.some(t => t.normalized === 'cum');
+                const hasUt = chunkTokenObjs.some(t => t.normalized === 'ut' || t.normalized === 'ne');
+                const hasInfVerb = chunkTokenObjs.some(t => t.pos === 'verb' && t.features.tense === 'infinitive');
+                const hasParticiple = chunkTokenObjs.some(t => t.pos === 'participle');
+
+                let chunkType = 'main';
+                let chunkName = 'Main Clause';
+                
+                if (hasRelativePronoun) {
+                    chunkType = 'relative';
+                    chunkName = 'Relative Clause';
+                } else if (hasUt) {
+                    chunkType = 'purpose';
+                    chunkName = 'Purpose Clause';
+                } else if (hasCum) {
+                    chunkType = 'cum-clause';
+                    chunkName = 'Cum Clause';
+                } else if (hasInfVerb && !hasFiniteVerb(chunkTokens[0], chunkTokens[chunkTokens.length - 1])) {
+                    chunkType = 'infinitive';
+                    chunkName = 'Infinitive Phrase';
+                } else if (hasParticiple && chunkTokenObjs.length <= 4) {
+                    chunkType = 'participial';
+                    chunkName = 'Participial Phrase';
                 }
 
-                // Add all valid chunks for this segment
-                validChunks.forEach(chunkTokens => {
-                    const chunkTokenObjs = chunkTokens.map(idx => tokens[idx]);
-                    const hasRelativePronoun = chunkTokenObjs.some(t =>
-                        ['qui', 'quae', 'quod', 'quem', 'quam', 'quos', 'quas', 'quo', 'qua', 'quibus', 'cui', 'cuius', 'quorum', 'quarum'].includes(t.normalized)
-                    );
-                    const hasCum = chunkTokenObjs.some(t => t.normalized === 'cum');
-                    const hasUt = chunkTokenObjs.some(t => t.normalized === 'ut' || t.normalized === 'ne');
-
-                    let chunkType = 'main';
-                    if (hasRelativePronoun) chunkType = 'relative';
-                    else if (hasCum) chunkType = 'cum-clause';
-                    else if (hasUt) chunkType = 'ut-clause';
-
-                    chunks.push({
-                        tokens: chunkTokens,
-                        type: chunkType,
-                        name: chunkType === 'main' ? 'Main Clause' :
-                              chunkType === 'relative' ? 'Relative Clause' :
-                              chunkType === 'cum-clause' ? 'Cum Clause' :
-                              chunkType === 'ut-clause' ? 'Ut Clause' : 'Clause'
-                    });
+                chunks.push({
+                    tokens: chunkTokens,
+                    type: chunkType,
+                    name: chunkName
                 });
-            }
-
-            // Next segment starts after this major boundary
-            segmentStart = majorBoundaryIdx + 1;
+            });
         }
 
-        // If no chunks were created, make entire text one chunk
-        if (chunks.length === 0) {
-            const allTokens = [];
-            for (let i = 0; i < tokens.length; i++) {
-                allTokens.push(i);
-            }
-            chunks.push({ tokens: allTokens, type: 'main', name: 'Main Clause' });
-        }
-
-        return chunks;
+        // Next segment starts after this major boundary
+        segmentStart = majorBoundaryIdx + 1;
     }
 
+    // If no chunks were created, make entire text one chunk
+    if (chunks.length === 0) {
+        const allTokens = [];
+        for (let i = 0; i < tokens.length; i++) {
+            allTokens.push(i);
+        }
+        chunks.push({ tokens: allTokens, type: 'main', name: 'Main Clause' });
+    }
+
+    return chunks;
+}
     function sameCaseBucket(a, b) {
         const aCases = extractCaseTags(a);
         const bCases = extractCaseTags(b);
@@ -3127,175 +3294,284 @@ console.log('[DEBUG] Final subject:', structure.subject);
 
     function detectComplexGrammar(tokens, bias) {
         const found = [];
-        // Ablative absolute: ablative noun + participle nearby
-        for (let i = 0; i < tokens.length - 1; i++) {
-            const a = tokens[i];
-            const b = tokens[i+1];
-            if ((a.pos === 'noun' || a.pos === 'pronoun') && b.pos === 'participle') {
-                const nounCases = extractCaseTags(a.features.case);
-                const partCases = extractCaseTags(b.features.case);
-                if (nounCases.includes('abl') && partCases.includes('abl') && tokensMorphologicallyAgree(a, b)) {
-                    found.push({ name: 'Ablative Absolute', text: `${a.original} ${b.original}` });
+    
+    // === ABLATIVE ABSOLUTE (with detailed debugging) ===
+    // === ABLATIVE ABSOLUTE (improved - allows intervening genitives) ===
+console.log('[ABLATIVE ABS] Checking for ablative absolutes...');
+for (let i = 0; i < tokens.length; i++) {
+    const a = tokens[i];
+    
+    // Must start with ablative noun/pronoun
+    if (!(a.pos === 'noun' || a.pos === 'pronoun')) continue;
+    
+    const nounCase = (a.features.case || '').toLowerCase();
+    if (!nounCase.includes('abl')) continue;
+    
+    console.log(`[ABLATIVE ABS] Found ablative noun: "${a.original}" (case: ${nounCase})`);
+    
+    // Look ahead for participle (within 3 words, skipping genitives)
+    for (let j = i + 1; j <= Math.min(i + 3, tokens.length - 1); j++) {
+        const b = tokens[j];
+        
+        console.log(`[ABLATIVE ABS]   Checking potential participle: "${b.original}" (${b.pos})`);
+        
+        // Skip genitive nouns (they modify the ablative noun)
+        if ((b.pos === 'noun' || b.pos === 'proper-noun' || b.pos === 'pronoun') && 
+            (b.features.case || '').toLowerCase().includes('gen')) {
+            console.log(`[ABLATIVE ABS]   Skipping genitive: "${b.original}"`);
+            continue;
+        }
+        
+        // Check if it's a participle
+        if (b.pos === 'participle') {
+            // Get participle case - check multiple sources
+            let partCase = (b.features.case || '').toLowerCase();
+            
+            // If case is missing or wrong, infer from ending
+            if (!partCase || (!partCase.includes('abl') && !partCase.includes('nom'))) {
+                const word = b.normalized;
+                // Perfect participles in -i ending are often nom/abl pl masc
+                if (/i$/i.test(word)) {
+                    partCase = 'nom/abl pl masc';
+                    console.log(`[ABLATIVE ABS]   Inferred case from ending: ${partCase}`);
+                }
+                // -is ending could be abl/dat pl or gen sg
+                else if (/is$/i.test(word)) {
+                    partCase = 'abl pl';
+                    console.log(`[ABLATIVE ABS]   Inferred case from ending: ${partCase}`);
                 }
             }
-        }
-        // Supine (accusative -um after motion verb)
-        const motion = new Set(['venit','veniunt','venimus','venio','eo','iit','iit','ierunt','ibat','ibant','iit','ivimus','adeo','redeo']);
-        for (let i = 0; i < tokens.length - 1; i++) {
-            if (motion.has(tokens[i].normalized) && /um$/.test(tokens[i+1].normalized)) {
-                found.push({ name: 'Accusative Supine', text: tokens[i+1].original });
+            
+            console.log(`[ABLATIVE ABS]   Participle case: "${partCase}"`);
+            
+            const partHasAbl = partCase.includes('abl') || partCase.includes('nom');
+            
+            if (partHasAbl) {
+                // Collect all words in between for full phrase
+                const phraseTokens = [];
+                for (let k = i; k <= j; k++) {
+                    phraseTokens.push(tokens[k].original);
+                }
+                
+                console.log(`[ABLATIVE ABS] ✓ FOUND: ${phraseTokens.join(' ')}`);
+                found.push({ name: 'Ablative Absolute', text: phraseTokens.join(' ') });
+                break; // Found participle for this noun, move to next noun
+            } else {
+                console.log(`[ABLATIVE ABS] ✗ Participle case doesn't match`);
             }
         }
-        // Indirect statement: reporting verb + accusative noun(s) + infinitive
-        const reportingVerbs = new Set(['dico', 'dicis', 'dicit', 'dicimus', 'dicitis', 'dicunt', 'dixit', 'dixerunt', 'puto', 'putas', 'putat', 'putamus', 'putatis', 'putant', 'putavi', 'putavit', 'credo', 'credis', 'credit', 'credimus', 'creditis', 'credunt', 'credidi', 'video', 'vides', 'videt', 'videmus', 'videtis', 'vident', 'vidi', 'viderunt', 'audio', 'audis', 'audit', 'audimus', 'auditis', 'audiunt', 'audivi', 'audivit', 'spero', 'speras', 'sperat', 'speramus', 'scio', 'scis', 'scit', 'scimus', 'scitis', 'sciunt', 'narro', 'narras', 'narrat', 'narramus']);
-        for (let i = 0; i < tokens.length; i++) {
-            const t = tokens[i];
-            // Look for infinitives
-            if (t.pos === 'verb' && t.features.tense === 'infinitive') {
-                // Check if there's a reporting verb before this infinitive
-                let reportingVerbIdx = -1;
-                for (let k = Math.max(0, i - 6); k < i; k++) {
-                    if (tokens[k].pos === 'verb' && reportingVerbs.has(tokens[k].normalized)) {
-                        reportingVerbIdx = k;
-                        break;
-                    }
-                }
-               
-                if (reportingVerbIdx >= 0) {
-                    // Find accusative nouns/pronouns in the indirect statement
-                    const accSubjects = [];
-                   
-                    // Look between reporting verb and infinitive
-                    for (let j = reportingVerbIdx + 1; j < i; j++) {
-                        const token = tokens[j];
-                        if (token.pos === 'noun' || token.pos === 'pronoun') {
-                            const tokenCase = token.features.case || '';
-                            const isAccusative = /^acc/.test(tokenCase);
-                            const accPronouns = ['me', 'te', 'se', 'nos', 'vos', 'eum', 'eam', 'eos', 'eas', 'id'];
-                            const isAccPronoun = accPronouns.includes(token.normalized);
-                           
-                            if (isAccusative || isAccPronoun) {
-                                accSubjects.push(token.original);
-                            }
-                        }
-                    }
-                   
-                    // Also look after infinitive for predicate accusatives
-                    for (let j = i + 1; j <= Math.min(i + 2, tokens.length - 1); j++) {
-                        const token = tokens[j];
-                        if (token.pos === 'noun' || token.pos === 'pronoun') {
-                            const tokenCase = token.features.case || '';
-                            const isAccusative = /^acc/.test(tokenCase);
-                            const accPronouns = ['me', 'te', 'se', 'nos', 'vos', 'eum', 'eam', 'eos', 'eas', 'id'];
-                            const isAccPronoun = accPronouns.includes(token.normalized);
-                           
-                            if (isAccusative || isAccPronoun) {
-                                accSubjects.push(token.original);
-                            }
-                        }
-                    }
-                   
-                    // If we found accusative noun(s)/pronoun(s), report the indirect statement
-                    if (accSubjects.length > 0) {
-                        const span = [tokens[reportingVerbIdx].original, ...accSubjects, t.original].join(' ');
-                        found.push({ name: 'Indirect Statement', text: span });
-                        break; // Only report once per infinitive
-                    }
-                }
-            }
+        
+        // Stop if we hit a finite verb or conjunction
+        if ((b.pos === 'verb' && b.features.tense !== 'infinitive') || b.pos === 'conjunction') {
+            console.log(`[ABLATIVE ABS]   Hit ${b.pos}, stopping search`);
+            break;
         }
-        // Relative Clauses: relative pronoun followed by clause
-        const relSet = new Set(['qui','quae','quod','quem','quam','quos','quas','quo','qua','quibus','cui','cuius','quorum','quarum']);
-        for (let i = 0; i < tokens.length; i++) {
-            if (relSet.has(tokens[i].normalized)) {
-                // Find the span from relative pronoun to next verb
-                const span = [tokens[i].original];
-                for (let j = i + 1; j < tokens.length && j <= i + 5; j++) {
-                    span.push(tokens[j].original);
-                    if (tokens[j].pos === 'verb' && tokens[j].features.tense !== 'infinitive') {
-                        break;
-                    }
-                }
-                if (span.length > 1) {
-                    found.push({ name: 'Relative Clause', text: span.join(' ') });
-                }
-            }
+    }
+}
+    
+    // === REST OF THE FUNCTION (keep all the other sections) ===
+    // Supine detection
+    const motion = new Set(['venit','veniunt','venimus','venio','eo','iit','ierunt','ibat','ibant','ivimus','adeo','redeo']);
+    for (let i = 0; i < tokens.length - 1; i++) {
+        if (motion.has(tokens[i].normalized) && /um$/.test(tokens[i+1].normalized)) {
+            found.push({ name: 'Accusative Supine', text: tokens[i+1].original });
         }
-        // Gerundives, with special attention to purpose constructions (ad + accusative + gerundive)
-        const gerundiveSeen = new Set();
-        for (let i = 0; i < tokens.length; i++) {
-            const ger = tokens[i];
-            if (ger.pos !== 'gerundive') continue;
-
-            let start = i;
-            let hasAd = false;
-            for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
-                const candidate = tokens[j];
-                if (!candidate) break;
-                if (candidate.pos === 'punctuation') break;
-                if (candidate.normalized === 'ad') {
-                    start = j;
-                    hasAd = true;
-                    break;
-                }
-                if (candidate.pos === 'noun' || candidate.pos === 'pronoun' || candidate.pos === 'adjective') {
-                    start = j;
-                    continue;
-                }
-                if (candidate.pos === 'preposition') {
+    }
+    
+    // Indirect statement
+    const indirectStatementVerbs = new Set([
+        'dico', 'dicis', 'dicit', 'dicimus', 'dicitis', 'dicunt', 'dixit', 'dixerunt',
+        'puto', 'putas', 'putat', 'putamus', 'putatis', 'putant', 'putavi', 'putavit',
+        'credo', 'credis', 'credit', 'credimus', 'creditis', 'credunt', 'credidi',
+        'video', 'vides', 'videt', 'videmus', 'videtis', 'vident', 'vidi', 'viderunt',
+        'audio', 'audis', 'audit', 'audimus', 'auditis', 'audiunt', 'audivi', 'audivit',
+        'spero', 'speras', 'sperat', 'speramus', 'scio', 'scis', 'scit', 'scimus', 'scitis', 'sciunt',
+        'narro', 'narras', 'narrat', 'narramus',
+        'constituo', 'constituis', 'constituit', 'constituimus', 'constituitis', 'constituunt', 'constituerunt',
+        'statuo', 'statuis', 'statuit', 'statuimus', 'statuitis', 'statuunt', 'statuerunt',
+        'decerno', 'decernis', 'decernit', 'decernimus', 'decernitis', 'decernunt', 'decreverunt'
+    ]);
+    
+    for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        
+        if (t.pos === 'verb' && t.features.tense === 'infinitive') {
+            let reportingVerbIdx = -1;
+            
+            for (let k = Math.max(0, i - 8); k < i; k++) {
+                if (tokens[k].pos === 'verb' && indirectStatementVerbs.has(tokens[k].normalized)) {
+                    reportingVerbIdx = k;
                     break;
                 }
             }
-            const phraseTokens = tokens.slice(start, i + 1);
-            const text = phraseTokens.map(t => t.original).join(' ');
-            const key = `${hasAd ? 'purpose' : 'gerundive'}|${text}`;
-            if (!gerundiveSeen.has(key)) {
-                gerundiveSeen.add(key);
-                const label = hasAd ? 'Gerundive of Purpose' : 'Gerundive';
-                found.push({ name: label, text });
+            
+            if (reportingVerbIdx >= 0) {
+                const accSubjects = [];
+                
+                for (let j = reportingVerbIdx + 1; j < i; j++) {
+                    const token = tokens[j];
+                    if (token.pos === 'noun' || token.pos === 'pronoun') {
+                        const tokenCase = token.features.case || '';
+                        const isAccusative = /^acc/.test(tokenCase);
+                        const accPronouns = ['me', 'te', 'se', 'nos', 'vos', 'eum', 'eam', 'eos', 'eas', 'id'];
+                        const isAccPronoun = accPronouns.includes(token.normalized);
+                        
+                        if (isAccusative || isAccPronoun) {
+                            accSubjects.push(token.original);
+                        }
+                    }
+                }
+                
+                for (let j = i + 1; j <= Math.min(i + 3, tokens.length - 1); j++) {
+                    const token = tokens[j];
+                    if (token.pos === 'noun' || token.pos === 'pronoun') {
+                        const tokenCase = token.features.case || '';
+                        if (/^acc/.test(tokenCase)) {
+                            accSubjects.push(token.original);
+                        }
+                    }
+                }
+                
+                if (accSubjects.length > 0) {
+                    const span = [tokens[reportingVerbIdx].original, ...accSubjects, t.original].join(' ');
+                    found.push({ name: 'Indirect Statement', text: span });
+                    break;
+                }
             }
         }
-        // Participial Phrases: participle + associated noun (with case agreement)
-        // First, track which participles are already in noun-adjective agreement with closer words
-        const participlesInAdjGroups = new Set();
-       
-        for (let i = 0; i < tokens.length; i++) {
-            if (tokens[i].pos === 'participle') {
-                for (let j = Math.max(0, i - 2); j <= Math.min(tokens.length - 1, i + 2); j++) {
-                    if (j !== i && (tokens[j].pos === 'noun' || tokens[j].pos === 'pronoun')) {
-                        if (tokensMorphologicallyAgree(tokens[i], tokens[j])) {
-                            participlesInAdjGroups.add(i);
-                            break;
-                        }
+    }
+    
+    // Relative Clauses (exclude "quam")
+    const relSet = new Set(['qui','quae','quod','quem','quo','qua','quibus','cui','cuius','quorum','quarum']);
+    
+    for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].normalized === 'quam') continue;
+        
+        if (relSet.has(tokens[i].normalized)) {
+            const span = [tokens[i].original];
+            
+            for (let j = i + 1; j < tokens.length && j <= i + 5; j++) {
+                span.push(tokens[j].original);
+                if (tokens[j].pos === 'verb' && tokens[j].features.tense !== 'infinitive') {
+                    break;
+                }
+            }
+            
+            if (span.length > 1) {
+                found.push({ name: 'Relative Clause', text: span.join(' ') });
+            }
+        }
+    }
+    
+    // Purpose Clauses
+    for (let i = 0; i < tokens.length - 1; i++) {
+        const t = tokens[i];
+        
+        if (t.normalized === 'ut' || t.normalized === 'ne') {
+            const span = [t.original];
+            let foundVerb = false;
+            
+            for (let j = i + 1; j <= Math.min(i + 8, tokens.length - 1); j++) {
+                span.push(tokens[j].original);
+                
+                if (tokens[j].pos === 'verb' && tokens[j].features.tense !== 'infinitive') {
+                    foundVerb = true;
+                    break;
+                }
+            }
+            
+            if (foundVerb) {
+                found.push({ name: 'Purpose Clause', text: span.join(' ') });
+            }
+        }
+    }
+    
+    // Gerundives
+    const gerundiveSeen = new Set();
+    
+    for (let i = 0; i < tokens.length; i++) {
+        const ger = tokens[i];
+        
+        const isGerundive = ger.pos === 'gerundive' || 
+                           /nd(um|am|is|o|os|as|orum|arum|ibus)$/i.test(ger.normalized);
+        
+        if (!isGerundive) continue;
+        
+        let start = i;
+        let hasAd = false;
+        
+        for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+            const candidate = tokens[j];
+            if (!candidate) break;
+            
+            if (candidate.normalized === 'ad') {
+                start = j;
+                hasAd = true;
+                break;
+            }
+            
+            if (candidate.pos === 'noun' || candidate.pos === 'pronoun' || candidate.pos === 'adjective') {
+                start = j;
+                continue;
+            }
+            
+            if (candidate.pos === 'preposition') {
+                break;
+            }
+        }
+        
+        const phraseTokens = tokens.slice(start, i + 1);
+        const text = phraseTokens.map(t => t.original).join(' ');
+        const key = `${hasAd ? 'purpose' : 'gerundive'}|${text}`;
+        
+        if (!gerundiveSeen.has(key)) {
+            gerundiveSeen.add(key);
+            const label = hasAd ? 'Gerundive of Purpose' : 'Gerundive';
+            found.push({ name: label, text });
+        }
+    }
+    
+    // Participial Phrases
+    const participlesInAdjGroups = new Set();
+    
+    for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].pos === 'participle') {
+            for (let j = Math.max(0, i - 2); j <= Math.min(tokens.length - 1, i + 2); j++) {
+                if (j !== i && (tokens[j].pos === 'noun' || tokens[j].pos === 'pronoun')) {
+                    if (tokensMorphologicallyAgree(tokens[i], tokens[j])) {
+                        participlesInAdjGroups.add(i);
+                        break;
                     }
                 }
             }
         }
-       
-        // Now detect participial phrases, but skip participles already in adjective groups
-        for (let i = 0; i < tokens.length; i++) {
-            if (tokens[i].pos === 'participle' && !participlesInAdjGroups.has(i)) {
-                const windowSize = 3;
-                let nearestNoun = null;
-                let bestDist = Infinity;
-               
-                for (let j = Math.max(0, i - windowSize); j <= Math.min(tokens.length - 1, i + windowSize); j++) {
-                    if (j !== i && (tokens[j].pos === 'noun' || tokens[j].pos === 'pronoun')) {
-                        if (tokensMorphologicallyAgree(tokens[i], tokens[j])) {
-                            const d = Math.abs(j - i);
-                            if (d < bestDist) {
-                                nearestNoun = tokens[j];
-                                bestDist = d;
-                            }
+    }
+    
+    for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].pos === 'participle' && !participlesInAdjGroups.has(i)) {
+            const windowSize = 3;
+            let nearestNoun = null;
+            let bestDist = Infinity;
+            
+            for (let j = Math.max(0, i - windowSize); j <= Math.min(tokens.length - 1, i + windowSize); j++) {
+                if (j !== i && (tokens[j].pos === 'noun' || tokens[j].pos === 'pronoun')) {
+                    if (tokensMorphologicallyAgree(tokens[i], tokens[j])) {
+                        const d = Math.abs(j - i);
+                        if (d < bestDist) {
+                            nearestNoun = tokens[j];
+                            bestDist = d;
                         }
                     }
                 }
-                if (nearestNoun) {
-                    found.push({ name: 'Participial Phrase', text: `${tokens[i].original} + ${nearestNoun.original}` });
-                }
+            }
+            
+            if (nearestNoun) {
+                found.push({ name: 'Participial Phrase', text: `${tokens[i].original} + ${nearestNoun.original}` });
             }
         }
-        return found;
+    }
+    
+    return found;
     }
 
     function buildBaselineEnglish(tokens) {
@@ -4088,6 +4364,94 @@ console.log('[DEBUG] Final subject:', structure.subject);
         } catch (error) {
             console.log('All API lookups failed for:', word, error);
         }
+
+        // Option 3: Try Whitaker's Words (fallback #2)
+try {
+    // Whitaker's Words endpoint (via online service)
+    const whitakerURL = `http://www.archives.nd.edu/cgi-bin/wordz.pl?keyword=${encodeURIComponent(normalized)}`;
+    const proxiedURL = CORS_PROXY + encodeURIComponent(whitakerURL);
+    console.log('[API LOOKUP] Trying Whitaker\'s Words (fallback #2):', proxiedURL);
+    
+    const whitakerResponse = await fetch(proxiedURL, {
+        method: 'GET',
+        signal: AbortSignal.timeout(8000)
+    });
+    
+    if (whitakerResponse.ok) {
+        const htmlText = await whitakerResponse.text();
+        console.log('[API LOOKUP] Whitaker response received, parsing HTML...');
+        
+        // Parse HTML to extract definition
+        // Whitaker returns HTML with definitions in specific format
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        
+        // Look for definition text (Whitaker uses <pre> tags)
+        const preElements = doc.getElementsByTagName('pre');
+        
+        if (preElements.length > 0) {
+            const text = preElements[0].textContent;
+            
+            // Extract the English definition (usually after "=>")
+            const lines = text.split('\n');
+            let definition = '';
+            let pos = 'unknown';
+            
+            for (const line of lines) {
+                // Look for part of speech indicators
+                if (line.includes('N ') || line.includes('noun')) pos = 'noun';
+                else if (line.includes('V ') || line.includes('verb')) pos = 'verb';
+                else if (line.includes('ADJ') || line.includes('adjective')) pos = 'adjective';
+                else if (line.includes('ADV') || line.includes('adverb')) pos = 'adverb';
+                else if (line.includes('PREP') || line.includes('preposition')) pos = 'preposition';
+                else if (line.includes('PRON') || line.includes('pronoun')) pos = 'pronoun';
+                else if (line.includes('CONJ') || line.includes('conjunction')) pos = 'conjunction';
+                else if (line.includes('VPAR') || line.includes('participle')) pos = 'participle';
+                
+                // Extract definition (text after semicolons or in certain patterns)
+                if (line.includes(';')) {
+                    const parts = line.split(';');
+                    // Take the part with actual English words
+                    for (const part of parts) {
+                        const cleaned = part.trim();
+                        if (cleaned.length > 0 && 
+                            cleaned.length < 100 && 
+                            !cleaned.match(/^[A-Z\s,\-]+$/) && // Skip all-caps lines
+                            cleaned.match(/[a-z]/)) { // Must have lowercase (English)
+                            definition = cleaned;
+                            break;
+                        }
+                    }
+                    if (definition) break;
+                }
+            }
+            
+            // If we found a definition, use it
+            if (definition && definition.length > 0) {
+                // Clean up definition
+                definition = definition.replace(/^\s*[-;,]\s*/, ''); // Remove leading punctuation
+                definition = definition.split(',')[0]; // Take first meaning
+                definition = definition.trim();
+                
+                if (pos === 'unknown') {
+                    pos = determinePosMorphologically(normalized);
+                }
+                
+                const result = {
+                    pos: pos,
+                    def: definition,
+                    found: true
+                };
+                
+                cacheWord(normalized, result);
+                console.log('✓ Found via Whitaker\'s Words:', normalized, '→', result.def, `(${pos})`);
+                return result;
+            }
+        }
+    }
+} catch (e) {
+    console.log('Whitaker\'s Words API error:', e.message);
+}
        
         // If all APIs fail, use morphological analysis as last resort
         const morphResult = analyzeMorphologically(normalized);
