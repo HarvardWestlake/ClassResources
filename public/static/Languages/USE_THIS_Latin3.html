@@ -1515,17 +1515,18 @@
                     console.log(`[SUBJECT SEARCH] Skipping "${noun.token.word}" - in prepositional phrase`);
                     continue;
                 }
-                if (noun.case && /^nom(?!\/)/.test(noun.case) && noun.token.definition && noun.token.definition !== 'unknown')  {
-                    structure.subject = {
-                        token: noun.token,
-                        idx: noun.idx,
-                        definition: noun.token.definition
-                    };
-                    console.log(`[SUBJECT SEARCH] SELECTED "${noun.token.word}" as subject (case: ${noun.case}, def: ${noun.token.definition})`);
-                    break; // Take first nominative with definition
-                } else {
-                    console.log(`[SUBJECT SEARCH] Rejected "${noun.token.word}" - nomTest=${/nom/i.test(noun.case)}, hasDef=${!!(noun.token.definition && noun.token.definition !== 'unknown')}`);
-                }
+                // FIXED: Accept "nom" even if followed by slash (e.g., "nom/abl sg")
+if (noun.case && /nom/i.test(noun.case) && noun.token.definition && noun.token.definition !== 'unknown')  {
+    structure.subject = {
+        token: noun.token,
+        idx: noun.idx,
+        definition: noun.token.definition
+    };
+    console.log(`[SUBJECT SEARCH] SELECTED "${noun.token.original}" as subject (case: ${noun.case}, def: ${noun.token.definition})`);
+    break; // Take first nominative with definition
+} else {
+    console.log(`[SUBJECT SEARCH] Rejected "${noun.token.original}" - nomTest=${/nom/i.test(noun.case)}, hasDef=${!!(noun.token.definition && noun.token.definition !== 'unknown')}`);
+}
             }
 
             // Find accusative noun as object
