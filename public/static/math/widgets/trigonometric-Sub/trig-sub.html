@@ -501,8 +501,7 @@
               <select id="tsw-function" aria-label="function">
                 <option value="sqrt_minus">sqrt(a^2 - x^2)</option>
                 <option value="sqrt_plus">sqrt(a^2 + x^2)</option>
-                <option value="inv_sqrt_minus">1/sqrt(a^2 - x^2)</option>
-                <option value="inv_plus">1/(a^2 + x^2)</option>
+                <option value="sqrt_x2_minus">sqrt(x^2 - a^2)</option>
               </select>
             </div>
             <div>
@@ -926,36 +925,21 @@
               thetaOfX: (x, a) => Math.atan(x / a),
             },
           },
-          inv_sqrt_minus: {
-            label: "1/sqrt(a^2 - x^2)",
+          sqrt_x2_minus: {
+            label: "sqrt(x^2 - a^2)",
             f: (x, a) => {
-              const t = a * a - x * x;
-              if (t <= 0) return NaN;
-              return 1 / Math.sqrt(t);
+              const t = x * x - a * a;
+              return t >= 0 ? Math.sqrt(t) : NaN;
             },
-            domain: (a) => [-a, a],
-            singular: true,
-            sub: {
-              name: "sin",
-              xTex: "x = a\\,\\sin\\theta",
-              dxTex: "dx = a\\,\\cos\\theta\\,d\\theta",
-              yTex: "y = 1/(a\\,\\cos\\theta)",
-              gTex: (a) => "1",
-              thetaOfX: (x, a) => Math.asin(clamp(x / a, -1, 1)),
-            },
-          },
-          inv_plus: {
-            label: "1/(a^2 + x^2)",
-            f: (x, a) => 1 / (a * a + x * x),
             domain: (a) => [-Math.max(4 * a, 4), Math.max(4 * a, 4)],
             singular: false,
             sub: {
-              name: "tan",
-              xTex: "x = a\\,\\tan\\theta",
-              dxTex: "dx = a\\,\\sec^2\\theta\\,d\\theta",
-              yTex: "y = 1/(a^2\\,\\sec^2\\theta)",
-              gTex: (a) => `1/${a.toFixed(3)}`.replace(/\./, "\\."),
-              thetaOfX: (x, a) => Math.atan(x / a),
+              name: "sec",
+              xTex: "x = a\\,\\sec\\theta",
+              dxTex: "dx = a\\,\\sec\\theta\\,\\tan\\theta\\,d\\theta",
+              yTex: "y = a\\,\\tan\\theta",
+              gTex: (a) => "a^2\\,\\sec\\theta\\,\\tan^2\\theta",
+              thetaOfX: (x, a) => Math.acos(clamp(a / x, -1, 1)),
             },
           },
         };
