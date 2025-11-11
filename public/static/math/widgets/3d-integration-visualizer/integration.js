@@ -28,6 +28,10 @@
     // Three.js core
     let renderer, scene, camera, controls;
     let surfaceGroup, columnsGroup, regionGroup, wedgeGroup, axesHelper, gridHelper, gridHelperNeg;
+    // Auto-rotation around Z axis for demonstration
+    let autoRotateZ = true;
+    let autoRotateSpeed = 0.5; // radians per second
+    let _lastFrameTime = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
     function getHostSize() {
         const rect = canvasHost.getBoundingClientRect();
@@ -54,6 +58,109 @@
         renderer.setSize(w, h);
         canvasHost.innerHTML = '';
         canvasHost.appendChild(renderer.domElement);
+        // Basic click probe: visual dot + console logs to prove events are firing
+        (function attachClickProbe() {
+            const el = renderer.domElement;
+            // Help pointer events on touch devices and avoid context menu blocking right-drag
+            el.style.touchAction = 'none';
+            el.addEventListener('contextmenu', (e) => e.preventDefault());
+            function showClickDot(evt, color = '#ff3b7f', radius = 6) {
+                const rect = el.getBoundingClientRect();
+                const x = evt.clientX - rect.left;
+                const y = evt.clientY - rect.top;
+                const dot = document.createElement('div');
+                dot.style.position = 'absolute';
+                dot.style.left = (x - radius) + 'px';
+                dot.style.top = (y - radius) + 'px';
+                const size = (radius * 2) + 'px';
+                dot.style.width = size;
+                dot.style.height = size;
+                dot.style.borderRadius = '50%';
+                dot.style.background = color;
+                dot.style.boxShadow = '0 0 0 2px rgba(0,0,0,.12)';
+                dot.style.pointerEvents = 'none';
+                dot.style.opacity = '1';
+                dot.style.transform = 'scale(1)';
+                dot.style.transition = 'transform 0.45s ease-out, opacity 0.6s ease-out';
+                canvasHost.appendChild(dot);
+                requestAnimationFrame(() => {
+                    dot.style.transform = 'scale(2)';
+                    dot.style.opacity = '0';
+                });
+                setTimeout(() => { dot.remove(); }, 650);
+            }
+            let isDragging = false;
+            let startX = 0, startY = 0, lastX = 0, lastY = 0;
+            let moveRAF = 0;
+            let pendingMoveEvt = null;
+            let autoRotateResumeTimer = 0;
+            function pauseAutoRotate(ms = 1500) {
+                autoRotateZ = false;
+                if (autoRotateResumeTimer) clearTimeout(autoRotateResumeTimer);
+                autoRotateResumeTimer = setTimeout(() => { autoRotateZ = true; }, ms);
+            }
+            el.addEventListener('pointerdown', (evt) => {
+                console.log('canvas pointerdown (drag start)', { button: evt.button, x: evt.clientX, y: evt.clientY });
+                isDragging = true;
+                startX = lastX = evt.clientX;
+                startY = lastY = evt.clientY;
+                try { el.setPointerCapture(evt.pointerId); } catch(e) {}
+                // blue marker for drag start
+                showClickDot(evt, '#2d6cdf', 5);
+                pauseAutoRotate(2500);
+            });
+            el.addEventListener('pointermove', (evt) => {
+                if (!isDragging) return;
+                pendingMoveEvt = evt;
+                if (moveRAF) return;
+                moveRAF = requestAnimationFrame(() => {
+                    const e = pendingMoveEvt;
+                    moveRAF = 0;
+                    pendingMoveEvt = null;
+                    const dx = e.clientX - lastX;
+                    const dy = e.clientY - lastY;
+                    lastX = e.clientX;
+                    lastY = e.clientY;
+                    console.log('canvas drag move', { dx, dy, x: e.clientX, y: e.clientY });
+                    // light blue trail dot during drag
+                    showClickDot(e, '#4cc3ff', 4);
+                    // Drive camera orbit if available; otherwise rotate the content as fallback
+                    try {
+                        const elementHeight = Math.max(1, el.clientHeight || el.height || 1);
+                        const angleFactor = (2 * Math.PI) / elementHeight; // ~full rotation per viewport height
+                        if (controls && typeof controls.rotateLeft === 'function' && typeof controls.rotateUp === 'function') {
+                            controls.rotateLeft(dx * angleFactor);
+                            controls.rotateUp(dy * angleFactor);
+                            controls.update();
+                        } else {
+                            const rotSpeed = 0.01;
+                            if (surfaceGroup) { surfaceGroup.rotation.y += dx * rotSpeed; surfaceGroup.rotation.x += dy * rotSpeed; }
+                            if (columnsGroup) { columnsGroup.rotation.y += dx * rotSpeed; columnsGroup.rotation.x += dy * rotSpeed; }
+                            if (regionGroup) { regionGroup.rotation.y += dx * rotSpeed; regionGroup.rotation.x += dy * rotSpeed; }
+                            if (wedgeGroup) { wedgeGroup.rotation.y += dx * rotSpeed; wedgeGroup.rotation.x += dy * rotSpeed; }
+                        }
+                    } catch (err) {
+                        // no-op
+                    }
+                });
+            });
+            function endDrag(evt, label = 'pointerup') {
+                if (!isDragging) return;
+                isDragging = false;
+                try { el.releasePointerCapture(evt.pointerId); } catch(e) {}
+                const totalDx = evt.clientX - startX;
+                const totalDy = evt.clientY - startY;
+                console.log(`canvas ${label} (drag end)`, { x: evt.clientX, y: evt.clientY, totalDx, totalDy });
+                // green marker for drag end
+                showClickDot(evt, '#2ecc71', 6);
+                pauseAutoRotate(1500);
+            }
+            el.addEventListener('pointerup', (evt) => endDrag(evt, 'pointerup'));
+            el.addEventListener('pointercancel', (evt) => endDrag(evt, 'pointercancel'));
+            el.addEventListener('click', (evt) => {
+                console.log('canvas click', { x: evt.clientX, y: evt.clientY });
+            });
+        })();
 
         scene = new THREE.Scene();
         scene.background = null;
@@ -121,6 +228,17 @@
 
     function animate() {
         requestAnimationFrame(animate);
+        // time step for smooth and framerate-independent rotation
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const dt = Math.max(0, (now - _lastFrameTime) / 1000);
+        _lastFrameTime = now;
+        if (autoRotateZ) {
+            const dAng = autoRotateSpeed * dt;
+            if (surfaceGroup) surfaceGroup.rotation.z += dAng;
+            if (columnsGroup) columnsGroup.rotation.z += dAng;
+            if (regionGroup) regionGroup.rotation.z += dAng;
+            if (wedgeGroup) wedgeGroup.rotation.z += dAng;
+        }
         controls && controls.update();
         renderer && renderer.render(scene, camera);
     }
