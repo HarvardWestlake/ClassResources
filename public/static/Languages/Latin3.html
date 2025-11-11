@@ -110,6 +110,29 @@
             margin-bottom: 44px;
         }
 
+        .user-directions {
+            background-color: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 800px;
+            text-align: left;
+        }
+
+        .user-directions p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+
+        .user-directions p:first-child {
+            margin-top: 0;
+        }
+
+        .user-directions p:last-child {
+            margin-bottom: 0;
+        }
+
         .eyebrow {
             display: inline-block;
             font-size: 0.75rem;
@@ -486,19 +509,14 @@
         <div class="container">
             <div class="page-intro">
                 <h1>Latin Text Analyzer</h1>
-                <p class="subtitle">Analyze Latin poetry and prose with advanced grammatical insights.</p>
-            </div>
-
-            <!-- Mode Selection -->
-            <div class="section">
-                <div class="mode-buttons">
-                    <button id="btn-poetry" class="mode-button" aria-pressed="false">Poetry Mode</button>
-                    <button id="btn-prose" class="mode-button" aria-pressed="false">Prose Mode</button>
+                <div class="user-directions">
+                    <p><strong>Welcome!</strong> This website will help you translate sentences that are in Latin!</p>
+                    <p>First, type in the lines that you need help translating. Click "Examine!" and then you can take your mouse and hover over words to know the definition, case, number, and gender of the word. Words that are highlighted with the same color go together. Any complex grammar will be listed below the lines where you typed the Latin. You can try typing your translation in the box below and then click the button "Check Translation" and the website will tell you if your translation is correct or not.</p>
                 </div>
             </div>
 
             <!-- Author Input -->
-            <div class="section" id="author-section" hidden>
+            <div class="section" id="author-section">
                 <label class="section-title" for="author-input">Author (Optional)</label>
                 <input type="text" id="author-input" placeholder="e.g., Vergil, Caesar, Ovid">
             </div>
@@ -546,10 +564,6 @@
 // Version: 2024-11-09-v33 - Implemented Translation Chunks system (replaces grammatical groups)
     console.log('Latin Translator loaded - Version 2024-11-09-v33');
 (function() {
-    const modeButtons = {
-        poetry: document.getElementById('btn-poetry'),
-        prose: document.getElementById('btn-prose')
-    };
     const authorSection = document.getElementById('author-section');
     const authorInput = document.getElementById('author-input');
     const latinSection = document.getElementById('latin-section');
@@ -568,7 +582,6 @@
     const translationFeedback = document.getElementById('translation-feedback');
 
     const STATE = {
-        mode: null,
         lastValidLatin: '',
         overlayActive: false,
         tokens: [],
@@ -583,21 +596,9 @@
         '#fef08a', '#bfdbfe', '#a7f3d0', '#fbcfe8', '#fed7aa', '#ddd6fe', '#fecaca', '#a5f3fc'
     ];
 
-    // Mode selection
-    modeButtons.poetry.addEventListener('click', () => selectMode('poetry'));
-    modeButtons.prose.addEventListener('click', () => selectMode('prose'));
-
-    function selectMode(mode) {
-        STATE.mode = mode;
-        modeButtons.poetry.setAttribute('aria-pressed', String(mode === 'poetry'));
-        modeButtons.prose.setAttribute('aria-pressed', String(mode === 'prose'));
-        modeButtons.poetry.classList.toggle('active', mode === 'poetry');
-        modeButtons.prose.classList.toggle('active', mode === 'prose');
-        authorSection.hidden = false;
-        latinSection.hidden = false;
-        examineBtn.disabled = latinInput.value.trim().length === 0;
-        resetAnalysisState();
-    }
+    // Initialize UI
+    latinSection.hidden = false;
+    examineBtn.disabled = latinInput.value.trim().length === 0;
 
     function resetAnalysisState() {
         analysisOutput.hidden = true;
@@ -647,7 +648,6 @@
         const text = latinInput.value;
         await new Promise(r => setTimeout(r, 30));
         const analysis = await analyzeWithAPI(text, {
-            mode: STATE.mode,
             author: (authorInput.value || '').trim()
         });
         STATE.tokens = analysis.tokens;
@@ -661,7 +661,8 @@
         analysisOutput.hidden = false;
         grammarSection.hidden = false;
         translationSection.hidden = false;
-        examineBtn.textContent = 'Ready!';
+        examineBtn.textContent = 'Examine!';
+        examineBtn.disabled = false;
         STATE.overlayActive = true;
     });
 
@@ -692,13 +693,47 @@
         // Build a map from token index to group/color and tooltip
         const tokenMeta = new Map();
         const palette = COLOR_PALETTE;
-        groups.forEach((g, idx) => {
+
+        // Detect sentence boundaries (periods followed by space/newline)
+        const sentenceBoundaries = [];
+        for (let i = 0; i < tokens.length - 1; i++) {
+            const t = tokens[i];
+            const next = tokens[i + 1];
+            const between = rawText.slice(t.end, next.start);
+            if (/\.\s/.test(between) || /\.\n/.test(between)) {
+                sentenceBoundaries.push(i);
+            }
+        }
+
+        // Assign groups to sentences
+        const groupsWithSentence = groups.map((g, idx) => {
+            const firstTokenIdx = g.tokens[0];
+            let sentenceNum = 0;
+            for (let i = 0; i < sentenceBoundaries.length; i++) {
+                if (firstTokenIdx > sentenceBoundaries[i]) {
+                    sentenceNum = i + 1;
+                }
+            }
+            return { ...g, sentenceNum, originalIdx: idx };
+        });
+
+        // Assign colors per sentence (reset color index for each sentence)
+        const colorIndexBySentence = new Map();
+        groupsWithSentence.forEach(g => {
+            if (!colorIndexBySentence.has(g.sentenceNum)) {
+                colorIndexBySentence.set(g.sentenceNum, 0);
+            }
+            const colorIdx = colorIndexBySentence.get(g.sentenceNum);
+            const color = palette[colorIdx % palette.length];
+
             g.tokens.forEach(ti => {
                 tokenMeta.set(ti, {
-                    color: palette[idx % palette.length],
+                    color: color,
                     name: g.name
                 });
             });
+
+            colorIndexBySentence.set(g.sentenceNum, colorIdx + 1);
         });
 
         // Replace words with spans in order using regex
@@ -713,19 +748,19 @@
             const spaceBefore = escapeHtml(rawText.slice(lastIndex, m.index));
             overlayParts.push(spaceBefore);
             renderedParts.push(spaceBefore);
-            
+           
             const t = tokens[idx] || null;
             const meta = tokenMeta.get(idx);
             const tooltipHtml = buildTooltipHtml(t);
-            
+           
             // For overlay: NO background highlighting, just tooltips
             overlayParts.push(`<span class="token" data-ti="${idx}">${escapeHtml(word)}</span>`);
-            
+           
             // For rendered text (Translation Chunks): WITH background highlighting
             const style = meta ? `style="background:${meta.color}33"` : '';
             const cls = meta ? 'token highlight' : 'token';
             renderedParts.push(`<span class="${cls}" data-ti="${idx}" ${style}>${escapeHtml(word)}</span>`);
-            
+           
             attachTokenHover(idx, tooltipHtml);
             idx++;
             lastIndex = regex.lastIndex;
@@ -733,7 +768,7 @@
         const finalText = escapeHtml(rawText.slice(lastIndex));
         overlayParts.push(finalText);
         renderedParts.push(finalText);
-        
+       
         latinOverlay.innerHTML = overlayParts.join('');
         latinOverlay.style.display = 'block';
         latinOverlay.style.pointerEvents = 'auto';
@@ -942,7 +977,7 @@
     };
 
     // Stop words that don't carry much semantic meaning
-    const STOP_WORDS = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'am', 'be', 'been', 
+    const STOP_WORDS = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'am', 'be', 'been',
         'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might',
         'can', 'to', 'of', 'in', 'on', 'at', 'by', 'for', 'from', 'with', 'about', 'as', 'into',
         'through', 'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again',
@@ -954,7 +989,7 @@
     // Translation evaluation with sophisticated grammatical analysis
     checkTranslationBtn.addEventListener('click', () => {
         const userTranslation = translationInput.value || '';
-        
+       
         if (!STATE.tokens || STATE.tokens.length === 0) {
             translationFeedback.textContent = 'Run Examine! first to analyze the Latin.';
             return;
@@ -962,47 +997,47 @@
 
         // Perform sophisticated structural analysis
         const result = advancedTranslationCheck(STATE.tokens, userTranslation);
-        
+       
         translationInput.classList.toggle('translation-correct', result.isCorrect);
         translationInput.classList.toggle('translation-incorrect', !result.isCorrect);
-        
+       
         // Determine validation type for feedback
         const validationType = result.validationType || 'structural';
-        translationFeedback.textContent = result.isCorrect ? 
-            `Correct (${validationType} match) ✔` : 
+        translationFeedback.textContent = result.isCorrect ?
+            `Correct (${validationType} match) ✔` :
             `Not quite — ${result.reason} ✘`;
     });
 
     function advancedTranslationCheck(latinTokens, englishText) {
         // Parse Latin sentence structure
         const latinStructure = parseLatinStructure(latinTokens);
-        
+       
         // Parse English sentence structure  
         const englishStructure = parseEnglishStructure(englishText);
-        
+       
         // Check if this is a complex multi-clause sentence
         // Complex sentences have: relative pronouns, multiple finite verbs, or many clauses
         const hasRelativePronouns = latinTokens.some(t => {
             const word = t.normalized.toLowerCase();
             return ['qui', 'quae', 'quod', 'quem', 'quam', 'quorum', 'quarum', 'quibus', 'quo', 'qua'].includes(word);
         });
-        
+       
         const multipleVerbs = latinStructure.allVerbs && latinStructure.allVerbs.length > 2;
         const longSentence = latinTokens.length > 15;
-        
+       
         // For complex sentences, use semantic validation instead of strict structural validation
         if (hasRelativePronouns && (multipleVerbs || longSentence)) {
             const result = semanticValidation(latinTokens, englishText, englishStructure);
             result.validationType = 'semantic';
             return result;
         }
-        
+       
         // For simple sentences, use strict structural validation
         const result = validateStructuralMatch(latinStructure, englishStructure);
         result.validationType = 'structural';
         return result;
     }
-    
+   
     function semanticValidation(latinTokens, englishText, englishStructure) {
         // Extract key Latin words (nouns, verbs, adjectives)
         let latinKeyWords = latinTokens
@@ -1020,12 +1055,12 @@
                 });
             });
         }
-        
+       
         // Extract English words
         const englishWords = (englishStructure.allWords || [])
             .map(w => normalizeWord(w))
             .filter(w => !STOP_WORDS.has(w));
-        
+       
         // Check what percentage of Latin key words appear in English
         let matchCount = 0;
         for (const latinWord of latinKeyWords) {
@@ -1037,9 +1072,9 @@
                 matchCount++;
             }
         }
-        
+       
         const coverage = latinKeyWords.length > 0 ? matchCount / latinKeyWords.length : 0;
-        
+       
         // Require at least 60% coverage for complex sentences (more lenient)
         if (coverage >= 0.6) {
             return { isCorrect: true, reason: '' };
@@ -1055,40 +1090,40 @@
     function getVerbPersonNumber(verbToken) {
         const word = verbToken.normalized;
         const original = verbToken.original;
-        
+       
         // Check endings in order of specificity (most specific first)
-        
+       
         // First person plural: -mus ending
         if (/mus$/i.test(word)) {
             return { person: 1, number: 'plural', expectedSubject: 'we' };
         }
-        
+       
         // Second person plural: -tis ending
         if (/tis$/i.test(word)) {
             return { person: 2, number: 'plural', expectedSubject: 'you' };
         }
-        
+       
         // Third person plural: -nt ending
         if (/nt$/i.test(word)) {
             return { person: 3, number: 'plural', expectedSubject: 'they' };
         }
-        
+       
         // Third person singular: -t ending (but not -nt which was already checked)
         if (/t$/i.test(word) && !/nt$/i.test(word)) {
             return { person: 3, number: 'singular', expectedSubject: 'he/she/it' };
         }
-        
+       
         // Second person singular: -s ending (not -us, -is, -mus, -tis)
         if (/s$/i.test(word) && !/us$/i.test(word) && !/is$/i.test(word) && !/mus$/i.test(word) && !/tis$/i.test(word)) {
             return { person: 2, number: 'singular', expectedSubject: 'you' };
         }
-        
+       
         // First person singular: -o or -m endings (standard Latin present active indicative)
         // This catches all regular -o ending verbs (amo, constituo, puto, video, etc.)
         if (/[om]$/i.test(word)) {
             return { person: 1, number: 'singular', expectedSubject: 'I' };
         }
-        
+       
         // Default to third person singular for unknown
         return { person: 3, number: 'singular', expectedSubject: 'he/she/it' };
     }
@@ -1132,13 +1167,52 @@
                     structure.allVerbs.push({ token, idx, definition: token.definition });
                 }
             }
+        });
+
+   
+
+        // NOW collect prepositional phrases (after case disambiguation)
+        tokens.forEach((token, idx) => {
             if (token.pos === 'preposition') {
                 const phraseEntries = [{ token, idx }];
+                // Collect ALL tokens that are part of the prepositional phrase
+                // CRITICAL: Stop if we encounter a NOMINATIVE noun (subjects are never in prep phrases!)
                 for (let j = idx + 1; j < tokens.length; j++) {
                     const next = tokens[j];
+                   
+                    // Stop if we hit another preposition or a finite verb (unless it's a gerundive/participle)
                     if (next.pos === 'preposition') break;
-                    phraseEntries.push({ token: next, idx: j });
-                    if (next.pos === 'noun' || next.pos === 'pronoun') break;
+                    if (next.pos === 'verb' && next.features.tense !== 'infinitive') break;
+                    if (next.pos === 'conjunction') break;
+                   
+                    // CRITICAL CHECK: If this is a noun/pronoun with UNAMBIGUOUS NOMINATIVE case, stop!
+                    // Nominative nouns are NEVER part of prepositional phrases - they're subjects
+                    // IMPORTANT: Use negative lookahead to only match "nom" not followed by "/" (to exclude "nom/acc")
+                    if ((next.pos === 'noun' || next.pos === 'pronoun' || next.pos === 'proper-noun') &&
+                        next.features.case && /^nom(?!\/)/.test(next.features.case)) {
+                        // Found unambiguous nominative noun - this is the subject of the main clause, stop here
+                        console.log(`[PREP PHRASE] Stopping at nominative noun: "${next.word}" (case: ${next.features.case})`);
+                        break;
+                    }
+                   
+                    // Include if it's a noun, pronoun, adjective, gerundive, or participle
+                 // Include if it's a noun, pronoun, adjective, gerundive, or participle
+                 if (next.pos === 'noun' ||
+                        next.pos === 'pronoun' ||
+                        next.pos === 'proper-noun' ||
+                        next.pos === 'adjective' ||
+                        next.pos === 'gerundive' ||
+                        next.pos === 'participle') {
+                        phraseEntries.push({ token: next, idx: j });
+                        // If we just added a gerundive, stop here - it's typically the last word
+                        if (next.pos === 'gerundive') {
+                            break;
+                        }
+                        // Continue collecting for other parts of speech
+                    } else {
+                        // Hit something that's definitely not part of the phrase
+                        break;
+                    }
                 }
                 const phraseDefs = phraseEntries
                     .map(entry => {
@@ -1156,20 +1230,151 @@
             }
         });
 
+        // CASE DISAMBIGUATION: Refine ambiguous case assignments for nouns in prepositional phrases
+        // This fixes the bug where "res" in "ad eas res" was being treated as nominative
+        // when it should be accusative (object of preposition "ad")
+        for (const noun of structure.allNouns) {
+            if (prepTokenIndices.has(noun.idx) && noun.case) {
+                console.log(`[PREP CASE DEBUG] Checking noun "${noun.token.word}" in prep phrase, case: ${noun.case}`);
+                // Find which prepositional phrase this noun is in
+                for (const phrase of structure.prepositionalPhrases) {
+                    const phraseIndices = phrase.tokens.map((t, i) => {
+                        // Find index of this token in the original tokens array
+                        return tokens.findIndex(tok => tok === t);
+                    });
+                   
+                    if (phraseIndices.includes(noun.idx)) {
+                        // Get the preposition (first token in phrase)
+                        const prep = phrase.tokens[0];
+                        const prepWord = (prep.normalized || prep.word).toLowerCase();
+                        console.log(`[PREP CASE DEBUG] Found in phrase starting with "${prepWord}"`);
+                       
+                        // Check which case this preposition governs
+                        const accusativePreps = ['ad', 'ante', 'apud', 'circa', 'circum', 'cis', 'citra',
+                            'contra', 'erga', 'extra', 'infra', 'inter', 'intra', 'iuxta', 'ob', 'per',
+                            'pone', 'post', 'praeter', 'prope', 'propter', 'secundum', 'supra', 'trans',
+                            'ultra', 'versus', 'adversus'];
+                        const ablativePreps = ['a', 'ab', 'abs', 'absque', 'cum', 'coram', 'de', 'e', 'ex',
+                            'prae', 'pro', 'sine', 'tenus', 'clam', 'palam'];
+                       
+                        // If the case is ambiguous (contains both nom and acc), disambiguate it
+                        if (/nom.*acc|acc.*nom/.test(noun.case)) {
+                            console.log(`[PREP CASE DEBUG] Case is ambiguous, testing preposition type`);
+                            if (accusativePreps.includes(prepWord)) {
+                                // This noun must be accusative (object of preposition)
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace(/nom\/|\/nom|nom /g, '').replace(/\s+/g, ' ').trim();
+                                if (!noun.case.includes('acc')) {
+                                    noun.case = 'acc ' + noun.case.replace('acc', '').trim();
+                                }
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            } else if (ablativePreps.includes(prepWord)) {
+                                // This noun must be ablative
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace(/nom\/|\/nom|nom |acc\/|\/acc|acc /g, '').replace(/\s+/g, ' ').trim();
+                                if (!noun.case.includes('abl')) {
+                                    noun.case = 'abl ' + noun.case;
+                                }
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            }
+                        }
+                        // Also handle "nom/acc" format without ".*"
+                        else if (noun.case === 'nom/acc pl' || noun.case === 'nom/acc sg') {
+                            console.log(`[PREP CASE DEBUG] Case is exactly "nom/acc", testing preposition type`);
+                            if (accusativePreps.includes(prepWord)) {
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace('nom/', '');
+                                noun.token.features.case = noun.case;
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            } else if (ablativePreps.includes(prepWord)) {
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace('nom/acc', 'abl');
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            }
+                        } else {
+                            console.log(`[PREP CASE DEBUG] Case "${noun.case}" doesn't match ambiguous patterns, skipping`);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        // MOVED: Early disambiguation now happens AFTER prep phrase collection
+        // This prevents "res" from being marked nominative before the phrase "ad eas res" is identified
+        console.log(`[EARLY DISAMBIGUATION] Checking ${structure.allNouns.length} nouns for ambiguous cases`);
+        for (const noun of structure.allNouns) {
+            // Skip if already in a prep phrase - don't disambiguate
+            if (prepTokenIndices.has(noun.idx)) {
+                console.log(`[EARLY DISAMBIGUATION] Skipping "${noun.token.word}" - in prep phrase`);
+                continue;
+            }
+           
+            // Only process ambiguous nom/acc cases
+            if (noun.case && /nom.*acc|acc.*nom/i.test(noun.case)) {
+                console.log(`[EARLY DISAMBIGUATION] Found ambiguous noun: "${noun.token.word}" (case: ${noun.case})`);
+                // Check if there's a verb in the sentence
+                const hasVerb = structure.allVerbs.length > 0;
+               
+                if (hasVerb) {
+                    // Find the main verb (first non-infinitive verb)
+                    let mainVerbIdx = -1;
+                    for (const verb of structure.allVerbs) {
+                        mainVerbIdx = verb.idx;
+                        break;
+                    }
+                   
+                    // Heuristic: If noun comes before the verb OR after a passive verb, prefer nominative
+                    const isBeforeVerb = mainVerbIdx !== -1 && noun.idx < mainVerbIdx;
+                   
+                    // Check if verb is passive (common passive endings)
+                    let isPassiveVerb = false;
+                    if (mainVerbIdx !== -1) {
+                        const verbWord = tokens[mainVerbIdx].normalized;
+                        isPassiveVerb = /(or|ris|tur|mur|mini|ntur|bar|baris|batur|bamur|bor|beris|bitur)$/i.test(verbWord);
+                    }
+                   
+                    const isAfterPassiveVerb = mainVerbIdx !== -1 && noun.idx > mainVerbIdx && isPassiveVerb;
+                   
+                    // If positioned like a subject, disambiguate to nominative
+                    if (isBeforeVerb || isAfterPassiveVerb) {
+                        // Remove accusative from the case, keep only nominative
+                        const oldCase = noun.case;
+                        noun.case = noun.case.replace(/\/acc|acc\/|acc /gi, '').replace(/\s+/g, ' ').trim();
+                        if (!noun.case.includes('nom')) {
+                            noun.case = 'nom ' + noun.case.replace('acc', '').trim();
+                        }
+                        // CRITICAL: Update the original token's case, not just the copy!
+                        noun.token.features.case = noun.case;
+                        console.log(`[EARLY DISAMBIGUATION] "${noun.token.word}" changed from "${oldCase}" to "${noun.case}" (subject position)`);
+                    } else {
+                        // Otherwise, likely an object - disambiguate to accusative
+                        const oldCase = noun.case;
+                        noun.case = noun.case.replace(/\/nom|nom\/|nom /gi, '').replace(/\s+/g, ' ').trim();
+                        if (!noun.case.includes('acc')) {
+                            noun.case = 'acc ' + noun.case;
+                        }
+                        // CRITICAL: Update the original token's case, not just the copy!
+                        noun.token.features.case = noun.case;
+                        console.log(`[EARLY DISAMBIGUATION] "${noun.token.word}" changed from "${oldCase}" to "${noun.case}" (object position)`);
+                    }
+                }
+            }
+        }
+
         // HEAD VERBS that take indirect statement (acc + inf)
-        const indirectStatementVerbs = new Set(['say', 'think', 'believe', 'see', 'hear', 'know', 
+        const indirectStatementVerbs = new Set(['say', 'think', 'believe', 'see', 'hear', 'know',
             'perceive', 'learn', 'report', 'tell', 'show', 'teach', 'feel', 'understand', 'hope']);
-        
+       
         // IMPERSONAL VERBS that take acc + inf
         const impersonalVerbs = new Set(['be necessary', 'be fitting', 'please', 'be proper']);
-        
+       
         // COMMAND/PERMISSION VERBS that take acc + inf
         const commandVerbs = new Set(['order', 'command', 'forbid', 'allow', 'permit', 'force', 'compel']);
 
         // Check if we have an infinitive construction
         if (structure.hasInfinitive && structure.allInfinitives.length > 0) {
             const infIdx = structure.allInfinitives[0].idx;
-            
+           
             // Find the main finite verb
             let mainVerb = null;
             let mainVerbIdx = -1;
@@ -1184,26 +1389,26 @@
             // Check if main verb is an indirect statement head
             if (mainVerb) {
                 const mainVerbDef = normalizeWord(mainVerb.definition || '');
-                const isIndirectHead = indirectStatementVerbs.has(mainVerbDef) || 
+                const isIndirectHead = indirectStatementVerbs.has(mainVerbDef) ||
                                       impersonalVerbs.has(mainVerbDef) ||
                                       commandVerbs.has(mainVerbDef);
 
                 if (isIndirectHead) {
                     structure.isIndirectStatement = true;
-                    
+                   
                     // Main verb of the sentence
                     structure.verb = mainVerb;
-                    
+                   
                     // Detect person and number of main verb
                     const personInfo = getVerbPersonNumber(mainVerb.token);
                     structure.mainVerbPerson = personInfo.person;
                     structure.mainVerbNumber = personInfo.number;
                     structure.mainVerbExpectedSubject = personInfo.expectedSubject;
-                    
+                   
                     // Find subject of infinitive (accusative before infinitive)
                     let accBeforeInf = null;
                     let secondAcc = null;
-                    
+                   
                     for (const noun of structure.allNouns) {
                         if (noun.case && /acc/i.test(noun.case)) {
                             if (noun.idx > mainVerbIdx && noun.idx < infIdx) {
@@ -1219,18 +1424,18 @@
                             }
                         }
                     }
-                    
+                   
                     if (accBeforeInf) {
-                        structure.infinitiveSubject = { 
-                            token: accBeforeInf.token, 
-                            idx: accBeforeInf.idx, 
-                            definition: accBeforeInf.token.definition 
+                        structure.infinitiveSubject = {
+                            token: accBeforeInf.token,
+                            idx: accBeforeInf.idx,
+                            definition: accBeforeInf.token.definition
                         };
                         structure.subject = structure.infinitiveSubject; // For translation checking
                     }
-                    
+                   
                     structure.infinitiveVerb = structure.allInfinitives[0];
-                    
+                   
                     if (secondAcc) {
                         structure.infinitiveObject = {
                             token: secondAcc.token,
@@ -1239,7 +1444,7 @@
                         };
                         structure.object = structure.infinitiveObject;
                     }
-                    
+                   
                     // Find subject of main verb (nominative, if any)
                     for (const noun of structure.allNouns) {
                         if (noun.case && /nom/i.test(noun.case)) {
@@ -1260,12 +1465,12 @@
             // Check if first verb is a reporting verb
             const firstVerb = structure.allVerbs[0];
             const firstVerbDef = normalizeWord(firstVerb.definition || '');
-            
+           
             // Check if definition contains any reporting verb (not exact match)
-            const isReportingVerb = Array.from(indirectStatementVerbs).some(verb => 
+            const isReportingVerb = Array.from(indirectStatementVerbs).some(verb =>
                 firstVerbDef.includes(verb)
             );
-            
+           
             if (isReportingVerb) {
                 // Check if second verb is a finite form of "sum" (common in direct speech)
                 const secondVerb = structure.allVerbs[1];
@@ -1283,15 +1488,23 @@
         // If NOT an indirect statement and NOT direct speech, use traditional parsing
         if (!structure.isIndirectStatement && !isDirectSpeech) {
             // Find nominative noun as subject
+            console.log(`[SUBJECT SEARCH] Looking for nominative subject among ${structure.allNouns.length} nouns`);
             for (const noun of structure.allNouns) {
-                if (prepTokenIndices.has(noun.idx)) continue;
-                if (noun.case && /nom/i.test(noun.case) && noun.token.definition && noun.token.definition !== 'unknown') {
-                    structure.subject = { 
-                        token: noun.token, 
-                        idx: noun.idx, 
-                        definition: noun.token.definition 
+                console.log(`[SUBJECT SEARCH] Checking noun "${noun.token.word}": case="${noun.case}", inPrep=${prepTokenIndices.has(noun.idx)}, def="${noun.token.definition}"`);
+                if (prepTokenIndices.has(noun.idx)) {
+                    console.log(`[SUBJECT SEARCH] Skipping "${noun.token.word}" - in prepositional phrase`);
+                    continue;
+                }
+                if (noun.case && /^nom(?!\/)/.test(noun.case) && noun.token.definition && noun.token.definition !== 'unknown')  {
+                    structure.subject = {
+                        token: noun.token,
+                        idx: noun.idx,
+                        definition: noun.token.definition
                     };
+                    console.log(`[SUBJECT SEARCH] SELECTED "${noun.token.word}" as subject (case: ${noun.case}, def: ${noun.token.definition})`);
                     break; // Take first nominative with definition
+                } else {
+                    console.log(`[SUBJECT SEARCH] Rejected "${noun.token.word}" - nomTest=${/nom/i.test(noun.case)}, hasDef=${!!(noun.token.definition && noun.token.definition !== 'unknown')}`);
                 }
             }
 
@@ -1303,10 +1516,10 @@
                     if (structure.infinitiveSubject && noun.idx === structure.infinitiveSubject.idx) {
                         continue;
                     }
-                    structure.object = { 
-                        token: noun.token, 
-                        idx: noun.idx, 
-                        definition: noun.token.definition 
+                    structure.object = {
+                        token: noun.token,
+                        idx: noun.idx,
+                        definition: noun.token.definition
                     };
                     break; // Take first accusative
                 }
@@ -1337,6 +1550,12 @@
                 }
             }
         });
+
+        console.log('[DEBUG] All nouns:', structure.allNouns.map(n =>
+    `${n.token.word} (case: ${n.case}, def: ${n.token.definition})`
+));
+console.log('[DEBUG] Prep token indices:', Array.from(prepTokenIndices));
+console.log('[DEBUG] Final subject:', structure.subject);
 
         return structure;
     }
@@ -1396,49 +1615,50 @@
 
 
         // Noun and adjective word lists
-        const nounWords = ['father', 'mother', 'son', 'daughter', 'man', 'woman', 'boy', 'girl', 
+        const nounWords = ['father', 'mother', 'son', 'daughter', 'man', 'woman', 'boy', 'girl',
             'king', 'queen', 'leader', 'soldier', 'god', 'goddess', 'friend', 'brother', 'sister',
             'master', 'slave', 'city', 'people', 'war', 'peace', 'teacher', 'student', 'child',
             'servant', 'lord', 'enemy', 'citizen', 'orator', 'speaker', 'senator', 'general',
-            'commander', 'philosopher', 'poet', 'hero', 'warrior', 'slave', 'thing', 'things'];
-        
+            'commander', 'philosopher', 'poet', 'hero', 'warrior', 'slave', 'thing', 'things',
+            'human', 'humans', 'men', 'women', 'person', 'persons'];
+       
         const pronounWords = ['i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
             'myself', 'yourself', 'himself', 'herself', 'itself', 'ourselves', 'themselves',
             'this', 'that', 'these', 'those'];
-        
-        const adjectiveWords = ['good', 'bad', 'great', 'small', 'beautiful', 'brave', 'wise', 
+       
+        const adjectiveWords = ['good', 'bad', 'great', 'small', 'beautiful', 'brave', 'wise',
             'happy', 'sad', 'old', 'new', 'young', 'strong', 'weak'];
 
         // Common verb forms
-        const verbPatterns = /(be|am|is|are|was|were|been|being|love|loves|loved|loving|hate|hates|hated|see|sees|saw|seen|give|gives|gave|given|take|takes|took|taken|come|comes|came|go|goes|went|gone|lead|leads|led|send|sends|sent|call|calls|called|carry|carries|carried|teach|teaches|taught|fear|fears|feared|believe|believes|believed|say|says|said|think|thinks|thought|know|knows|knew|known|do|does|did|done|make|makes|made|have|has|had|order|orders|ordered|tell|tells|told|show|shows|showed|shown|hear|hears|heard|decide|decides|decided|establish|establishes|established|determine|determines|determined|resolve|resolves|resolved)/;
+        const verbPatterns = /(be|am|is|are|was|were|been|being|love|loves|loved|loving|hate|hates|hated|see|sees|saw|seen|give|gives|gave|given|take|takes|took|taken|come|comes|came|go|goes|went|gone|lead|leads|led|send|sends|sent|call|calls|called|carry|carries|carried|teach|teaches|taught|fear|fears|feared|believe|believes|believed|say|says|said|think|thinks|thought|know|knows|knew|known|do|does|did|done|make|makes|made|have|has|had|order|orders|ordered|tell|tells|told|show|shows|showed|shown|hear|hears|heard|decide|decides|decided|establish|establishes|established|determine|determines|determined|resolve|resolves|resolved|choose|chooses|chose|chosen)/;
 
         // Reporting verbs that take indirect statements
-        const reportingVerbsList = ['say', 'says', 'said', 'think', 'thinks', 'thought', 'believe', 'believes', 'believed', 
+        const reportingVerbsList = ['say', 'says', 'said', 'think', 'thinks', 'thought', 'believe', 'believes', 'believed',
             'know', 'knows', 'knew', 'see', 'sees', 'saw', 'hear', 'hears', 'heard', 'tell', 'tells', 'told',
             'show', 'shows', 'showed', 'report', 'reports', 'reported', 'claim', 'claims', 'claimed'];
-        
+       
         // Check for "that" clause (indirect statement)
         const thatIdx = words.indexOf('that');
-        
+       
         // Also check for accusative + infinitive pattern (e.g., "says himself to be")
         let hasAccInfinitive = false;
         let reportingVerbIdx = -1;
         let accInfinitiveSubject = null;
         let accInfinitiveVerb = null;
-        
+       
         // Look for reporting verb followed by pronoun/noun + "to" + verb
         for (let i = 0; i < words.length - 2; i++) {
             if (reportingVerbsList.includes(words[i])) {
                 // Check if followed by pronoun/noun + "to" + verb
                 const nextWord = words[i + 1];
                 const toIdx = i + 2;
-                
+               
                 if (words[toIdx] === 'to' && (pronounWords.includes(nextWord) || nounWords.includes(nextWord))) {
                     // Found accusative + infinitive pattern
                     hasAccInfinitive = true;
                     reportingVerbIdx = i;
                     accInfinitiveSubject = nextWord;
-                    
+                   
                     // Find the infinitive verb after "to"
                     if (toIdx + 1 < words.length && verbPatterns.test(words[toIdx + 1])) {
                         // Store as full infinitive "to verb"
@@ -1448,17 +1668,17 @@
                 }
             }
         }
-        
+       
         if (thatIdx !== -1) {
             structure.hasSubordinateClause = true;
-            
+           
             // First, extract the MAIN CLAUSE (before "that")
             // Find main clause verb (before "that")
             for (let i = 0; i < thatIdx; i++) {
                 if (skipIndices.has(i)) continue;
                 if (verbPatterns.test(words[i])) {
                     structure.mainClauseVerb = words[i];
-                    
+                   
                     // Find main clause subject (before main verb or after, if it exists)
                     for (let j = 0; j < thatIdx; j++) {
                         if (skipIndices.has(j)) continue;
@@ -1470,7 +1690,7 @@
                     break;
                 }
             }
-            
+           
             // Then extract the SUBORDINATE CLAUSE (after "that")
             // Find verb after "that"
             let subordinateVerbIdx = -1;
@@ -1479,7 +1699,7 @@
                 if (verbPatterns.test(words[i])) {
                     structure.verb = words[i];
                     subordinateVerbIdx = i;
-                    
+                   
                     // Check if there's "to" immediately before the verb (infinitive construction)
                     if (i > 0 && words[i - 1] === 'to') {
                         structure.subordinateUsesInfinitive = true;
@@ -1487,14 +1707,14 @@
                     break;
                 }
             }
-            
+           
             // Find subject between "that" and subordinate verb
             if (subordinateVerbIdx !== -1) {
                 for (let i = thatIdx + 1; i < subordinateVerbIdx; i++) {
                     if (skipIndices.has(i)) continue;
                     if (isCandidateNoun(i)) {
                         structure.subject = words[i];
-                        
+                       
                         // Look for modifiers before this noun (after "that")
                         for (let j = thatIdx + 1; j < i; j++) {
                             if (adjectiveWords.includes(words[j])) {
@@ -1504,13 +1724,13 @@
                         break;
                     }
                 }
-                
+               
                 // Find object after subordinate verb
                 for (let i = subordinateVerbIdx + 1; i < words.length; i++) {
                     if (skipIndices.has(i)) continue;
                     if (isCandidateNoun(i)) {
                         structure.object = words[i];
-                        
+                       
                         // Look for modifiers
                         for (let j = subordinateVerbIdx + 1; j < i; j++) {
                             if (adjectiveWords.includes(words[j])) {
@@ -1529,10 +1749,10 @@
         } else if (hasAccInfinitive) {
             // Accusative + Infinitive construction (e.g., "He says himself to be an orator")
             structure.hasSubordinateClause = true;
-            
+           
             // Set main clause verb (the reporting verb)
             structure.mainClauseVerb = words[reportingVerbIdx];
-            
+           
             // Find main clause subject (before the reporting verb)
             for (let i = 0; i < reportingVerbIdx; i++) {
                 if (pronounWords.includes(words[i]) || nounWords.includes(words[i])) {
@@ -1540,7 +1760,7 @@
                     break;
                 }
             }
-            
+           
             // Map reflexive pronouns to subject forms for comparison
             const reflexiveMap = {
                 'myself': 'i',
@@ -1552,30 +1772,30 @@
                 'yourselves': 'you',
                 'themselves': 'they'
             };
-            
+           
             // Set subordinate clause subject (the accusative subject of infinitive)
             // Keep the actual pronoun form (don't map reflexives to personal pronouns)
             structure.subject = accInfinitiveSubject;
-            
+           
             // Set subordinate clause verb (the infinitive)
             structure.verb = accInfinitiveVerb;
-            
+           
             // Look for object after the infinitive verb
             const toIdx = reportingVerbIdx + 2; // position of "to"
             const infVerbIdx = toIdx + 1; // position of infinitive verb
-            
+           
             // Skip articles when looking for object
             const articles = ['a', 'an', 'the'];
-            
+           
             for (let i = infVerbIdx + 1; i < words.length; i++) {
                 // Skip articles
                 if (articles.includes(words[i])) {
                     continue;
                 }
-                
+               
                 if (nounWords.includes(words[i]) || pronounWords.includes(words[i])) {
                     structure.object = words[i];
-                    
+                   
                     // Look for modifiers (adjectives, but not articles)
                     for (let j = infVerbIdx + 1; j < i; j++) {
                         if (adjectiveWords.includes(words[j])) {
@@ -1594,7 +1814,7 @@
                 if (verbPatterns.test(words[i])) {
                     structure.verb = words[i];
                     verbIdx = i;
-                    
+
                     // Check if there's "to" immediately before the verb (might be indirect statement without "that")
                     if (i > 0 && words[i - 1] === 'to') {
                         // Could be an infinitive in a sentence that should use "that"
@@ -1614,7 +1834,7 @@
                 if (skipIndices.has(i)) continue;
                 if (isCandidateNoun(i)) {
                     structure.subject = words[i];
-                    
+
                     // Look for modifiers before this noun
                     for (let j = i - 1; j >= 0 && (i - j) <= 3; j--) {
                         if (adjectiveWords.includes(words[j])) {
@@ -1630,7 +1850,7 @@
                 if (skipIndices.has(i)) continue;
                 if (isCandidateNoun(i)) {
                     structure.object = words[i];
-                    
+                   
                     // Look for modifiers
                     for (let j = verbIdx + 1; j < i; j++) {
                         if (adjectiveWords.includes(words[j])) {
@@ -1658,22 +1878,22 @@
         if (latinStruct.isDirectSpeech) {
             // Check if there's a reporting verb in the English
             const englishWords = englishStruct.allWords || [];
-            const hasReportingVerb = englishWords.some(w => 
+            const hasReportingVerb = englishWords.some(w =>
                 ['say', 'says', 'said', 'tell', 'tells', 'told', 'ask', 'asks', 'asked'].includes(w)
             );
-            
+           
             if (!hasReportingVerb) {
                 return {
                     isCorrect: false,
                     reason: 'missing reporting verb (e.g., "says", "said")'
                 };
             }
-            
+           
             // Validate person/number of the reporting verb
             if (latinStruct.verb) {
                 const personInfo = getVerbPersonNumber(latinStruct.verb.token);
                 const expectedSubject = personInfo.expectedSubject.toLowerCase();
-                
+               
                 // Find English subject (word before reporting verb)
                 let englishSubject = null;
                 for (let i = 0; i < englishWords.length; i++) {
@@ -1684,7 +1904,7 @@
                         break;
                     }
                 }
-                
+               
                 // Check person/number agreement
                 if (englishSubject) {
                     // For 3rd person singular: expect "he", "she", "it" (reject "they", "I", "we")
@@ -1735,21 +1955,82 @@
                     }
                 }
             }
-            
+           
             // Direct speech is correct if it has a reporting verb and correct person/number
             // Don't validate the internal structure of the quoted speech
             return { isCorrect: true };
         }
 
+        // PRIORITY CHECK: If Latin has an explicit subject, validate it FIRST before checking verb agreement
+        // This ensures subject errors are caught before verb number errors
+        // 1. Check subject match (subordinate clause or simple sentence)
+        if (latinStruct.subject) {
+            const latinSubjectDef = normalizeWord(latinStruct.subject.definition || '');
+            const englishSubject = normalizeWord(englishStruct.subject || '');
+           
+            if (!englishSubject) {
+                errors.push('missing subject');
+            } else {
+                // Special handling for reflexive pronouns
+                // Latin "se" (himself/herself/itself/themselves) must refer back to main clause subject
+                const isReflexive = latinSubjectDef.includes('himself') || latinSubjectDef.includes('herself') ||
+                                   latinSubjectDef.includes('itself') || latinSubjectDef.includes('themselves');
+               
+                if (isReflexive) {
+                    // For reflexive pronouns, the subordinate subject MUST be in reflexive form
+                    const mainSubject = normalizeWord(englishStruct.mainClauseSubject || '');
+                   
+                    // If we don't have a main clause subject, this might be a simple sentence with reflexive
+                    // In that case, still require a reflexive form
+                    if (!mainSubject) {
+                        const isReflexiveForm = ['himself', 'herself', 'itself', 'themselves', 'myself', 'yourself', 'ourselves', 'yourselves'].includes(englishSubject);
+                        if (!isReflexiveForm) {
+                            return {
+                                isCorrect: false,
+                                reason: `reflexive pronoun required (Latin "se" must be translated as "himself/herself/itself/themselves", not "${englishStruct.subject}")`
+                            };
+                        }
+                    } else {
+                        // We have a main subject, so validate proper reflexive matching
+                        // Mapping: main subject → ONLY reflexive forms allowed
+                        const reflexiveExpected = {
+                            'he': ['himself'],
+                            'she': ['herself'],
+                            'it': ['itself'],
+                            'they': ['themselves'],
+                            'i': ['myself'],
+                            'you': ['yourself', 'yourselves'],
+                            'we': ['ourselves']
+                        };
+                       
+                        const allowedSubjects = reflexiveExpected[mainSubject] || [];
+                       
+                        if (!allowedSubjects.includes(englishSubject)) {
+                            return {
+                                isCorrect: false,
+                                reason: `reflexive pronoun required (main subject is "${englishStruct.mainClauseSubject}", so reflexive subject must be "${allowedSubjects.join(' or ')}", not "${englishStruct.subject}")`
+                            };
+                        }
+                    }
+                } else if (!wordsMatch(latinSubjectDef, englishSubject)) {
+                    return {
+                        isCorrect: false,
+                        reason: `wrong subject (expected "${latinStruct.subject.definition}" but found "${englishStruct.subject}")`
+                    };
+                }
+            }
+        }
+
         // 0b. For simple sentences with no explicit subject, validate the subject implied by verb ending
         // This handles cases like "constituo" → "I decide" (not "she decides")
+        // NOTE: This now runs AFTER explicit subject checking
         if (!latinStruct.subject && latinStruct.verb && !latinStruct.isIndirectStatement && !latinStruct.isDirectSpeech) {
             // Get the person/number from the Latin verb
             const personInfo = getVerbPersonNumber(latinStruct.verb.token);
-            
+           
             // Get the English subject
             const englishSubject = (englishStruct.subject || englishStruct.mainClauseSubject || '').toLowerCase();
-            
+           
             if (englishSubject) {
                 // Validate person/number agreement
                 if (personInfo.person === 1 && personInfo.number === 'singular') {
@@ -1767,10 +2048,13 @@
                         };
                     }
                 } else if (personInfo.person === 3 && personInfo.number === 'singular') {
-                    if (!['he', 'she', 'it'].includes(englishSubject)) {
+                    // For 3rd person, accept pronouns (he/she/it) OR any noun/name
+                    // Don't reject if it's a proper noun like "Orgetorix" or common noun like "the man"
+                    const is1stOr2ndPerson = ['i', 'we', 'you'].includes(englishSubject);
+                    if (is1stOr2ndPerson) {
                         return {
                             isCorrect: false,
-                            reason: `wrong subject (Latin verb is 3rd person singular, expected "he/she/it" but found "${englishSubject}")`
+                            reason: `wrong subject (Latin verb is 3rd person singular, expected "he/she/it" or a noun, but found "${englishSubject}")`
                         };
                     }
                 } else if (personInfo.person === 1 && personInfo.number === 'plural') {
@@ -1788,10 +2072,14 @@
                         };
                     }
                 } else if (personInfo.person === 3 && personInfo.number === 'plural') {
-                    if (englishSubject !== 'they') {
+                    // For 3rd person plural, accept "they" OR any plural noun phrase
+                    // Don't reject if it's a noun like "the soldiers" or "Romans"
+                    const is1stOr2ndPerson = ['i', 'we', 'you'].includes(englishSubject);
+                    const is3rdSingular = ['he', 'she', 'it'].includes(englishSubject);
+                    if (is1stOr2ndPerson || is3rdSingular) {
                         return {
                             isCorrect: false,
-                            reason: `wrong subject (Latin verb is 3rd person plural, expected "they" but found "${englishSubject}")`
+                            reason: `wrong subject (Latin verb is 3rd person plural, expected "they" or a plural noun, but found "${englishSubject}")`
                         };
                     }
                 }
@@ -1807,7 +2095,7 @@
                 // Check if it has "that" - if so, shouldn't use infinitive after "that"
                 const words = englishStruct.allWords || [];
                 const hasThat = words.includes('that');
-                
+               
                 if (hasThat) {
                     return {
                         isCorrect: false,
@@ -1816,17 +2104,17 @@
                 }
                 // If no "that", it's an acc+inf construction which is valid
             }
-            
+           
             if (!englishStruct.mainClauseSubject) {
                 return {
                     isCorrect: false,
                     reason: 'missing main clause subject (e.g., "He says...")'
                 };
             }
-            
+           
             const expectedSubject = latinStruct.mainVerbExpectedSubject.toLowerCase();
             const actualSubject = englishStruct.mainClauseSubject.toLowerCase();
-            
+           
             // Check if the subject matches based on person/number
             // For person 1 singular: expect "I"
             if (latinStruct.mainVerbPerson === 1 && latinStruct.mainVerbNumber === 'singular') {
@@ -1879,69 +2167,11 @@
             }
         }
 
-        // 1. Check subject match (subordinate clause or simple sentence)
-        if (latinStruct.subject) {
-            const latinSubjectDef = normalizeWord(latinStruct.subject.definition || '');
-            const englishSubject = normalizeWord(englishStruct.subject || '');
-            
-            if (!englishSubject) {
-                errors.push('missing subject');
-            } else {
-                // Special handling for reflexive pronouns
-                // Latin "se" (himself/herself/itself/themselves) must refer back to main clause subject
-                const isReflexive = latinSubjectDef.includes('himself') || latinSubjectDef.includes('herself') || 
-                                   latinSubjectDef.includes('itself') || latinSubjectDef.includes('themselves');
-                
-                if (isReflexive) {
-                    // For reflexive pronouns, the subordinate subject MUST be in reflexive form
-                    const mainSubject = normalizeWord(englishStruct.mainClauseSubject || '');
-                    
-                    // If we don't have a main clause subject, this might be a simple sentence with reflexive
-                    // In that case, still require a reflexive form
-                    if (!mainSubject) {
-                        const isReflexiveForm = ['himself', 'herself', 'itself', 'themselves', 'myself', 'yourself', 'ourselves', 'yourselves'].includes(englishSubject);
-                        if (!isReflexiveForm) {
-                            return {
-                                isCorrect: false,
-                                reason: `reflexive pronoun required (Latin "se" must be translated as "himself/herself/itself/themselves", not "${englishStruct.subject}")`
-                            };
-                        }
-                    } else {
-                        // We have a main subject, so validate proper reflexive matching
-                        // Mapping: main subject → ONLY reflexive forms allowed
-                        const reflexiveExpected = {
-                            'he': ['himself'],
-                            'she': ['herself'],
-                            'it': ['itself'],
-                            'they': ['themselves'],
-                            'i': ['myself'],
-                            'you': ['yourself', 'yourselves'],
-                            'we': ['ourselves']
-                        };
-                        
-                        const allowedSubjects = reflexiveExpected[mainSubject] || [];
-                        
-                        if (!allowedSubjects.includes(englishSubject)) {
-                            return {
-                                isCorrect: false,
-                                reason: `reflexive pronoun required (main subject is "${englishStruct.mainClauseSubject}", so reflexive subject must be "${allowedSubjects.join(' or ')}", not "${englishStruct.subject}")`
-                            };
-                        }
-                    }
-                } else if (!wordsMatch(latinSubjectDef, englishSubject)) {
-                    return {
-                        isCorrect: false,
-                        reason: `wrong subject (expected "${latinStruct.subject.definition}" but found "${englishStruct.subject}")`
-                    };
-                }
-            }
-        }
-
         // 2. Check object match
         if (latinStruct.object) {
             const latinObjectDef = normalizeWord(latinStruct.object.definition || '');
             const englishObject = normalizeWord(englishStruct.object || '');
-            
+           
             if (!englishObject) {
                 errors.push('missing object');
             } else if (!wordsMatch(latinObjectDef, englishObject)) {
@@ -1957,14 +2187,14 @@
         if (latinVerbToCheck) {
             const latinVerbDef = normalizeWord(latinVerbToCheck.definition || '');
             let englishVerb = normalizeWord(englishStruct.verb || '');
-            
+
             if (!englishVerb) {
                 errors.push('missing verb');
             } else {
                 // Strip "to " from English infinitives for comparison with Latin verb definitions
                 // e.g., "to be" → "be" to match Latin "esse" → "be"
                 const englishVerbBase = englishVerb.replace(/^to\s+/, '');
-                
+
                 if (!wordsMatch(latinVerbDef, englishVerbBase)) {
                     return {
                         isCorrect: false,
@@ -1978,7 +2208,7 @@
         if (latinStruct.subjectModifiers.length > 0) {
             const latinMods = latinStruct.subjectModifiers.map(m => normalizeWord(m.definition || ''));
             const englishMods = englishStruct.subjectModifiers.map(m => normalizeWord(m));
-            
+           
             for (const latinMod of latinMods) {
                 const matched = englishMods.some(eMod => wordsMatch(latinMod, eMod));
                 if (!matched) {
@@ -1998,7 +2228,7 @@
         if (latinStruct.objectModifiers.length > 0) {
             const latinMods = latinStruct.objectModifiers.map(m => normalizeWord(m.definition || ''));
             const englishMods = englishStruct.objectModifiers.map(m => normalizeWord(m));
-            
+           
             for (const latinMod of latinMods) {
                 const matched = englishMods.some(eMod => wordsMatch(latinMod, eMod));
                 if (!matched) {
@@ -2039,36 +2269,36 @@
 
     function wordsMatch(word1, word2) {
         if (!word1 || !word2) return false;
-        
+
         const w1 = normalizeWord(word1);
         const w2 = normalizeWord(word2);
-        
+
         // If word1 contains multiple definitions (comma-separated), check if word2 matches ANY of them
         if (w1.includes(',')) {
             const definitions = w1.split(',').map(def => def.trim());
             for (const def of definitions) {
                 // Direct match
                 if (def === w2) return true;
-                
+
                 // Fuzzy match (allow small differences)
                 if (levenshteinDistance(def, w2) <= 2) return true;
-                
+
                 // Stem match
                 if (def.startsWith(w2) || w2.startsWith(def)) return true;
             }
             return false;
         }
-        
+
         // Single definition - standard matching
         // Direct match
         if (w1 === w2) return true;
-        
+
         // Fuzzy match (allow small differences)
         if (levenshteinDistance(w1, w2) <= 2) return true;
-        
+
         // Stem match
         if (w1.startsWith(w2) || w2.startsWith(w1)) return true;
-        
+
         return false;
     }
 
@@ -2162,7 +2392,7 @@
 
     function findContradictions(expectedWords, userWords) {
         const contradictions = [];
-        
+       
         for (const expected of expectedWords) {
             const opposites = SEMANTIC_OPPOSITES[expected] || [];
             for (const userWord of userWords) {
@@ -2171,23 +2401,23 @@
                 }
             }
         }
-        
+       
         return contradictions;
     }
 
     function normalizeWord(word) {
         // Normalize to base form for better matching
         word = word.toLowerCase();
-        
+       
         // Handle common verb forms
         if (word.endsWith('ing')) return word.slice(0, -3); // loving -> lov
         if (word.endsWith('ed')) return word.slice(0, -2); // loved -> lov
         if (word.endsWith('es')) return word.slice(0, -2); // loves -> lov
         if (word.endsWith('s') && word.length > 3) return word.slice(0, -1); // loves -> love
-        
+       
         // Handle common plural forms
         if (word.endsWith('ies')) return word.slice(0, -3) + 'y'; // cities -> city
-        
+       
         return word;
     }
 
@@ -2195,8 +2425,8 @@
         // Check if any word in the list is a related form
         const baseWord = word.length > 3 ? word.slice(0, -1) : word;
         return wordList.some(w => {
-            return w === word || 
-                   w.startsWith(baseWord) || 
+            return w === word ||
+                   w.startsWith(baseWord) ||
                    baseWord.startsWith(w) ||
                    levenshteinDistance(word, w) <= 2;
         });
@@ -2212,17 +2442,17 @@
     function levenshteinDistance(a, b) {
         if (a.length === 0) return b.length;
         if (b.length === 0) return a.length;
-        
+       
         const matrix = [];
-        
+       
         for (let i = 0; i <= b.length; i++) {
             matrix[i] = [i];
         }
-        
+       
         for (let j = 0; j <= a.length; j++) {
             matrix[0][j] = j;
         }
-        
+       
         for (let i = 1; i <= b.length; i++) {
             for (let j = 1; j <= a.length; j++) {
                 if (b.charAt(i - 1) === a.charAt(j - 1)) {
@@ -2236,14 +2466,14 @@
                 }
             }
         }
-        
+       
         return matrix[b.length][a.length];
     }
 
     // Analysis pipeline
     function analyze(rawText, opts) {
         const tokens = tokenize(rawText);
-        const authorBias = inferAuthorBias(opts.author, opts.mode);
+        const authorBias = inferAuthorBias(opts.author);
         tokens.forEach(t => annotateToken(t, authorBias));
         const groups = buildTranslationChunks(rawText, tokens, authorBias);
         const grammar = detectComplexGrammar(tokens, authorBias);
@@ -2281,15 +2511,15 @@
 
     function annotateToken(t, bias) {
         const w = t.normalized;
-        
+       
         // FIRST: Check if word exists in LEXICON
         const lexEntry = LEXICON[w];
         if (lexEntry && lexEntry.pos) {
             t.pos = lexEntry.pos;
             t.definition = lexEntry.def; // Set definition from lexicon!
-            
+           
             // Set appropriate features based on part of speech
-            if (lexEntry.pos === 'noun' || lexEntry.pos === 'adjective' || lexEntry.pos === 'participle' || lexEntry.pos === 'gerundive') {
+            if (lexEntry.pos === 'noun' || lexEntry.pos === 'proper-noun' || lexEntry.pos === 'adjective' || lexEntry.pos === 'participle' || lexEntry.pos === 'gerundive') {
                 // If lexicon has case information, use it (for irregular forms like "omnis")
                 if (lexEntry.case) {
                     t.features.case = lexEntry.case;
@@ -2338,10 +2568,10 @@
             }
             return;
         }
-        
+       
         // SECOND: Fall back to morphology heuristics if not in LEXICON
         // Check for participles FIRST (before verbs) to avoid misclassification
-        
+       
         // Perfect participles: -tus, -ta, -tum, -sus, -sa, -sum, -ctus, -ptus, -rsus
         if (/(tus|ta|tum|sus|sa|sum|ctus|cta|ctum|ptus|pta|ptum|rsus|rsa|rsum)$/.test(w)) {
             t.pos = 'participle';
@@ -2356,14 +2586,14 @@
             }
             return;
         }
-        
+       
         // Future active participles: -urus, -ura, -urum
         if (/(urus|ura|urum)$/.test(w)) {
             t.pos = 'participle';
             t.features.tense = 'future';
             return;
         }
-        
+       
         // Present active participles: -ns, -ntis, -ntem, -ntes (but not verb endings)
         // Check for -ns or -nt- followed by vowels (case endings)
         if (/n(s|t[ieao]|tis|tem|tes|tia|tium|tibus)$/.test(w)) {
@@ -2371,29 +2601,217 @@
             t.features.tense = 'present';
             return;
         }
-        
+       
         // NOW check verb patterns (after participles)
-        if (/\b(sum|es|est|sumus|estis|sunt)\b/.test(w)) {
+        // Irregular verb: sum, esse (to be)
+        if (/\b(sum|es|est|sumus|estis|sunt|eram|eras|erat|eramus|eratis|erant|ero|eris|erit|erimus|eritis|erunt|fui|fuisti|fuit|fuimus|fuistis|fuerunt|fueram|fueras|fuerat|fueramus|fueratis|fuerant)\b/.test(w)) {
             t.pos = 'verb';
-            t.features.tense = 'present';
+            t.features.tense = /^fu/.test(w) ? 'perfect' : (/^era/.test(w) ? 'imperfect' : 'present');
             t.definition ||= 'be';
             return;
         }
+        // Irregular verb: possum, posse (to be able)
+        if (/\b(possum|potes|potest|possumus|potestis|possunt|poteram|poteras|poterat|poteramus|poteratis|poterant|potero|poteris|poterit|poterimus|poteritis|poterunt|potui|potuisti|potuit|potuimus|potuistis|potuerunt)\b/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = /^potu/.test(w) ? 'perfect' : 'present';
+            t.definition ||= 'be able, can';
+            return;
+        }
+        // Irregular verb: eo, ire (to go)
+        if (/\b(eo|is|it|imus|itis|eunt|ibam|ibas|ibat|ibamus|ibatis|ibant|ibo|ibis|ibit|ibimus|ibitis|ibunt|ii|ivi|iisti|ivisti|iit|ivit|iimus|ivimus|iistis|ivistis|ierunt|iverunt)\b/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = /^i[iv]/.test(w) ? 'perfect' : 'present';
+            t.definition ||= 'go';
+            return;
+        }
+        // Irregular verb: fero, ferre (to carry, bear)
+        if (/\b(fero|fers|fert|ferimus|fertis|ferunt|ferebam|ferebas|ferebat|ferebamus|ferebatis|ferebant|feram|feres|feret|feremus|feretis|ferent|tuli|tulisti|tulit|tulimus|tulistis|tulerunt)\b/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = /^tul/.test(w) ? 'perfect' : 'present';
+            t.definition ||= 'carry, bear, bring';
+            return;
+        }
+        // Irregular verb: volo, velle (to want, wish)
+        if (/\b(volo|vis|vult|volumus|vultis|volunt|volebam|volebas|volebat|volebamus|volebatis|volebant|volam|voles|volet|volemus|voletis|volent|volui|voluisti|voluit|voluimus|voluistis|voluerunt)\b/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = /^volu/.test(w) ? 'perfect' : 'present';
+            t.definition ||= 'want, wish';
+            return;
+        }
+        // Irregular verb: nolo, nolle (to not want, be unwilling)
+        if (/\b(nolo|non vis|non vult|nolumus|non vultis|nolunt|nolebam|nolebas|nolebat|nolebamus|nolebatis|nolebant|nolam|noles|nolet|nolemus|noletis|nolent|nolui|noluisti|noluit|noluimus|noluistis|noluerunt)\b/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = /^nolu/.test(w) ? 'perfect' : 'present';
+            t.definition ||= 'not want, be unwilling';
+            return;
+        }
+        // Irregular verb: malo, malle (to prefer)
+        if (/\b(malo|mavis|mavult|malumus|mavultis|malunt|malebam|malebas|malebat|malebamus|malebatis|malebant|malam|males|malet|malemus|maletis|malent|malui|maluisti|maluit|maluimus|maluistis|maluerunt)\b/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = /^malu/.test(w) ? 'perfect' : 'present';
+            t.definition ||= 'prefer';
+            return;
+        }
+
         // Infinitives (before other verb endings)
         if (/re$/.test(w) && !/(urus|ura|urum)$/.test(w)) {
             t.pos = 'verb';
             t.features.tense = 'infinitive';
+            // Check if it's a perfect infinitive (-isse)
+            if (/isse$/.test(w)) {
+                t.features.tense = 'perfect infinitive';
+            }
             return;
         }
-        // Finite verb forms
+
+        // Passive voice endings (present/imperfect system)
+        if (/(or|ris|tur|mur|mini|ntur)$/.test(w) && !/(urus|ura|urum|ior|ius)$/.test(w)) {
+            t.pos = 'verb';
+            t.features.voice = 'passive';
+            t.features.tense = 'present';
+            return;
+        }
+        // Imperfect passive: -bar, -baris, -batur, -bamur, -bamini, -bantur
+        if (/(bar|baris|batur|bamur|bamini|bantur)$/.test(w)) {
+            t.pos = 'verb';
+            t.features.voice = 'passive';
+            t.features.tense = 'imperfect';
+            return;
+        }
+
+        // Perfect tense forms (active voice)
+        // Common perfect endings: -i, -isti, -it, -imus, -istis, -erunt, -ere
+        if (/(avi|evi|ivi|ui|xi|si)$/.test(w) || // 1st person sg perfect
+            /(avisti|evisti|ivisti|uisti|xisti|sisti)$/.test(w) || // 2nd person sg perfect
+            /(avit|evit|ivit|uit|xit|sit)$/.test(w) || // 3rd person sg perfect
+            /(avimus|evimus|ivimus|uimus|ximus|simus)$/.test(w) || // 1st person pl perfect
+            /(avistis|evistis|ivistis|uistis|xistis|sistis)$/.test(w) || // 2nd person pl perfect
+            /(averunt|everunt|iverunt|uerunt|xerunt|serunt|avere|evere|ivere|uere|xere|sere)$/.test(w)) { // 3rd person pl perfect
+            t.pos = 'verb';
+            t.features.tense = 'perfect';
+            t.features.voice = 'active';
+            return;
+        }
+
+        // Pluperfect tense: -eram, -eras, -erat, -eramus, -eratis, -erant (but not "sum" forms, already handled)
+        if (/(averam|averas|averat|averamus|averatis|averant|everam|everas|everat|everamus|everatis|everant|iveram|iveras|iverat|iveramus|iveratis|iverant|ueram|ueras|uerat|ueramus|ueratis|uerant)$/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = 'pluperfect';
+            t.features.voice = 'active';
+            return;
+        }
+
+        // Future perfect: -ero, -eris, -erit, -erimus, -eritis, -erint
+        if (/(avero|averis|averit|averimus|averitis|averint|evero|everis|everit|everimus|everitis|everint|ivero|iveris|iverit|iverimus|iveritis|iverint|uero|ueris|uerit|uerimus|ueritis|uerint)$/.test(w)) {
+            t.pos = 'verb';
+            t.features.tense = 'future perfect';
+            t.features.voice = 'active';
+            return;
+        }
+
+        // Finite verb forms (present/future)
         if (/nt$/.test(w) || /t$/.test(w) || /(o|m)$/.test(w)) {
             // Make sure it's not a participle we missed
             if (!/(tus|sus|ctus|ptus|rsus)$/.test(w)) {
                 t.pos = 'verb';
-                t.features.tense = /it$|erunt$/.test(w) ? 'perfect' : 'present';
+                // Check if it's future tense (-bo, -bis, -bit, -bimus, -bitis, -bunt or -am, -es, -et, -emus, -etis, -ent)
+                if (/(bo|bis|bit|bimus|bitis|bunt)$/.test(w) || /(am|es|et|emus|etis|ent)$/.test(w)) {
+                    t.features.tense = 'future';
+                } else {
+                    t.features.tense = 'present';
+                }
+                t.features.voice = 'active';
                 return;
             }
         }
+
+        // Comparative adjectives: -ior (masc/fem), -ius (neut)
+        // Must check before regular adjective patterns to avoid misclassification
+        if (/(ior|ius|iorem|iores|ioris|iori|ioribus|iorum)$/.test(w)) {
+            t.pos = 'adjective';
+            t.features.degree = 'comparative';
+            // Determine case based on ending
+            if (/ior$/.test(w)) {
+                t.features.case = 'nom sg masc/fem';
+            } else if (/ius$/.test(w)) {
+                t.features.case = 'nom/acc sg neut';
+            } else if (/iorem$/.test(w)) {
+                t.features.case = 'acc sg masc/fem';
+            } else if (/iores$/.test(w)) {
+                t.features.case = 'nom/acc pl masc/fem';
+            } else if (/ioris$/.test(w)) {
+                t.features.case = 'gen sg';
+            } else if (/iori$/.test(w)) {
+                t.features.case = 'dat sg or abl sg';
+            } else if (/ioribus$/.test(w)) {
+                t.features.case = 'dat/abl pl';
+            } else if (/iorum$/.test(w)) {
+                t.features.case = 'gen pl';
+            }
+            return;
+        }
+
+        // Superlative adjectives: -issimus, -issima, -issimum (and other declensions)
+        if (/(issimus|issima|issimum|issimi|issimae|issimo|issimam|issimos|issimarum|issimorum|issimis)$/.test(w)) {
+            t.pos = 'adjective';
+            t.features.degree = 'superlative';
+            // Determine case based on ending (follows 1st/2nd declension)
+            if (/issimus$/.test(w)) {
+                t.features.case = 'nom sg masc';
+            } else if (/issima$/.test(w)) {
+                t.features.case = 'nom/abl sg fem';
+            } else if (/issimum$/.test(w)) {
+                t.features.case = 'nom/acc sg neut or acc sg masc';
+            } else if (/issimi$/.test(w)) {
+                t.features.case = 'gen sg masc/neut or nom pl masc';
+            } else if (/issimae$/.test(w)) {
+                t.features.case = 'gen/dat sg fem or nom pl fem';
+            } else if (/issimo$/.test(w)) {
+                t.features.case = 'dat/abl sg masc/neut';
+            } else if (/issimam$/.test(w)) {
+                t.features.case = 'acc sg fem';
+            } else if (/issimos$/.test(w)) {
+                t.features.case = 'acc pl masc';
+            } else if (/(issimarum|issimorum)$/.test(w)) {
+                t.features.case = 'gen pl';
+            } else if (/issimis$/.test(w)) {
+                t.features.case = 'dat/abl pl';
+            }
+            return;
+        }
+
+        // Irregular superlatives (common ones)
+        if (/\b(optimus|optima|optimum|optimi|optimae|optimo|optimam|optimos|optimarum|optimorum|optimis)\b/.test(w)) {
+            t.pos = 'adjective';
+            t.features.degree = 'superlative';
+            t.definition ||= 'best';
+            return;
+        }
+        if (/\b(pessimus|pessima|pessimum|pessimi|pessimae|pessimo|pessimam|pessimos|pessimarum|pessimorum|pessimis)\b/.test(w)) {
+            t.pos = 'adjective';
+            t.features.degree = 'superlative';
+            t.definition ||= 'worst';
+            return;
+        }
+        if (/\b(maximus|maxima|maximum|maximi|maximae|maximo|maximam|maximos|maximarum|maximorum|maximis)\b/.test(w)) {
+            t.pos = 'adjective';
+            t.features.degree = 'superlative';
+            t.definition ||= 'greatest, largest';
+            return;
+        }
+        if (/\b(minimus|minima|minimum|minimi|minimae|minimo|minimam|minimos|minimarum|minimorum|minimis)\b/.test(w)) {
+            t.pos = 'adjective';
+            t.features.degree = 'superlative';
+            t.definition ||= 'smallest, least';
+            return;
+        }
+        if (/\b(plurimus|plurima|plurimum|plurimi|plurimae|plurimo|plurimam|plurimos|plurimarum|plurimorum|plurimis)\b/.test(w)) {
+            t.pos = 'adjective';
+            t.features.degree = 'superlative';
+            t.definition ||= 'most, very many';
+            return;
+        }
+
         // Noun/adjective endings (very simplified)
         if (/(ae|am|as|arum)$/.test(w) || /(a)$/.test(w)) {
             t.pos = guessAdjOrNoun(w);
@@ -2507,264 +2925,166 @@
 
     function buildTranslationChunks(rawText, tokens, bias) {
         if (!tokens || tokens.length === 0) return [];
-        
+
         const chunks = [];
-        const assigned = new Array(tokens.length).fill(false);
-        
-        function isComparativeOrSuperlative(token) {
-            if (!token) return false;
-            const w = token.normalized || '';
-            if (!w) return false;
-            if (/(ior|ius)$/.test(w)) return true; // comparative endings
-            if (/(issim|issum|issa|errim|errum|erra|lim|limum|lima)$/.test(w)) return true; // superlative stems
-            if (/^(maxim|minim|plur|plus|magis|maior|minor|melior|peior|optim|pessim)/.test(w)) return true;
-            return false;
-        }
-        
-        function hasFiniteVerbAhead(idx, maxLook = 6) {
-            const limit = Math.min(tokens.length - 1, idx + maxLook);
-            for (let i = idx + 1; i <= limit; i++) {
-                const tok = tokens[i];
-                if (!tok) continue;
-                if (tok.pos === 'verb' && tok.features.tense !== 'infinitive') {
+
+        // Helper: Check if segment has a finite verb
+        function hasFiniteVerb(startIdx, endIdx) {
+            for (let i = startIdx; i <= endIdx; i++) {
+                const t = tokens[i];
+                if (t && t.pos === 'verb' && t.features.tense !== 'infinitive') {
                     return true;
                 }
             }
             return false;
         }
-        
-        function findNextPunctuation(startChar, endChar) {
-            if (startChar >= endChar) return null;
-            const slice = rawText.slice(startChar, endChar);
-            const match = slice.match(/[,;:]/);
-            if (!match) return null;
-            return startChar + match.index;
-        }
-        
-        function findTokenIndexAtOrAfter(charIdx, fromIdx, toIdx) {
-            for (let i = fromIdx; i <= toIdx; i++) {
-                if (tokens[i] && tokens[i].start >= charIdx) {
-                    return i;
+
+        // Helper: Find all finite verb indices in a segment
+        function findFiniteVerbs(startIdx, endIdx) {
+            const verbs = [];
+            for (let i = startIdx; i <= endIdx; i++) {
+                const t = tokens[i];
+                if (t && t.pos === 'verb' && t.features.tense !== 'infinitive') {
+                    verbs.push(i);
                 }
             }
-            return toIdx + 1;
+            return verbs;
         }
-        
-        const boundariesForSplit = [];
-        
-        function splitChunkByPunctuation(chunk) {
-            const tokenIdxs = chunk.tokens;
-            if (!tokenIdxs || tokenIdxs.length <= 1) return [chunk];
-            
-            const segments = [];
-            let segmentStart = 0;
-            let chunkType = chunk.type;
-            
-            for (let i = 1; i < tokenIdxs.length; i++) {
-                const prevToken = tokens[tokenIdxs[i - 1]];
-                const currToken = tokens[tokenIdxs[i]];
-                const between = rawText.slice(prevToken.end, currToken.start);
-                if (between.includes(',')) {
-                    const commaIdx = prevToken.end + between.indexOf(',');
-                    const nextBoundary = boundariesForSplit.find(b => b > commaIdx);
-                    const remaining = tokenIdxs.slice(i);
-                    const hasInfinitiveAhead = remaining.some(ti => {
-                        const t = tokens[ti];
-                        return t.pos === 'verb' && t.features.tense === 'infinitive';
-                    });
-                    const currentSegment = tokenIdxs.slice(segmentStart, i);
-                    const hasInfinitiveCurrent = currentSegment.some(ti => {
-                        const t = tokens[ti];
-                        return t.pos === 'verb' && t.features.tense === 'infinitive';
-                    });
-                    if (hasInfinitiveCurrent && hasInfinitiveAhead && (!nextBoundary || nextBoundary > currToken.start)) {
-                        if (currentSegment.length > 0) {
-                            segments.push({ tokens: currentSegment, type: chunkType });
-                        }
-                        chunkType = 'infinitive-phrase';
-                        segmentStart = i;
-                    }
-                }
-            }
-            
-            const finalSegment = tokenIdxs.slice(segmentStart);
-            if (finalSegment.length > 0) {
-                segments.push({ tokens: finalSegment, type: chunkType });
-            }
-            return segments;
-        }
-        
-        // Relative pronouns
-        const relativePronouns = new Set(['qui','quae','quod','quem','quam','quos','quas','quo','qua','quibus','cui','cuius','quorum','quarum']);
-        
-        // Subordinate conjunctions
-        const subordinateConjs = new Set(['cum', 'ut', 'ne', 'si', 'nisi', 'dum', 'donec', 'antequam', 'priusquam', 
-                                          'quamquam', 'etsi', 'licet', 'quod', 'quia', 'quoniam']);
-        
-        // Indirect question words
-        const indirectQWords = new Set(['cur', 'quomodo', 'ubi', 'quando', 'quis', 'quid', 'quo', 'unde']);
-        
-        // Step 1: Find ablative absolutes (highest priority)
-        const ablAbsolutes = findAblativeAbsolutes(tokens);
-        ablAbsolutes.forEach(([start, end]) => {
-            const chunkTokens = [];
-            for (let i = start; i <= end; i++) {
-                chunkTokens.push(i);
-            }
-            chunks.push({ tokens: chunkTokens, type: 'ablative-absolute' });
-        });
-        
-        // Step 2: Find chunk boundaries
-        const boundaries = []; // Array of {idx, type, priority, startChar}
-        
-        for (let i = 0; i < tokens.length; i++) {
+
+        // Step 1: Find all punctuation marks and their types
+        const punctuationMarks = []; // {idx: token index, type: 'comma'|'period'|'semicolon'}
+
+        for (let i = 0; i < tokens.length - 1; i++) {
             const t = tokens[i];
-            const w = t.normalized;
-            
-            // Relative pronouns
-            if (relativePronouns.has(w)) {
-                if (w === 'quam') {
-                    let foundFinite = false;
-                    for (let j = i + 1; j < tokens.length; j++) {
-                        const gap = rawText.slice(tokens[j - 1].end, tokens[j].start);
-                        if (/,|;|:/.test(gap)) break;
-                        const tok = tokens[j];
-                        if (tok.pos === 'verb' && tok.features.tense !== 'infinitive') {
-                            foundFinite = true;
-                            break;
-                        }
-                    }
-                    if (!foundFinite) {
-                        continue; // comparative/adverbial "quam", not clause boundary
-                    }
-                }
-                boundaries.push({ idx: i, type: 'relative', priority: 2, startChar: t.start });
-            }
-            
-            // Cum clauses
-            else if (w === 'cum' && !isCumPreposition(tokens, i)) {
-                boundaries.push({ idx: i, type: 'cum-clause', priority: 2, startChar: t.start });
-            }
-            
-            // Ut/ne clauses
-            else if ((w === 'ut' || w === 'ne') && isUtClause(tokens, i)) {
-                boundaries.push({ idx: i, type: 'ut-clause', priority: 2, startChar: t.start });
-            }
-            
-            // Other subordinate conjunctions
-            else if (subordinateConjs.has(w) && w !== 'cum' && w !== 'ut' && w !== 'ne') {
-                boundaries.push({ idx: i, type: 'subordinate', priority: 2, startChar: t.start });
+            const next = tokens[i + 1];
+            const between = rawText.slice(t.end, next.start);
+
+            if (between.includes('.')) {
+                punctuationMarks.push({ idx: i, type: 'period' });
+            } else if (between.includes(';')) {
+                punctuationMarks.push({ idx: i, type: 'semicolon' });
+            } else if (between.includes(',')) {
+                punctuationMarks.push({ idx: i, type: 'comma' });
             }
         }
-        
-        // Sort boundaries by index
-        boundaries.sort((a, b) => a.idx - b.idx);
-        
-        // Step 3: Create chunks between boundaries
-        let chunkStart = 0;
-        
-        for (const boundary of boundaries) {
-            let clauseStart = boundary.idx;
-            if (boundary.type === 'relative') {
-                const antecedentIdx = boundary.idx - 1;
-                if (antecedentIdx >= chunkStart) {
-                    const antecedent = tokens[antecedentIdx];
-                    const boundaryToken = tokens[boundary.idx];
-                    if (antecedent && (antecedent.pos === 'noun' || antecedent.pos === 'pronoun')) {
-                        const between = rawText.slice(antecedent.end, boundaryToken.start);
-                        if (!/[,;:]/.test(between)) {
-                            clauseStart = antecedentIdx;
-                        }
-                    }
-                }
-            }
-            
-            // Add chunk from chunkStart to clauseStart (exclusive)
-            if (clauseStart > chunkStart) {
+
+        // Step 2: Split by periods and semicolons first (always boundaries)
+        const majorBoundaries = punctuationMarks
+            .filter(p => p.type === 'period' || p.type === 'semicolon')
+            .map(p => p.idx);
+
+        // Add end of tokens as final boundary
+        majorBoundaries.push(tokens.length - 1);
+
+        // Step 3: For each major segment, decide if commas create sub-chunks
+        let segmentStart = 0;
+
+        for (const majorBoundaryIdx of majorBoundaries) {
+            // Get all commas within this segment
+            const commasInSegment = punctuationMarks
+                .filter(p => p.type === 'comma' && p.idx >= segmentStart && p.idx < majorBoundaryIdx)
+                .map(p => p.idx);
+
+            if (commasInSegment.length === 0) {
+                // No commas - entire segment is one chunk
                 const chunkTokens = [];
-                for (let i = chunkStart; i < clauseStart; i++) {
+                for (let i = segmentStart; i <= majorBoundaryIdx; i++) {
                     chunkTokens.push(i);
                 }
                 if (chunkTokens.length > 0) {
-                    chunks.push({ tokens: chunkTokens, type: 'main' });
+                    chunks.push({ tokens: chunkTokens, type: 'main', name: 'Main Clause' });
                 }
-            }
-            
-            // Find end of this boundary's clause
-            let clauseEnd = boundary.idx;
-            
-            // Look for next boundary or end of sentence
-            const nextBoundaryIdx = boundaries.find(b => b.idx > boundary.idx)?.idx || tokens.length;
-            
-            // For relative/subordinate clauses, include up to next boundary
-            clauseEnd = nextBoundaryIdx - 1;
-            
-            if (['relative', 'cum-clause', 'ut-clause', 'subordinate'].includes(boundary.type)) {
-                const startToken = tokens[clauseStart];
-                const searchStart = startToken ? startToken.end : tokens[boundary.idx].end;
-                const searchEnd = nextBoundaryIdx < tokens.length ? tokens[nextBoundaryIdx].start : rawText.length;
-                const punctIdx = findNextPunctuation(searchStart, searchEnd);
-                if (punctIdx !== null) {
-                    const trimmedIdx = findTokenIndexAtOrAfter(punctIdx, clauseStart + 1, clauseEnd);
-                    const newClauseEnd = Math.max(clauseStart, trimmedIdx - 1);
-                    if (newClauseEnd < clauseEnd) {
-                        clauseEnd = newClauseEnd;
+            } else {
+                // Has commas - check if they should split the chunk
+                // Strategy: Split at comma ONLY if both sides have finite verbs
+                // This keeps dependent clauses together
+
+                const potentialBoundaries = [segmentStart - 1, ...commasInSegment, majorBoundaryIdx];
+                const validChunks = [];
+                let currentChunkStart = segmentStart;
+
+                for (let i = 1; i < potentialBoundaries.length; i++) {
+                    const boundaryIdx = potentialBoundaries[i];
+                    const segmentEnd = boundaryIdx;
+
+                    // Check if this segment (from currentChunkStart to segmentEnd) should be a chunk
+                    const hasVerb = hasFiniteVerb(currentChunkStart, segmentEnd);
+
+                    // Look ahead: does the NEXT segment also have a verb?
+                    let nextSegmentHasVerb = false;
+                    if (i < potentialBoundaries.length - 1) {
+                        const nextStart = boundaryIdx + 1;
+                        const nextEnd = potentialBoundaries[i + 1];
+                        nextSegmentHasVerb = hasFiniteVerb(nextStart, nextEnd);
+                    }
+
+                    // Split at this comma if:
+                    // 1. Current segment has a verb AND next segment has a verb
+                    // OR
+                    // 2. This is the major boundary (end of sentence)
+                    if ((hasVerb && nextSegmentHasVerb) || boundaryIdx === majorBoundaryIdx) {
+                        const chunkTokens = [];
+                        for (let j = currentChunkStart; j <= segmentEnd; j++) {
+                            chunkTokens.push(j);
+                        }
+                        if (chunkTokens.length > 0) {
+                            validChunks.push(chunkTokens);
+                        }
+                        currentChunkStart = segmentEnd + 1;
+                    }
+                    // Otherwise, don't split - continue accumulating tokens
+                }
+
+                // Add remaining tokens if any (in case we didn't split at last comma)
+                if (currentChunkStart <= majorBoundaryIdx) {
+                    const chunkTokens = [];
+                    for (let j = currentChunkStart; j <= majorBoundaryIdx; j++) {
+                        chunkTokens.push(j);
+                    }
+                    if (chunkTokens.length > 0) {
+                        validChunks.push(chunkTokens);
                     }
                 }
+
+                // Add all valid chunks for this segment
+                validChunks.forEach(chunkTokens => {
+                    const chunkTokenObjs = chunkTokens.map(idx => tokens[idx]);
+                    const hasRelativePronoun = chunkTokenObjs.some(t =>
+                        ['qui', 'quae', 'quod', 'quem', 'quam', 'quos', 'quas', 'quo', 'qua', 'quibus', 'cui', 'cuius', 'quorum', 'quarum'].includes(t.normalized)
+                    );
+                    const hasCum = chunkTokenObjs.some(t => t.normalized === 'cum');
+                    const hasUt = chunkTokenObjs.some(t => t.normalized === 'ut' || t.normalized === 'ne');
+
+                    let chunkType = 'main';
+                    if (hasRelativePronoun) chunkType = 'relative';
+                    else if (hasCum) chunkType = 'cum-clause';
+                    else if (hasUt) chunkType = 'ut-clause';
+
+                    chunks.push({
+                        tokens: chunkTokens,
+                        type: chunkType,
+                        name: chunkType === 'main' ? 'Main Clause' :
+                              chunkType === 'relative' ? 'Relative Clause' :
+                              chunkType === 'cum-clause' ? 'Cum Clause' :
+                              chunkType === 'ut-clause' ? 'Ut Clause' : 'Clause'
+                    });
+                });
             }
-            
-            // Create chunk for this clause
-            const clauseTokens = [];
-            for (let i = clauseStart; i <= Math.min(clauseEnd, tokens.length - 1); i++) {
-                clauseTokens.push(i);
-            }
-            if (clauseTokens.length > 0) {
-                chunks.push({ tokens: clauseTokens, type: boundary.type });
-            }
-            
-            chunkStart = clauseEnd + 1;
+
+            // Next segment starts after this major boundary
+            segmentStart = majorBoundaryIdx + 1;
         }
-        
-        // Add final chunk if there's remaining tokens
-        if (chunkStart < tokens.length) {
-            const chunkTokens = [];
-            for (let i = chunkStart; i < tokens.length; i++) {
-                chunkTokens.push(i);
-            }
-            if (chunkTokens.length > 0) {
-                chunks.push({ tokens: chunkTokens, type: 'main' });
-            }
-        }
-        
-        // If no boundaries found, make entire sentence one chunk
+
+        // If no chunks were created, make entire text one chunk
         if (chunks.length === 0) {
             const allTokens = [];
             for (let i = 0; i < tokens.length; i++) {
                 allTokens.push(i);
             }
-            chunks.push({ tokens: allTokens, type: 'main' });
+            chunks.push({ tokens: allTokens, type: 'main', name: 'Main Clause' });
         }
-        
-        // Remove empty chunks
-        const filtered = chunks.filter(chunk => chunk.tokens && chunk.tokens.length > 0);
-        const refined = [];
-        boundariesForSplit.length = 0;
-        boundaries.forEach(b => {
-            if (typeof b.startChar === 'number') {
-                boundariesForSplit.push(b.startChar);
-            } else {
-                const token = tokens[b.idx];
-                if (token) boundariesForSplit.push(token.start);
-            }
-        });
-        filtered.forEach(chunk => {
-            splitChunkByPunctuation(chunk).forEach(c => {
-                if (c.tokens && c.tokens.length > 0) {
-                    refined.push(c);
-                }
-            });
-        });
-        return refined;
+
+        return chunks;
     }
 
     function sameCaseBucket(a, b) {
@@ -2821,11 +3141,11 @@
                         break;
                     }
                 }
-                
+               
                 if (reportingVerbIdx >= 0) {
                     // Find accusative nouns/pronouns in the indirect statement
                     const accSubjects = [];
-                    
+                   
                     // Look between reporting verb and infinitive
                     for (let j = reportingVerbIdx + 1; j < i; j++) {
                         const token = tokens[j];
@@ -2834,13 +3154,13 @@
                             const isAccusative = /^acc/.test(tokenCase);
                             const accPronouns = ['me', 'te', 'se', 'nos', 'vos', 'eum', 'eam', 'eos', 'eas', 'id'];
                             const isAccPronoun = accPronouns.includes(token.normalized);
-                            
+                           
                             if (isAccusative || isAccPronoun) {
                                 accSubjects.push(token.original);
                             }
                         }
                     }
-                    
+                   
                     // Also look after infinitive for predicate accusatives
                     for (let j = i + 1; j <= Math.min(i + 2, tokens.length - 1); j++) {
                         const token = tokens[j];
@@ -2849,13 +3169,13 @@
                             const isAccusative = /^acc/.test(tokenCase);
                             const accPronouns = ['me', 'te', 'se', 'nos', 'vos', 'eum', 'eam', 'eos', 'eas', 'id'];
                             const isAccPronoun = accPronouns.includes(token.normalized);
-                            
+                           
                             if (isAccusative || isAccPronoun) {
                                 accSubjects.push(token.original);
                             }
                         }
                     }
-                    
+                   
                     // If we found accusative noun(s)/pronoun(s), report the indirect statement
                     if (accSubjects.length > 0) {
                         const span = [tokens[reportingVerbIdx].original, ...accSubjects, t.original].join(' ');
@@ -2919,7 +3239,7 @@
         // Participial Phrases: participle + associated noun (with case agreement)
         // First, track which participles are already in noun-adjective agreement with closer words
         const participlesInAdjGroups = new Set();
-        
+       
         for (let i = 0; i < tokens.length; i++) {
             if (tokens[i].pos === 'participle') {
                 for (let j = Math.max(0, i - 2); j <= Math.min(tokens.length - 1, i + 2); j++) {
@@ -2932,14 +3252,14 @@
                 }
             }
         }
-        
+       
         // Now detect participial phrases, but skip participles already in adjective groups
         for (let i = 0; i < tokens.length; i++) {
             if (tokens[i].pos === 'participle' && !participlesInAdjGroups.has(i)) {
                 const windowSize = 3;
                 let nearestNoun = null;
                 let bestDist = Infinity;
-                
+               
                 for (let j = Math.max(0, i - windowSize); j <= Math.min(tokens.length - 1, i + windowSize); j++) {
                     if (j !== i && (tokens[j].pos === 'noun' || tokens[j].pos === 'pronoun')) {
                         if (tokensMorphologicallyAgree(tokens[i], tokens[j])) {
@@ -2970,13 +3290,13 @@
         return Array.from(new Set(english));
     }
 
-    function inferAuthorBias(author, mode) {
+    function inferAuthorBias(author) {
         const a = (author || '').toLowerCase();
         const poetryAuthors = ['vergil','virgil','ovid','horace','catullus','propertius','tibullus'];
         const proseAuthors = ['caesar','cicero','sallust','livy','pliny'];
         return {
-            poetry: mode === 'poetry' || poetryAuthors.some(x => a.includes(x)),
-            prose: mode === 'prose' || proseAuthors.some(x => a.includes(x))
+            poetry: poetryAuthors.some(x => a.includes(x)),
+            prose: proseAuthors.some(x => a.includes(x))
         };
     }
 
@@ -2992,6 +3312,7 @@
     const LEXICON = {
         // Common verbs (with infinitives)
         'amo': { pos: 'verb', def: 'love' }, 'amas': { pos: 'verb', def: 'love' }, 'amat': { pos: 'verb', def: 'love' }, 'amamus': { pos: 'verb', def: 'love' }, 'amant': { pos: 'verb', def: 'love' }, 'amare': { pos: 'verb', def: 'love' },
+        'amor': { pos: 'verb', def: 'am loved' }, 'amaris': { pos: 'verb', def: 'are loved' }, 'amatur': { pos: 'verb', def: 'is loved' }, 'amamur': { pos: 'verb', def: 'are loved' }, 'amamini': { pos: 'verb', def: 'are loved' }, 'amantur': { pos: 'verb', def: 'are loved' },
         'spero': { pos: 'verb', def: 'hope' }, 'speras': { pos: 'verb', def: 'hope' }, 'sperat': { pos: 'verb', def: 'hope' }, 'speramus': { pos: 'verb', def: 'hope' }, 'sperant': { pos: 'verb', def: 'hope' }, 'sperare': { pos: 'verb', def: 'hope' },
         'laboro': { pos: 'verb', def: 'work' }, 'laboras': { pos: 'verb', def: 'work' }, 'laborat': { pos: 'verb', def: 'work' }, 'laboramus': { pos: 'verb', def: 'work' }, 'laborant': { pos: 'verb', def: 'work' }, 'laborare': { pos: 'verb', def: 'work' },
         'paro': { pos: 'verb', def: 'prepare' }, 'paras': { pos: 'verb', def: 'prepare' }, 'parat': { pos: 'verb', def: 'prepare' }, 'paramus': { pos: 'verb', def: 'prepare' }, 'parant': { pos: 'verb', def: 'prepare' }, 'parare': { pos: 'verb', def: 'prepare' },
@@ -3001,25 +3322,29 @@
         'puto': { pos: 'verb', def: 'think' }, 'putas': { pos: 'verb', def: 'think' }, 'putat': { pos: 'verb', def: 'think' }, 'putamus': { pos: 'verb', def: 'think' }, 'putant': { pos: 'verb', def: 'think' }, 'putare': { pos: 'verb', def: 'think' },
         'sum': { pos: 'verb', def: 'be' }, 'es': { pos: 'verb', def: 'be' }, 'est': { pos: 'verb', def: 'be' }, 'sumus': { pos: 'verb', def: 'be' }, 'estis': { pos: 'verb', def: 'be' }, 'sunt': { pos: 'verb', def: 'be' }, 'esse': { pos: 'verb', def: 'be' },
         'video': { pos: 'verb', def: 'see' }, 'vides': { pos: 'verb', def: 'see' }, 'videt': { pos: 'verb', def: 'see' }, 'videmus': { pos: 'verb', def: 'see' }, 'videtis': { pos: 'verb', def: 'see' }, 'vident': { pos: 'verb', def: 'see' }, 'vidi': { pos: 'verb', def: 'see' }, 'visum': { pos: 'verb', def: 'see' }, 'videre': { pos: 'verb', def: 'see' },
+        'videor': { pos: 'verb', def: 'am seen, seem' }, 'videris': { pos: 'verb', def: 'are seen, seem' }, 'videtur': { pos: 'verb', def: 'is seen, seems' }, 'videmur': { pos: 'verb', def: 'are seen, seem' }, 'videmini': { pos: 'verb', def: 'are seen' }, 'videntur': { pos: 'verb', def: 'are seen, seem' },
         'uideo': { pos: 'verb', def: 'see' }, 'uides': { pos: 'verb', def: 'see' }, 'uidet': { pos: 'verb', def: 'see' }, 'uidemus': { pos: 'verb', def: 'see' }, 'uidetis': { pos: 'verb', def: 'see' }, 'uident': { pos: 'verb', def: 'see' }, 'uidi': { pos: 'verb', def: 'see' }, 'uisum': { pos: 'verb', def: 'see' }, 'uidere': { pos: 'verb', def: 'see' },
         'dico': { pos: 'verb', def: 'say' }, 'dicis': { pos: 'verb', def: 'say' }, 'dicit': { pos: 'verb', def: 'say' }, 'dicimus': { pos: 'verb', def: 'say' }, 'dicitis': { pos: 'verb', def: 'say' }, 'dicunt': { pos: 'verb', def: 'say' }, 'dixit': { pos: 'verb', def: 'say' }, 'dicere': { pos: 'verb', def: 'say' },
-        'inquam': { pos: 'verb', def: 'say, I say' }, 'inquis': { pos: 'verb', def: 'say, you say' }, 'inquit': { pos: 'verb', def: 'say, he/she says' }, 'inquiunt': { pos: 'verb', def: 'say, they say' },
+        'inquam': { pos: 'verb', def: 'say' }, 'inquis': { pos: 'verb', def: 'say' }, 'inquit': { pos: 'verb', def: 'says' }, 'inquiunt': { pos: 'verb', def: 'say' },
         'facio': { pos: 'verb', def: 'do, make' }, 'facit': { pos: 'verb', def: 'do, make' }, 'feci': { pos: 'verb', def: 'do, make' }, 'factum': { pos: 'verb', def: 'do, make' }, 'facere': { pos: 'verb', def: 'do, make' },
         'venio': { pos: 'verb', def: 'come' }, 'venit': { pos: 'verb', def: 'come' }, 'veni': { pos: 'verb', def: 'come' }, 'ventum': { pos: 'verb', def: 'come' }, 'venire': { pos: 'verb', def: 'come' },
         'uenio': { pos: 'verb', def: 'come' }, 'uenit': { pos: 'verb', def: 'come' }, 'ueni': { pos: 'verb', def: 'come' }, 'uentum': { pos: 'verb', def: 'come' }, 'uenire': { pos: 'verb', def: 'come' },
         'do': { pos: 'verb', def: 'give' }, 'dat': { pos: 'verb', def: 'give' }, 'dedi': { pos: 'verb', def: 'give' }, 'datum': { pos: 'verb', def: 'give' }, 'dare': { pos: 'verb', def: 'give' },
         'ago': { pos: 'verb', def: 'do, drive, act' }, 'agit': { pos: 'verb', def: 'do, drive' }, 'egi': { pos: 'verb', def: 'do, drive' }, 'actum': { pos: 'verb', def: 'do, drive' }, 'agere': { pos: 'verb', def: 'do, drive' },
         'pono': { pos: 'verb', def: 'put, place' }, 'ponit': { pos: 'verb', def: 'put, place' }, 'posui': { pos: 'verb', def: 'put, place' }, 'positum': { pos: 'verb', def: 'put, place' }, 'ponere': { pos: 'verb', def: 'put, place' },
-        'capio': { pos: 'verb', def: 'take, capture' }, 'capit': { pos: 'verb', def: 'take, capture' }, 'cepi': { pos: 'verb', def: 'take, capture' }, 'captum': { pos: 'verb', def: 'take, capture' }, 'capere': { pos: 'verb', def: 'take, capture' },
+        'capio': { pos: 'verb', def: 'take, capture' }, 'capis': { pos: 'verb', def: 'take' }, 'capit': { pos: 'verb', def: 'takes' }, 'capimus': { pos: 'verb', def: 'take' }, 'capiunt': { pos: 'verb', def: 'take' }, 'cepi': { pos: 'verb', def: 'took, captured' }, 'captum': { pos: 'verb', def: 'take, capture' }, 'capere': { pos: 'verb', def: 'take, capture' },
+        'capior': { pos: 'verb', def: 'am taken, am captured' }, 'caperis': { pos: 'verb', def: 'are taken' }, 'capitur': { pos: 'verb', def: 'is taken, is captured' }, 'capimur': { pos: 'verb', def: 'are taken' }, 'capimini': { pos: 'verb', def: 'are taken' }, 'capiuntur': { pos: 'verb', def: 'are taken, are captured' },
         'habeo': { pos: 'verb', def: 'have, hold' }, 'habet': { pos: 'verb', def: 'have, hold' }, 'habui': { pos: 'verb', def: 'have, hold' }, 'habitum': { pos: 'verb', def: 'have, hold' }, 'habere': { pos: 'verb', def: 'have, hold' },
         'vivo': { pos: 'verb', def: 'live' }, 'vivit': { pos: 'verb', def: 'live' }, 'vixi': { pos: 'verb', def: 'live' }, 'victum': { pos: 'verb', def: 'live' }, 'vivere': { pos: 'verb', def: 'live' },
         'uiuo': { pos: 'verb', def: 'live' }, 'uiuit': { pos: 'verb', def: 'live' }, 'uixi': { pos: 'verb', def: 'live' }, 'uictum': { pos: 'verb', def: 'live' }, 'uiuere': { pos: 'verb', def: 'live' },
         'eo': { pos: 'verb', def: 'go' }, 'it': { pos: 'verb', def: 'go' }, 'ire': { pos: 'verb', def: 'go' }, 'iit': { pos: 'verb', def: 'go' }, 'ierunt': { pos: 'verb', def: 'go' },
-        'duco': { pos: 'verb', def: 'lead' }, 'ducit': { pos: 'verb', def: 'lead' }, 'duxi': { pos: 'verb', def: 'lead' }, 'ductum': { pos: 'verb', def: 'lead' }, 'ducere': { pos: 'verb', def: 'lead' },
+        'duco': { pos: 'verb', def: 'lead' }, 'ducis': { pos: 'verb', def: 'lead' }, 'ducit': { pos: 'verb', def: 'leads' }, 'ducimus': { pos: 'verb', def: 'lead' }, 'ducunt': { pos: 'verb', def: 'lead' }, 'duxi': { pos: 'verb', def: 'led' }, 'ductum': { pos: 'verb', def: 'lead' }, 'ducere': { pos: 'verb', def: 'lead' },
+        'ducor': { pos: 'verb', def: 'am led' }, 'duceris': { pos: 'verb', def: 'are led' }, 'ducitur': { pos: 'verb', def: 'is led' }, 'ducimur': { pos: 'verb', def: 'are led' }, 'ducimini': { pos: 'verb', def: 'are led' }, 'ducuntur': { pos: 'verb', def: 'are led' },
         'audio': { pos: 'verb', def: 'hear' }, 'audis': { pos: 'verb', def: 'hear' }, 'audit': { pos: 'verb', def: 'hear' }, 'audimus': { pos: 'verb', def: 'hear' }, 'auditis': { pos: 'verb', def: 'hear' }, 'audiunt': { pos: 'verb', def: 'hear' }, 'audivi': { pos: 'verb', def: 'hear' }, 'auditum': { pos: 'verb', def: 'hear' }, 'audire': { pos: 'verb', def: 'hear' },
         'scribo': { pos: 'verb', def: 'write' }, 'scribit': { pos: 'verb', def: 'write' }, 'scripsi': { pos: 'verb', def: 'write' }, 'scriptum': { pos: 'verb', def: 'write' }, 'scribere': { pos: 'verb', def: 'write' },
         'lego': { pos: 'verb', def: 'read, choose' }, 'legit': { pos: 'verb', def: 'read, choose' }, 'legi': { pos: 'verb', def: 'read, choose' }, 'lectum': { pos: 'verb', def: 'read, choose' }, 'legere': { pos: 'verb', def: 'read, choose' },
-        'mitto': { pos: 'verb', def: 'send' }, 'mittit': { pos: 'verb', def: 'send' }, 'misi': { pos: 'verb', def: 'send' }, 'missum': { pos: 'verb', def: 'send' }, 'mittere': { pos: 'verb', def: 'send' },
+        'mitto': { pos: 'verb', def: 'send' }, 'mittis': { pos: 'verb', def: 'send' }, 'mittit': { pos: 'verb', def: 'sends' }, 'mittimus': { pos: 'verb', def: 'send' }, 'mittunt': { pos: 'verb', def: 'send' }, 'misi': { pos: 'verb', def: 'sent' }, 'missum': { pos: 'verb', def: 'send' }, 'mittere': { pos: 'verb', def: 'send' },
+        'mittor': { pos: 'verb', def: 'am sent' }, 'mitteris': { pos: 'verb', def: 'are sent' }, 'mittitur': { pos: 'verb', def: 'is sent' }, 'mittimur': { pos: 'verb', def: 'are sent' }, 'mittimini': { pos: 'verb', def: 'are sent' }, 'mittuntur': { pos: 'verb', def: 'are sent' },
         'porto': { pos: 'verb', def: 'carry' }, 'portat': { pos: 'verb', def: 'carry' }, 'portavi': { pos: 'verb', def: 'carry' }, 'portatum': { pos: 'verb', def: 'carry' }, 'portare': { pos: 'verb', def: 'carry' },
         'puto': { pos: 'verb', def: 'think, suppose' }, 'putas': { pos: 'verb', def: 'think' }, 'putat': { pos: 'verb', def: 'think' }, 'putamus': { pos: 'verb', def: 'think' }, 'putatis': { pos: 'verb', def: 'think' }, 'putant': { pos: 'verb', def: 'think' }, 'putavi': { pos: 'verb', def: 'think' }, 'putatum': { pos: 'verb', def: 'think' }, 'putare': { pos: 'verb', def: 'think' },
         'vinco': { pos: 'verb', def: 'conquer, win' }, 'vincit': { pos: 'verb', def: 'conquer' }, 'vici': { pos: 'verb', def: 'conquer' }, 'victum': { pos: 'verb', def: 'conquer' }, 'vincere': { pos: 'verb', def: 'conquer' },
@@ -3055,17 +3380,18 @@
         'ambulo': { pos: 'verb', def: 'walk' }, 'ambulat': { pos: 'verb', def: 'walk' }, 'ambulavi': { pos: 'verb', def: 'walk' }, 'ambulatum': { pos: 'verb', def: 'walk' },
         'sto': { pos: 'verb', def: 'stand' }, 'supero': { pos: 'verb', def: 'overcome' }, 'impero': { pos: 'verb', def: 'command' }, 'iudico': { pos: 'verb', def: 'judge' },
         'accedo': { pos: 'verb', def: 'approach' }, 'accipio': { pos: 'verb', def: 'receive' }, 'adsum': { pos: 'verb', def: 'be present' }, 'aperio': { pos: 'verb', def: 'open' },
-        'cedo': { pos: 'verb', def: 'yield' }, 'cogito': { pos: 'verb', def: 'think' }, 'cognosco': { pos: 'verb', def: 'learn, know' }, 
+        'cedo': { pos: 'verb', def: 'yield' }, 'cogito': { pos: 'verb', def: 'think' }, 'cognosco': { pos: 'verb', def: 'learn, know' },
         'adduco': { pos: 'verb', def: 'lead, draw, induce' }, 'adducti': { pos: 'participle', def: 'led, induced' },
         'permoveo': { pos: 'verb', def: 'move deeply, influence' }, 'permoti': { pos: 'participle', def: 'moved, influenced' },
-        'constituo': { pos: 'verb', def: 'establish, decide, determine, resolve' }, 'constituerunt': { pos: 'verb', def: 'they decided, they established' },
+        'constituo': { pos: 'verb', def: 'establish, decide, determine, resolve' }, 'constituerunt': { pos: 'verb', def: 'decided, established' },
         'proficiscor': { pos: 'verb', def: 'set out, depart' }, 'proficiscendum': { pos: 'noun', case: 'acc sg', def: 'setting out, departure' },
-        'pertineo': { pos: 'verb', def: 'extend, pertain' }, 'pertinerent': { pos: 'verb', def: 'they might pertain' },
+        'pertineo': { pos: 'verb', def: 'extend, pertain' }, 'pertinerent': { pos: 'verb', def: 'might pertain' },
         'comparo': { pos: 'verb', def: 'prepare, acquire' }, 'comparare': { pos: 'verb', def: 'to prepare, acquire' },
         'coemo': { pos: 'verb', def: 'buy up' }, 'coemere': { pos: 'verb', def: 'to buy up' },
         'conficio': { pos: 'verb', def: 'make, accomplish, complete' }, 'conficiendum': { pos: 'noun', case: 'acc sg', def: 'the finishing, completing' },
         'conficiendas': { pos: 'gerundive', def: 'to be completed, for completing', case: 'acc pl fem' }, 'conficere': { pos: 'verb', def: 'to make, to accomplish' },
-        'deligo': { pos: 'verb', def: 'choose, select' }, 'deligit': { pos: 'verb', def: 'he/she chooses' }, 'deligi': { pos: 'verb', def: 'to be chosen' }, 'deligitur': { pos: 'verb', def: 'is chosen' },
+        'deligo': { pos: 'verb', def: 'choose, select' }, 'deligis': { pos: 'verb', def: 'choose' }, 'deligit': { pos: 'verb', def: 'chooses' }, 'deligimus': { pos: 'verb', def: 'choose' }, 'deligunt': { pos: 'verb', def: 'choose' },
+        'deligi': { pos: 'verb', def: 'to be chosen' }, 'deligor': { pos: 'verb', def: 'am chosen' }, 'deligeris': { pos: 'verb', def: 'are chosen' }, 'deligitur': { pos: 'verb', def: 'is chosen' }, 'deligimur': { pos: 'verb', def: 'are chosen' }, 'deligimini': { pos: 'verb', def: 'are chosen' }, 'deliguntur': { pos: 'verb', def: 'are chosen' },
         'suppeto': { pos: 'verb', def: 'be available, suffice' }, 'suppeteret': { pos: 'verb', def: 'might be available, might suffice' },
         'confirmo': { pos: 'verb', def: 'strengthen, assure, establish' }, 'confirmare': { pos: 'verb', def: 'to strengthen, assure, establish' },
         'defendo': { pos: 'verb', def: 'defend' }, 'deleo': { pos: 'verb', def: 'destroy' }, 'discedo': { pos: 'verb', def: 'depart' }, 'fero': { pos: 'verb', def: 'bear, carry' },
@@ -3074,7 +3400,7 @@
         'prohibeo': { pos: 'verb', def: 'prevent' }, 'promitto': { pos: 'verb', def: 'promise' }, 'redeo': { pos: 'verb', def: 'return' }, 'regno': { pos: 'verb', def: 'rule' },
         'servo': { pos: 'verb', def: 'save, protect' }, 'supero': { pos: 'verb', def: 'overcome' }, 'trado': { pos: 'verb', def: 'hand over' }, 'traho': { pos: 'verb', def: 'drag' },
         'verto': { pos: 'verb', def: 'turn' }, 'vigilo': { pos: 'verb', def: 'watch' }, 'vulnero': { pos: 'verb', def: 'wound' },
-        
+       
         // Common nouns
         'homo': { pos: 'noun', def: 'man, human' }, 'hominis': { pos: 'noun', def: 'man, human' }, 'hominem': { pos: 'noun', def: 'man, human' }, 'homines': { pos: 'noun', def: 'men, humans' },
         'vir': { pos: 'noun', def: 'man, hero' }, 'viri': { pos: 'noun', def: 'man, hero' }, 'virum': { pos: 'noun', def: 'man, hero' },
@@ -3195,7 +3521,7 @@
         'natura': { pos: 'noun', def: 'nature' }, 'naturae': { pos: 'noun', def: 'nature' }, 'naturam': { pos: 'noun', def: 'nature' },
         'fides': { pos: 'noun', def: 'faith, trust' }, 'fidei': { pos: 'noun', def: 'faith' }, 'fidem': { pos: 'noun', def: 'faith' },
         'veritas': { pos: 'noun', def: 'truth' }, 'veritatis': { pos: 'noun', def: 'truth' }, 'veritatem': { pos: 'noun', def: 'truth' },
-        
+       
         // Adjectives
         'bonus': { pos: 'adjective', def: 'good' }, 'bona': { pos: 'adjective', def: 'good' }, 'bonum': { pos: 'adjective', def: 'good' },
         'malus': { pos: 'adjective', def: 'bad, evil' }, 'mala': { pos: 'adjective', def: 'bad' }, 'malum': { pos: 'adjective', def: 'bad' },
@@ -3253,7 +3579,7 @@
         'perpetuus': { pos: 'adjective', def: 'continuous, perpetual' }, 'perpetua': { pos: 'adjective', def: 'continuous' }, 'perpetuum': { pos: 'adjective', def: 'continuous' },
         'aeternus': { pos: 'adjective', def: 'eternal' }, 'aeterna': { pos: 'adjective', def: 'eternal' }, 'aeternum': { pos: 'adjective', def: 'eternal' },
         'suus': { pos: 'adjective', def: 'his/her/its own' }, 'sua': { pos: 'adjective', def: 'his/her/its own' }, 'suum': { pos: 'adjective', def: 'his/her/its own' },
-        
+       
         // Pronouns and adjectives for pronouns
         'unus': { pos: 'adjective', def: 'one' }, 'una': { pos: 'adjective', def: 'one' }, 'unum': { pos: 'adjective', def: 'one' }, 'unam': { pos: 'adjective', def: 'one' }, 'unius': { pos: 'adjective', def: 'one' },
         'alius': { pos: 'adjective', def: 'another, other' }, 'alia': { pos: 'adjective', def: 'another' }, 'aliud': { pos: 'adjective', def: 'another' }, 'aliam': { pos: 'adjective', def: 'another' },
@@ -3280,7 +3606,7 @@
         'quis': { pos: 'pronoun', def: 'who?, what?' }, 'quid': { pos: 'pronoun', def: 'what?' },
         'aliquis': { pos: 'pronoun', def: 'someone, something' }, 'aliquid': { pos: 'pronoun', def: 'something' },
         'nemo': { pos: 'pronoun', def: 'no one' }, 'nihil': { pos: 'pronoun', def: 'nothing' },
-        
+       
         // Prepositions & Conjunctions
         'in': { pos: 'preposition', def: 'in, into, on' },
         'ad': { pos: 'preposition', def: 'to, toward, at' },
@@ -3327,7 +3653,7 @@
         'quoniam': { pos: 'conjunction', def: 'since, because' },
         'quando': { pos: 'conjunction', def: 'when' },
         'ubi': { pos: 'adverb', def: 'where, when' },
-        
+       
         // Adverbs
         'semper': { pos: 'adverb', def: 'always' },
         'numquam': { pos: 'adverb', def: 'never' },
@@ -3377,7 +3703,7 @@
         'cur': { pos: 'adverb', def: 'why' },
         'quare': { pos: 'adverb', def: 'why, wherefore' },
         'quomodo': { pos: 'adverb', def: 'how' },
-        
+       
         // === AENEID-SPECIFIC VOCABULARY ===
         // Epic nouns - arma/bellum/war vocabulary
         'arma': { pos: 'noun', def: 'arms, weapons' }, 'armis': { pos: 'noun', def: 'arms, weapons' }, 'armorum': { pos: 'noun', def: 'arms, weapons' },
@@ -3388,7 +3714,7 @@
         'telum': { pos: 'noun', def: 'weapon, missile' }, 'tela': { pos: 'noun', def: 'weapons' }, 'telis': { pos: 'noun', def: 'weapons' },
         'hasta': { pos: 'noun', def: 'spear' }, 'hastae': { pos: 'noun', def: 'spear' }, 'hastam': { pos: 'noun', def: 'spear' },
         'sagitta': { pos: 'noun', def: 'arrow' }, 'sagittae': { pos: 'noun', def: 'arrow' }, 'sagittam': { pos: 'noun', def: 'arrow' },
-        
+       
         // Important Aeneid characters and places
         'troianus': { pos: 'adjective', def: 'Trojan' }, 'troiana': { pos: 'adjective', def: 'Trojan' }, 'troianum': { pos: 'adjective', def: 'Trojan' },
         'troia': { pos: 'noun', def: 'Troy' }, 'troiae': { pos: 'noun', def: 'Troy' }, 'troiam': { pos: 'noun', def: 'Troy' },
@@ -3398,7 +3724,7 @@
         'latium': { pos: 'noun', def: 'Latium' }, 'latii': { pos: 'noun', def: 'Latium' }, 'latio': { pos: 'noun', def: 'Latium' },
         'roma': { pos: 'noun', def: 'Rome' }, 'romae': { pos: 'noun', def: 'Rome' }, 'romam': { pos: 'noun', def: 'Rome' },
         'carthago': { pos: 'noun', def: 'Carthage' }, 'carthaginis': { pos: 'noun', def: 'Carthage' }, 'carthagine': { pos: 'noun', def: 'Carthage' },
-        
+       
         // Epic verbs - commonly used in Aeneid
         'cano': { pos: 'verb', def: 'sing' }, 'canis': { pos: 'verb', def: 'sing' }, 'canit': { pos: 'verb', def: 'sing' }, 'canimus': { pos: 'verb', def: 'sing' }, 'canunt': { pos: 'verb', def: 'sing' }, 'cecini': { pos: 'verb', def: 'sang' }, 'canere': { pos: 'verb', def: 'sing' },
         'fero': { pos: 'verb', def: 'carry, bear' }, 'fers': { pos: 'verb', def: 'carry' }, 'fert': { pos: 'verb', def: 'carry' }, 'ferimus': { pos: 'verb', def: 'carry' }, 'ferunt': { pos: 'verb', def: 'carry' }, 'tuli': { pos: 'verb', def: 'carried' }, 'latum': { pos: 'verb', def: 'carried' }, 'ferre': { pos: 'verb', def: 'carry' },
@@ -3408,11 +3734,11 @@
         'vinco': { pos: 'verb', def: 'conquer' }, 'vincis': { pos: 'verb', def: 'conquer' }, 'vincere': { pos: 'verb', def: 'conquer' },
         'appello': { pos: 'verb', def: 'call, name' }, 'appellat': { pos: 'verb', def: 'call' }, 'appellantur': { pos: 'verb', def: 'are called' }, 'appellare': { pos: 'verb', def: 'call' },
         'incolo': { pos: 'verb', def: 'inhabit, dwell' }, 'incolunt': { pos: 'verb', def: 'inhabit' }, 'incolere': { pos: 'verb', def: 'inhabit' },
-        'divido': { pos: 'verb', def: 'divide' }, 'diuido': { pos: 'verb', def: 'divide' }, 'dividit': { pos: 'verb', def: 'divide' }, 'diuidit': { pos: 'verb', def: 'divide' }, 
-        'divisa': { pos: 'participle', def: 'divided, having been divided' }, 'diuisa': { pos: 'participle', def: 'divided, having been divided' }, 
-        'divisus': { pos: 'participle', def: 'divided, having been divided' }, 'diuisus': { pos: 'participle', def: 'divided, having been divided' }, 
-        'divisum': { pos: 'participle', def: 'divided' }, 'diuisum': { pos: 'participle', def: 'divided' }, 
-        'divisi': { pos: 'participle', def: 'divided' }, 'diuisi': { pos: 'participle', def: 'divided' }, 
+        'divido': { pos: 'verb', def: 'divide' }, 'diuido': { pos: 'verb', def: 'divide' }, 'dividit': { pos: 'verb', def: 'divide' }, 'diuidit': { pos: 'verb', def: 'divide' },
+        'divisa': { pos: 'participle', def: 'divided, having been divided' }, 'diuisa': { pos: 'participle', def: 'divided, having been divided' },
+        'divisus': { pos: 'participle', def: 'divided, having been divided' }, 'diuisus': { pos: 'participle', def: 'divided, having been divided' },
+        'divisum': { pos: 'participle', def: 'divided' }, 'diuisum': { pos: 'participle', def: 'divided' },
+        'divisi': { pos: 'participle', def: 'divided' }, 'diuisi': { pos: 'participle', def: 'divided' },
         'dividere': { pos: 'verb', def: 'divide' }, 'diuidere': { pos: 'verb', def: 'divide' },
         'occido': { pos: 'verb', def: 'kill' }, 'occidis': { pos: 'verb', def: 'kill' }, 'occidit': { pos: 'verb', def: 'kill' }, 'occidunt': { pos: 'verb', def: 'kill' }, 'occidere': { pos: 'verb', def: 'kill' },
         'condo': { pos: 'verb', def: 'found, establish' }, 'condis': { pos: 'verb', def: 'found' }, 'condit': { pos: 'verb', def: 'found' }, 'condunt': { pos: 'verb', def: 'found' }, 'condidi': { pos: 'verb', def: 'founded' }, 'conditum': { pos: 'verb', def: 'founded' }, 'condere': { pos: 'verb', def: 'found' },
@@ -3427,7 +3753,7 @@
         'iuvo': { pos: 'verb', def: 'help' }, 'iuvas': { pos: 'verb', def: 'help' }, 'iuvare': { pos: 'verb', def: 'help' },
         'rego': { pos: 'verb', def: 'rule, guide' }, 'regis': { pos: 'verb', def: 'rule' }, 'regit': { pos: 'verb', def: 'rule' }, 'regunt': { pos: 'verb', def: 'rule' }, 'rexi': { pos: 'verb', def: 'ruled' }, 'rectum': { pos: 'verb', def: 'ruled' }, 'regere': { pos: 'verb', def: 'rule' },
         'paro': { pos: 'verb', def: 'prepare' }, 'paras': { pos: 'verb', def: 'prepare' }, 'parare': { pos: 'verb', def: 'prepare' },
-        
+       
         // Epic nouns - people, gods, fate
         'fatum': { pos: 'noun', def: 'fate' }, 'fati': { pos: 'noun', def: 'fate' }, 'fato': { pos: 'noun', def: 'fate' }, 'fata': { pos: 'noun', def: 'fates' }, 'fatis': { pos: 'noun', def: 'fates' },
         'fortuna': { pos: 'noun', def: 'fortune, luck' }, 'fortunae': { pos: 'noun', def: 'fortune' }, 'fortunam': { pos: 'noun', def: 'fortune' },
@@ -3451,7 +3777,7 @@
         'femina': { pos: 'noun', def: 'woman' }, 'feminae': { pos: 'noun', def: 'woman' }, 'feminam': { pos: 'noun', def: 'woman' },
         'gens': { pos: 'noun', def: 'race, nation' }, 'gentis': { pos: 'noun', def: 'race' }, 'genti': { pos: 'noun', def: 'race' }, 'gentem': { pos: 'noun', def: 'race' }, 'gente': { pos: 'noun', def: 'race' }, 'gentes': { pos: 'noun', def: 'races' }, 'gentium': { pos: 'noun', def: 'races' },
         'populus': { pos: 'noun', def: 'people' }, 'populi': { pos: 'noun', def: 'people' }, 'populo': { pos: 'noun', def: 'people' }, 'populum': { pos: 'noun', def: 'people' },
-        
+       
         // Epic nouns - places, nature
         'caelum': { pos: 'noun', def: 'sky, heaven' }, 'caeli': { pos: 'noun', def: 'sky' }, 'caelo': { pos: 'noun', def: 'sky' }, 'caelorum': { pos: 'noun', def: 'skies' },
         'terra': { pos: 'noun', def: 'earth, land' }, 'terrae': { pos: 'noun', def: 'earth' }, 'terram': { pos: 'noun', def: 'earth' }, 'terris': { pos: 'noun', def: 'lands' },
@@ -3472,7 +3798,7 @@
         'silva': { pos: 'noun', def: 'forest' }, 'silvae': { pos: 'noun', def: 'forest' }, 'silvam': { pos: 'noun', def: 'forest' }, 'silvis': { pos: 'noun', def: 'forests' },
         'mons': { pos: 'noun', def: 'mountain' }, 'montis': { pos: 'noun', def: 'mountain' }, 'monti': { pos: 'noun', def: 'mountain' }, 'montem': { pos: 'noun', def: 'mountain' }, 'monte': { pos: 'noun', def: 'mountain' }, 'montes': { pos: 'noun', def: 'mountains' }, 'montium': { pos: 'noun', def: 'mountains' },
         'campus': { pos: 'noun', def: 'plain, field' }, 'campi': { pos: 'noun', def: 'field' }, 'campo': { pos: 'noun', def: 'field' }, 'campos': { pos: 'noun', def: 'fields' },
-        
+       
         // Epic adjectives
         'magnus': { pos: 'adjective', def: 'great, large' }, 'magna': { pos: 'adjective', def: 'great' }, 'magnum': { pos: 'adjective', def: 'great' }, 'magni': { pos: 'adjective', def: 'great' }, 'magno': { pos: 'adjective', def: 'great' },
         'parvus': { pos: 'adjective', def: 'small' }, 'parva': { pos: 'adjective', def: 'small' }, 'parvum': { pos: 'adjective', def: 'small' },
@@ -3494,7 +3820,7 @@
         'vastus': { pos: 'adjective', def: 'vast, huge' }, 'vasta': { pos: 'adjective', def: 'vast' }, 'vastum': { pos: 'adjective', def: 'vast' },
         'celsus': { pos: 'adjective', def: 'high, lofty' }, 'celsa': { pos: 'adjective', def: 'high' }, 'celsum': { pos: 'adjective', def: 'high' },
         'arduus': { pos: 'adjective', def: 'steep, difficult' }, 'ardua': { pos: 'adjective', def: 'steep' }, 'arduum': { pos: 'adjective', def: 'steep' },
-        
+       
         // Abstract nouns
         'animus': { pos: 'noun', def: 'mind, spirit' }, 'animi': { pos: 'noun', def: 'mind' }, 'animo': { pos: 'noun', def: 'mind' }, 'animum': { pos: 'noun', def: 'mind' }, 'animis': { pos: 'noun', def: 'minds' },
         'anima': { pos: 'noun', def: 'soul, life' }, 'animae': { pos: 'noun', def: 'soul' }, 'animam': { pos: 'noun', def: 'soul' },
@@ -3512,7 +3838,7 @@
         'spes': { pos: 'noun', def: 'hope' }, 'spei': { pos: 'noun', def: 'hope' }, 'spem': { pos: 'noun', def: 'hope' }, 'spe': { pos: 'noun', def: 'hope' },
         'labor': { pos: 'noun', def: 'labor, toil' }, 'laboris': { pos: 'noun', def: 'labor' }, 'labore': { pos: 'noun', def: 'labor' }, 'labores': { pos: 'noun', def: 'labors' },
         'opus': { pos: 'noun', def: 'work, deed' }, 'operis': { pos: 'noun', def: 'work' }, 'opere': { pos: 'noun', def: 'work' }, 'opera': { pos: 'noun', def: 'works' },
-        
+       
         // Body parts and physical
         'corpus': { pos: 'noun', def: 'body' }, 'corporis': { pos: 'noun', def: 'body' }, 'corpore': { pos: 'noun', def: 'body' }, 'corpora': { pos: 'noun', def: 'bodies' },
         'caput': { pos: 'noun', def: 'head' }, 'capitis': { pos: 'noun', def: 'head' }, 'capite': { pos: 'noun', def: 'head' }, 'capita': { pos: 'noun', def: 'heads' },
@@ -3522,7 +3848,7 @@
         'vox': { pos: 'noun', def: 'voice' }, 'vocis': { pos: 'noun', def: 'voice' }, 'vocem': { pos: 'noun', def: 'voice' }, 'voce': { pos: 'noun', def: 'voice' },
         'sanguis': { pos: 'noun', def: 'blood' }, 'sanguinis': { pos: 'noun', def: 'blood' }, 'sanguine': { pos: 'noun', def: 'blood' },
         'vulnus': { pos: 'noun', def: 'wound' }, 'vulneris': { pos: 'noun', def: 'wound' }, 'vulnere': { pos: 'noun', def: 'wound' }, 'vulnera': { pos: 'noun', def: 'wounds' },
-        
+       
         // Time and numbers
         'tempus': { pos: 'noun', def: 'time' }, 'temporis': { pos: 'noun', def: 'time' }, 'tempore': { pos: 'noun', def: 'time' }, 'tempora': { pos: 'noun', def: 'times' },
         'hora': { pos: 'noun', def: 'hour' }, 'horae': { pos: 'noun', def: 'hour' }, 'horam': { pos: 'noun', def: 'hour' }, 'horis': { pos: 'noun', def: 'hours' },
@@ -3534,13 +3860,13 @@
         'duo': { pos: 'adjective', def: 'two' }, 'duae': { pos: 'adjective', def: 'two' }, 'duos': { pos: 'adjective', def: 'two' },
         'tres': { pos: 'adjective', def: 'three' }, 'tria': { pos: 'adjective', def: 'three' },
         'multus': { pos: 'adjective', def: 'much, many' }, 'multa': { pos: 'adjective', def: 'much, many' }, 'multum': { pos: 'adjective', def: 'much, many' }, 'multi': { pos: 'adjective', def: 'many' }, 'multos': { pos: 'adjective', def: 'many' }, 'multis': { pos: 'adjective', def: 'many' },
-        'maximus': { pos: 'adjective', def: 'greatest, very great' }, 'maxima': { pos: 'adjective', def: 'greatest, very great' }, 'maximum': { pos: 'adjective', def: 'greatest, very great', case: 'acc sg (or nom/acc sg neuter)' }, 
+        'maximus': { pos: 'adjective', def: 'greatest, very great' }, 'maxima': { pos: 'adjective', def: 'greatest, very great' }, 'maximum': { pos: 'adjective', def: 'greatest, very great', case: 'acc sg (or nom/acc sg neuter)' },
         'maximas': { pos: 'adjective', def: 'very great, greatest', case: 'acc pl' }, 'maximo': { pos: 'adjective', def: 'very great', case: 'dat/abl sg' }, 'maximis': { pos: 'adjective', def: 'very great', case: 'dat/abl pl' },
         'proximus': { pos: 'adjective', def: 'nearest, next' }, 'proxima': { pos: 'adjective', def: 'nearest' }, 'proximorum': { pos: 'adjective', def: 'of the nearest' }, 'proximis': { pos: 'adjective', def: 'nearest, next', case: 'dat/abl pl' },
         'omnis': { pos: 'adjective', def: 'all, every', case: 'nom/gen sg' }, 'omne': { pos: 'adjective', def: 'all', case: 'nom/acc sg neut' }, 'omnes': { pos: 'adjective', def: 'all', case: 'nom/acc pl' }, 'omnia': { pos: 'adjective', def: 'all', case: 'nom/acc pl neut' }, 'omnium': { pos: 'adjective', def: 'all', case: 'gen pl' },
         'totus': { pos: 'adjective', def: 'whole, entire' }, 'tota': { pos: 'adjective', def: 'whole' }, 'totum': { pos: 'adjective', def: 'whole' },
         'nullus': { pos: 'adjective', def: 'no, none' }, 'nulla': { pos: 'adjective', def: 'no' }, 'nullum': { pos: 'adjective', def: 'no' },
-        
+       
         // Common connecting words and particles
         'atque': { pos: 'conjunction', def: 'and' }, 'ac': { pos: 'conjunction', def: 'and' },
         'que': { pos: 'particle', def: 'and' },
@@ -3561,11 +3887,11 @@
     }
 
     // === API FALLBACK SYSTEM FOR UNKNOWN WORDS ===
-    
+   
     // Local cache for API lookups
     const WORD_CACHE_KEY = 'latinWordCache';
     const CACHE_EXPIRY_DAYS = 30;
-    
+   
     function getWordCache() {
         try {
             const cache = localStorage.getItem(WORD_CACHE_KEY);
@@ -3581,7 +3907,7 @@
             return {};
         }
     }
-    
+   
     function setWordCache(cache) {
         try {
             localStorage.setItem(WORD_CACHE_KEY, JSON.stringify({
@@ -3592,65 +3918,65 @@
             console.warn('Could not save word cache to localStorage');
         }
     }
-    
+   
     function cacheWord(word, data) {
         const cache = getWordCache();
         cache[word] = data;
         setWordCache(cache);
     }
-    
+   
     // Fallback API lookup using Whitaker's Words approach
     async function lookupWordAPI(word) {
         const normalized = normalizeLatin(word);
         console.log('[API LOOKUP] Starting lookup for:', word, '→', normalized);
-        
+       
         // Check cache first
         const cache = getWordCache();
         if (cache[normalized]) {
             console.log('[API LOOKUP] Found in cache:', normalized, '→', cache[normalized]);
             return cache[normalized];
         }
-        
+       
         console.log('[API LOOKUP] Not in cache, trying APIs...');
-        
+       
         // CORS proxy to enable browser-based API calls
         const CORS_PROXY = 'https://corsproxy.io/?';
-        
+       
         try {
             // Option 1: Try Perseus Digital Library API (comprehensive Lewis & Short)
             try {
                 const perseusURL = `http://www.perseus.tufts.edu/hopper/xmlmorph?lang=lat&lookup=${encodeURIComponent(normalized)}`;
                 const proxiedURL = CORS_PROXY + encodeURIComponent(perseusURL);
                 console.log('[API LOOKUP] Trying Perseus Digital Library:', proxiedURL);
-                
+               
                 const perseusResponse = await fetch(proxiedURL, {
                     method: 'GET',
                     signal: AbortSignal.timeout(10000) // 10 second timeout
                 });
-                
+               
                 if (perseusResponse.ok) {
                     const xmlText = await perseusResponse.text();
                     console.log('[API LOOKUP] Perseus response received, parsing...');
-                    
+                   
                     // Parse XML response
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-                    
+                   
                     // Get all analyses
                     const analyses = xmlDoc.getElementsByTagName('analysis');
-                    
+                   
                     if (analyses.length > 0) {
                         // Get the first analysis
                         const firstAnalysis = analyses[0];
-                        
+                       
                         // Extract lemma (base form)
                         const lemmaEl = firstAnalysis.getElementsByTagName('lemma')[0];
                         const lemma = lemmaEl ? lemmaEl.textContent : normalized;
-                        
+                       
                         // Extract part of speech
                         const posEl = firstAnalysis.getElementsByTagName('pofs')[0];
                         let pos = posEl ? posEl.textContent : 'unknown';
-                        
+                       
                         // Normalize POS to our format
                         const posMap = {
                             'noun': 'noun',
@@ -3666,10 +3992,10 @@
                             'part': 'participle'
                         };
                         pos = posMap[pos.toLowerCase()] || determinePosMorphologically(normalized);
-                        
+                       
                         // Extract definition (prefer actual English definitions over Latin lemmas)
                         let definition = lemma; // fallback to lemma
-                        
+                       
                         // Try to get English definition from <def> element first
                         const dictEl = firstAnalysis.getElementsByTagName('dict')[0];
                         const shortDefEl = dictEl ? dictEl.getElementsByTagName('def')[0] : null;
@@ -3683,7 +4009,7 @@
                                 definition = shortDef;
                             }
                         }
-                        
+                       
                         // If we still have Latin (lemma), try <hdwd> element
                         if (definition === lemma) {
                             const hdwdEl = dictEl ? dictEl.getElementsByTagName('hdwd')[0] : null;
@@ -3691,14 +4017,14 @@
                                 definition = hdwdEl.textContent;
                             }
                         }
-                        
+                       
                         const result = {
                             pos: pos,
                             def: definition,
                             found: true,
                             lemma: lemma
                         };
-                        
+                       
                         cacheWord(normalized, result);
                         console.log('✓ Found via Perseus:', normalized, '→', result.def, `(${pos})`);
                         return result;
@@ -3707,7 +4033,7 @@
             } catch (e) {
                 console.log('Perseus API error:', e.message);
             }
-            
+           
             // Option 2: Try Latinitium API (fallback)
             try {
                 const latinitiumURL = `https://api.latinitium.com/api/v1/words/${encodeURIComponent(normalized)}`;
@@ -3720,7 +4046,7 @@
                     },
                     signal: AbortSignal.timeout(8000)
                 });
-                
+               
                 if (latinitiumResponse.ok) {
                     const data = await latinitiumResponse.json();
                     if (data && data.definitions && data.definitions.length > 0) {
@@ -3737,11 +4063,11 @@
             } catch (e) {
                 console.log('Latinitium API unavailable:', e.message);
             }
-            
+           
         } catch (error) {
             console.log('All API lookups failed for:', word, error);
         }
-        
+       
         // If all APIs fail, use morphological analysis as last resort
         const morphResult = analyzeMorphologically(normalized);
         if (morphResult.pos !== 'unknown') {
@@ -3750,19 +4076,19 @@
             console.log('[API LOOKUP] Using morphological fallback (not cached):', morphResult);
             return morphResult;
         }
-        
+       
         // If everything fails, DON'T cache it - allow retries in future sessions
         const unknownResult = { pos: 'unknown', def: 'unknown', found: false };
         console.log('[API LOOKUP] All methods failed, returning unknown (not cached)');
         return unknownResult;
     }
-    
+   
     // Morphological analysis fallback
     // This identifies the likely part of speech but doesn't provide real definitions
     function analyzeMorphologically(word) {
         let pos = 'unknown';
         let def = 'unknown'; // Keep definition as "unknown" since morphology can't give meanings
-        
+       
         // Verb patterns (just identify POS, not definition)
         if (/^(sum|es|est|sumus|estis|sunt)$/i.test(word)) {
             pos = 'verb';
@@ -3787,43 +4113,43 @@
         else if (/(issimus|issima|issimum|ior|ius)$/i.test(word)) {
             pos = 'adjective';
         }
-        
+       
         return { pos, def, found: false };
     }
-    
+   
     function determinePosMorphologically(word) {
         const result = analyzeMorphologically(word);
         return result.pos;
     }
-    
+   
     // Enhanced definition lookup with API fallback
     function lookupDefinitionWithFallback(word) {
         const n = normalizeLatin(word);
         const localDef = LEXICON[n]?.def;
-        
+       
         if (localDef) {
             return localDef;
         }
-        
+       
         // Check cache for API result
         const cache = getWordCache();
         if (cache[n]) {
             return cache[n].def;
         }
-        
+       
         // Return undefined if not in local lexicon or cache
         // The API lookup will happen asynchronously later if needed
         return undefined;
     }
-    
+   
     // Function to enhance unknown words with API data
     async function enhanceUnknownWords(tokens) {
         console.log('[API ENHANCE] Called with', tokens.length, 'total tokens');
-        
+       
         // Only lookup truly unknown words - skip words already in lexicon
         const unknownTokens = tokens.filter(t => {
             if (!t.normalized) return false;
-            
+           
             // Check if word is in lexicon with a good definition
             const lexEntry = LEXICON[t.normalized];
             if (lexEntry && lexEntry.def && lexEntry.def !== 'unknown') {
@@ -3847,19 +4173,19 @@
                 console.log('[API ENHANCE] Skipping', t.normalized, '- already in lexicon with definition:', lexEntry.def);
                 return false;
             }
-            
+           
             // Only include if truly unknown
             return (t.pos === 'unknown' || !t.definition || t.definition === 'unknown');
         });
-        
-        console.log('[API ENHANCE] Found', unknownTokens.length, 'unknown tokens:', 
+       
+        console.log('[API ENHANCE] Found', unknownTokens.length, 'unknown tokens:',
             unknownTokens.map(t => t.normalized).join(', '));
-        
+       
         if (unknownTokens.length === 0) {
             console.log('[API ENHANCE] No unknown tokens, skipping API lookup');
             return;
         }
-        
+       
         // Lookup unknown words via API (with rate limiting)
         const lookupPromises = unknownTokens.slice(0, 10).map(async (t) => {
             console.log('[API ENHANCE] Looking up:', t.normalized);
@@ -3868,7 +4194,7 @@
             if (apiResult.found) {
                 t.pos = apiResult.pos;
                 t.definition = apiResult.def;
-                
+               
                 // Don't overwrite lexicon if it already has this word
                 if (!LEXICON[t.normalized]) {
                     LEXICON[t.normalized] = { pos: apiResult.pos, def: apiResult.def };
@@ -3880,36 +4206,31 @@
                 console.log('[API ENHANCE] No definition found for:', t.normalized);
             }
         });
-        
+       
         await Promise.all(lookupPromises);
         console.log('[API ENHANCE] All lookups complete');
     }
-    
+   
     // Hook into the analyze function to enhance with API data
     const originalAnalyze = analyze;
     async function analyzeWithAPI(rawText, opts) {
         console.log('[ANALYZE WITH API] Called for text:', rawText);
         const result = originalAnalyze(rawText, opts);
         console.log('[ANALYZE WITH API] Analysis complete, tokens:', result.tokens.length);
-        
-        // Asynchronously enhance unknown words
-        console.log('[ANALYZE WITH API] Starting async enhancement...');
-        enhanceUnknownWords(result.tokens).then(() => {
-            console.log('[ANALYZE WITH API] Enhancement complete, updating display...');
-            // Update display if there were changes
-            if (STATE.overlayActive && STATE.tokens === result.tokens) {
-                renderOverlay(rawText, STATE.tokens, STATE.groups);
-                console.log('[ANALYZE WITH API] Display updated');
-            } else {
-                console.log('[ANALYZE WITH API] Display not updated (overlay inactive or tokens changed)');
-            }
-        }).catch(err => {
+
+        // Wait for enhancement to complete before returning (prevents flickering and incomplete data)
+        console.log('[ANALYZE WITH API] Starting enhancement...');
+        try {
+            await enhanceUnknownWords(result.tokens);
+            console.log('[ANALYZE WITH API] Enhancement complete');
+        } catch (err) {
             console.error('[ANALYZE WITH API] Enhancement failed:', err);
-        });
-        
+            // Continue even if enhancement fails - we still have basic morphological analysis
+        }
+
         return result;
     }
-    
+   
     // API fallback is now ENABLED
     // The system will try multiple Latin dictionary APIs when words are not found locally
     // If all APIs fail, it falls back to morphological analysis
@@ -3920,5 +4241,4 @@
 })();
     </script>
 </body>
-</html>
-
+</html>  

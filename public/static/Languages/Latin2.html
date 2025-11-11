@@ -1132,13 +1132,52 @@
                     structure.allVerbs.push({ token, idx, definition: token.definition });
                 }
             }
+        });
+
+   
+
+        // NOW collect prepositional phrases (after case disambiguation)
+        tokens.forEach((token, idx) => {
             if (token.pos === 'preposition') {
                 const phraseEntries = [{ token, idx }];
+                // Collect ALL tokens that are part of the prepositional phrase
+                // CRITICAL: Stop if we encounter a NOMINATIVE noun (subjects are never in prep phrases!)
                 for (let j = idx + 1; j < tokens.length; j++) {
                     const next = tokens[j];
+                    
+                    // Stop if we hit another preposition or a finite verb (unless it's a gerundive/participle)
                     if (next.pos === 'preposition') break;
-                    phraseEntries.push({ token: next, idx: j });
-                    if (next.pos === 'noun' || next.pos === 'pronoun') break;
+                    if (next.pos === 'verb' && next.features.tense !== 'infinitive') break;
+                    if (next.pos === 'conjunction') break;
+                    
+                    // CRITICAL CHECK: If this is a noun/pronoun with UNAMBIGUOUS NOMINATIVE case, stop!
+                    // Nominative nouns are NEVER part of prepositional phrases - they're subjects
+                    // IMPORTANT: Use negative lookahead to only match "nom" not followed by "/" (to exclude "nom/acc")
+                    if ((next.pos === 'noun' || next.pos === 'pronoun' || next.pos === 'proper-noun') && 
+                        next.features.case && /^nom(?!\/)/.test(next.features.case)) {
+                        // Found unambiguous nominative noun - this is the subject of the main clause, stop here
+                        console.log(`[PREP PHRASE] Stopping at nominative noun: "${next.word}" (case: ${next.features.case})`);
+                        break;
+                    }
+                    
+                    // Include if it's a noun, pronoun, adjective, gerundive, or participle
+                 // Include if it's a noun, pronoun, adjective, gerundive, or participle
+                 if (next.pos === 'noun' || 
+                        next.pos === 'pronoun' || 
+                        next.pos === 'proper-noun' ||
+                        next.pos === 'adjective' || 
+                        next.pos === 'gerundive' || 
+                        next.pos === 'participle') {
+                        phraseEntries.push({ token: next, idx: j });
+                        // If we just added a gerundive, stop here - it's typically the last word
+                        if (next.pos === 'gerundive') {
+                            break;
+                        }
+                        // Continue collecting for other parts of speech
+                    } else {
+                        // Hit something that's definitely not part of the phrase
+                        break;
+                    }
                 }
                 const phraseDefs = phraseEntries
                     .map(entry => {
@@ -1155,6 +1194,137 @@
                 }
             }
         });
+
+        // CASE DISAMBIGUATION: Refine ambiguous case assignments for nouns in prepositional phrases
+        // This fixes the bug where "res" in "ad eas res" was being treated as nominative
+        // when it should be accusative (object of preposition "ad")
+        for (const noun of structure.allNouns) {
+            if (prepTokenIndices.has(noun.idx) && noun.case) {
+                console.log(`[PREP CASE DEBUG] Checking noun "${noun.token.word}" in prep phrase, case: ${noun.case}`);
+                // Find which prepositional phrase this noun is in
+                for (const phrase of structure.prepositionalPhrases) {
+                    const phraseIndices = phrase.tokens.map((t, i) => {
+                        // Find index of this token in the original tokens array
+                        return tokens.findIndex(tok => tok === t);
+                    });
+                    
+                    if (phraseIndices.includes(noun.idx)) {
+                        // Get the preposition (first token in phrase)
+                        const prep = phrase.tokens[0];
+                        const prepWord = (prep.normalized || prep.word).toLowerCase();
+                        console.log(`[PREP CASE DEBUG] Found in phrase starting with "${prepWord}"`);
+                        
+                        // Check which case this preposition governs
+                        const accusativePreps = ['ad', 'ante', 'apud', 'circa', 'circum', 'cis', 'citra',
+                            'contra', 'erga', 'extra', 'infra', 'inter', 'intra', 'iuxta', 'ob', 'per', 
+                            'pone', 'post', 'praeter', 'prope', 'propter', 'secundum', 'supra', 'trans',
+                            'ultra', 'versus', 'adversus'];
+                        const ablativePreps = ['a', 'ab', 'abs', 'absque', 'cum', 'coram', 'de', 'e', 'ex',
+                            'prae', 'pro', 'sine', 'tenus', 'clam', 'palam'];
+                        
+                        // If the case is ambiguous (contains both nom and acc), disambiguate it
+                        if (/nom.*acc|acc.*nom/.test(noun.case)) {
+                            console.log(`[PREP CASE DEBUG] Case is ambiguous, testing preposition type`);
+                            if (accusativePreps.includes(prepWord)) {
+                                // This noun must be accusative (object of preposition)
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace(/nom\/|\/nom|nom /g, '').replace(/\s+/g, ' ').trim();
+                                if (!noun.case.includes('acc')) {
+                                    noun.case = 'acc ' + noun.case.replace('acc', '').trim();
+                                }
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            } else if (ablativePreps.includes(prepWord)) {
+                                // This noun must be ablative
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace(/nom\/|\/nom|nom |acc\/|\/acc|acc /g, '').replace(/\s+/g, ' ').trim();
+                                if (!noun.case.includes('abl')) {
+                                    noun.case = 'abl ' + noun.case;
+                                }
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            }
+                        }
+                        // Also handle "nom/acc" format without ".*"
+                        else if (noun.case === 'nom/acc pl' || noun.case === 'nom/acc sg') {
+                            console.log(`[PREP CASE DEBUG] Case is exactly "nom/acc", testing preposition type`);
+                            if (accusativePreps.includes(prepWord)) {
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace('nom/', '');
+                                noun.token.features.case = noun.case; 
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            } else if (ablativePreps.includes(prepWord)) {
+                                const oldCase = noun.case;
+                                noun.case = noun.case.replace('nom/acc', 'abl');
+                                console.log(`[PREP CASE DEBUG] Changed "${noun.token.word}" from "${oldCase}" to "${noun.case}"`);
+                            }
+                        } else {
+                            console.log(`[PREP CASE DEBUG] Case "${noun.case}" doesn't match ambiguous patterns, skipping`);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        // MOVED: Early disambiguation now happens AFTER prep phrase collection
+        // This prevents "res" from being marked nominative before the phrase "ad eas res" is identified
+        console.log(`[EARLY DISAMBIGUATION] Checking ${structure.allNouns.length} nouns for ambiguous cases`);
+        for (const noun of structure.allNouns) {
+            // Skip if already in a prep phrase - don't disambiguate
+            if (prepTokenIndices.has(noun.idx)) {
+                console.log(`[EARLY DISAMBIGUATION] Skipping "${noun.token.word}" - in prep phrase`);
+                continue;
+            }
+            
+            // Only process ambiguous nom/acc cases
+            if (noun.case && /nom.*acc|acc.*nom/i.test(noun.case)) {
+                console.log(`[EARLY DISAMBIGUATION] Found ambiguous noun: "${noun.token.word}" (case: ${noun.case})`);
+                // Check if there's a verb in the sentence
+                const hasVerb = structure.allVerbs.length > 0;
+                
+                if (hasVerb) {
+                    // Find the main verb (first non-infinitive verb)
+                    let mainVerbIdx = -1;
+                    for (const verb of structure.allVerbs) {
+                        mainVerbIdx = verb.idx;
+                        break;
+                    }
+                    
+                    // Heuristic: If noun comes before the verb OR after a passive verb, prefer nominative
+                    const isBeforeVerb = mainVerbIdx !== -1 && noun.idx < mainVerbIdx;
+                    
+                    // Check if verb is passive (common passive endings)
+                    let isPassiveVerb = false;
+                    if (mainVerbIdx !== -1) {
+                        const verbWord = tokens[mainVerbIdx].normalized;
+                        isPassiveVerb = /(or|ris|tur|mur|mini|ntur|bar|baris|batur|bamur|bor|beris|bitur)$/i.test(verbWord);
+                    }
+                    
+                    const isAfterPassiveVerb = mainVerbIdx !== -1 && noun.idx > mainVerbIdx && isPassiveVerb;
+                    
+                    // If positioned like a subject, disambiguate to nominative
+                    if (isBeforeVerb || isAfterPassiveVerb) {
+                        // Remove accusative from the case, keep only nominative
+                        const oldCase = noun.case;
+                        noun.case = noun.case.replace(/\/acc|acc\/|acc /gi, '').replace(/\s+/g, ' ').trim();
+                        if (!noun.case.includes('nom')) {
+                            noun.case = 'nom ' + noun.case.replace('acc', '').trim();
+                        }
+                        // CRITICAL: Update the original token's case, not just the copy!
+                        noun.token.features.case = noun.case;
+                        console.log(`[EARLY DISAMBIGUATION] "${noun.token.word}" changed from "${oldCase}" to "${noun.case}" (subject position)`);
+                    } else {
+                        // Otherwise, likely an object - disambiguate to accusative
+                        const oldCase = noun.case;
+                        noun.case = noun.case.replace(/\/nom|nom\/|nom /gi, '').replace(/\s+/g, ' ').trim();
+                        if (!noun.case.includes('acc')) {
+                            noun.case = 'acc ' + noun.case;
+                        }
+                        // CRITICAL: Update the original token's case, not just the copy!
+                        noun.token.features.case = noun.case;
+                        console.log(`[EARLY DISAMBIGUATION] "${noun.token.word}" changed from "${oldCase}" to "${noun.case}" (object position)`);
+                    }
+                }
+            }
+        }
 
         // HEAD VERBS that take indirect statement (acc + inf)
         const indirectStatementVerbs = new Set(['say', 'think', 'believe', 'see', 'hear', 'know', 
@@ -1283,15 +1453,23 @@
         // If NOT an indirect statement and NOT direct speech, use traditional parsing
         if (!structure.isIndirectStatement && !isDirectSpeech) {
             // Find nominative noun as subject
+            console.log(`[SUBJECT SEARCH] Looking for nominative subject among ${structure.allNouns.length} nouns`);
             for (const noun of structure.allNouns) {
-                if (prepTokenIndices.has(noun.idx)) continue;
-                if (noun.case && /nom/i.test(noun.case) && noun.token.definition && noun.token.definition !== 'unknown') {
+                console.log(`[SUBJECT SEARCH] Checking noun "${noun.token.word}": case="${noun.case}", inPrep=${prepTokenIndices.has(noun.idx)}, def="${noun.token.definition}"`);
+                if (prepTokenIndices.has(noun.idx)) {
+                    console.log(`[SUBJECT SEARCH] Skipping "${noun.token.word}" - in prepositional phrase`);
+                    continue;
+                }
+                if (noun.case && /^nom(?!\/)/.test(noun.case) && noun.token.definition && noun.token.definition !== 'unknown')  {
                     structure.subject = { 
                         token: noun.token, 
                         idx: noun.idx, 
                         definition: noun.token.definition 
                     };
+                    console.log(`[SUBJECT SEARCH] SELECTED "${noun.token.word}" as subject (case: ${noun.case}, def: ${noun.token.definition})`);
                     break; // Take first nominative with definition
+                } else {
+                    console.log(`[SUBJECT SEARCH] Rejected "${noun.token.word}" - nomTest=${/nom/i.test(noun.case)}, hasDef=${!!(noun.token.definition && noun.token.definition !== 'unknown')}`);
                 }
             }
 
@@ -1337,6 +1515,12 @@
                 }
             }
         });
+
+        console.log('[DEBUG] All nouns:', structure.allNouns.map(n => 
+    `${n.token.word} (case: ${n.case}, def: ${n.token.definition})`
+));
+console.log('[DEBUG] Prep token indices:', Array.from(prepTokenIndices));
+console.log('[DEBUG] Final subject:', structure.subject);
 
         return structure;
     }
@@ -1741,8 +1925,69 @@
             return { isCorrect: true };
         }
 
+        // PRIORITY CHECK: If Latin has an explicit subject, validate it FIRST before checking verb agreement
+        // This ensures subject errors are caught before verb number errors
+        // 1. Check subject match (subordinate clause or simple sentence)
+        if (latinStruct.subject) {
+            const latinSubjectDef = normalizeWord(latinStruct.subject.definition || '');
+            const englishSubject = normalizeWord(englishStruct.subject || '');
+            
+            if (!englishSubject) {
+                errors.push('missing subject');
+            } else {
+                // Special handling for reflexive pronouns
+                // Latin "se" (himself/herself/itself/themselves) must refer back to main clause subject
+                const isReflexive = latinSubjectDef.includes('himself') || latinSubjectDef.includes('herself') || 
+                                   latinSubjectDef.includes('itself') || latinSubjectDef.includes('themselves');
+                
+                if (isReflexive) {
+                    // For reflexive pronouns, the subordinate subject MUST be in reflexive form
+                    const mainSubject = normalizeWord(englishStruct.mainClauseSubject || '');
+                    
+                    // If we don't have a main clause subject, this might be a simple sentence with reflexive
+                    // In that case, still require a reflexive form
+                    if (!mainSubject) {
+                        const isReflexiveForm = ['himself', 'herself', 'itself', 'themselves', 'myself', 'yourself', 'ourselves', 'yourselves'].includes(englishSubject);
+                        if (!isReflexiveForm) {
+                            return {
+                                isCorrect: false,
+                                reason: `reflexive pronoun required (Latin "se" must be translated as "himself/herself/itself/themselves", not "${englishStruct.subject}")`
+                            };
+                        }
+                    } else {
+                        // We have a main subject, so validate proper reflexive matching
+                        // Mapping: main subject → ONLY reflexive forms allowed
+                        const reflexiveExpected = {
+                            'he': ['himself'],
+                            'she': ['herself'],
+                            'it': ['itself'],
+                            'they': ['themselves'],
+                            'i': ['myself'],
+                            'you': ['yourself', 'yourselves'],
+                            'we': ['ourselves']
+                        };
+                        
+                        const allowedSubjects = reflexiveExpected[mainSubject] || [];
+                        
+                        if (!allowedSubjects.includes(englishSubject)) {
+                            return {
+                                isCorrect: false,
+                                reason: `reflexive pronoun required (main subject is "${englishStruct.mainClauseSubject}", so reflexive subject must be "${allowedSubjects.join(' or ')}", not "${englishStruct.subject}")`
+                            };
+                        }
+                    }
+                } else if (!wordsMatch(latinSubjectDef, englishSubject)) {
+                    return {
+                        isCorrect: false,
+                        reason: `wrong subject (expected "${latinStruct.subject.definition}" but found "${englishStruct.subject}")`
+                    };
+                }
+            }
+        }
+
         // 0b. For simple sentences with no explicit subject, validate the subject implied by verb ending
         // This handles cases like "constituo" → "I decide" (not "she decides")
+        // NOTE: This now runs AFTER explicit subject checking
         if (!latinStruct.subject && latinStruct.verb && !latinStruct.isIndirectStatement && !latinStruct.isDirectSpeech) {
             // Get the person/number from the Latin verb
             const personInfo = getVerbPersonNumber(latinStruct.verb.token);
@@ -1767,10 +2012,13 @@
                         };
                     }
                 } else if (personInfo.person === 3 && personInfo.number === 'singular') {
-                    if (!['he', 'she', 'it'].includes(englishSubject)) {
+                    // For 3rd person, accept pronouns (he/she/it) OR any noun/name
+                    // Don't reject if it's a proper noun like "Orgetorix" or common noun like "the man"
+                    const is1stOr2ndPerson = ['i', 'we', 'you'].includes(englishSubject);
+                    if (is1stOr2ndPerson) {
                         return {
                             isCorrect: false,
-                            reason: `wrong subject (Latin verb is 3rd person singular, expected "he/she/it" but found "${englishSubject}")`
+                            reason: `wrong subject (Latin verb is 3rd person singular, expected "he/she/it" or a noun, but found "${englishSubject}")`
                         };
                     }
                 } else if (personInfo.person === 1 && personInfo.number === 'plural') {
@@ -1788,10 +2036,14 @@
                         };
                     }
                 } else if (personInfo.person === 3 && personInfo.number === 'plural') {
-                    if (englishSubject !== 'they') {
+                    // For 3rd person plural, accept "they" OR any plural noun phrase
+                    // Don't reject if it's a noun like "the soldiers" or "Romans"
+                    const is1stOr2ndPerson = ['i', 'we', 'you'].includes(englishSubject);
+                    const is3rdSingular = ['he', 'she', 'it'].includes(englishSubject);
+                    if (is1stOr2ndPerson || is3rdSingular) {
                         return {
                             isCorrect: false,
-                            reason: `wrong subject (Latin verb is 3rd person plural, expected "they" but found "${englishSubject}")`
+                            reason: `wrong subject (Latin verb is 3rd person plural, expected "they" or a plural noun, but found "${englishSubject}")`
                         };
                     }
                 }
@@ -1874,64 +2126,6 @@
                     return {
                         isCorrect: false,
                         reason: `wrong main clause subject (Latin verb is 3rd person plural, expected "they" but found "${englishStruct.mainClauseSubject}")`
-                    };
-                }
-            }
-        }
-
-        // 1. Check subject match (subordinate clause or simple sentence)
-        if (latinStruct.subject) {
-            const latinSubjectDef = normalizeWord(latinStruct.subject.definition || '');
-            const englishSubject = normalizeWord(englishStruct.subject || '');
-            
-            if (!englishSubject) {
-                errors.push('missing subject');
-            } else {
-                // Special handling for reflexive pronouns
-                // Latin "se" (himself/herself/itself/themselves) must refer back to main clause subject
-                const isReflexive = latinSubjectDef.includes('himself') || latinSubjectDef.includes('herself') || 
-                                   latinSubjectDef.includes('itself') || latinSubjectDef.includes('themselves');
-                
-                if (isReflexive) {
-                    // For reflexive pronouns, the subordinate subject MUST be in reflexive form
-                    const mainSubject = normalizeWord(englishStruct.mainClauseSubject || '');
-                    
-                    // If we don't have a main clause subject, this might be a simple sentence with reflexive
-                    // In that case, still require a reflexive form
-                    if (!mainSubject) {
-                        const isReflexiveForm = ['himself', 'herself', 'itself', 'themselves', 'myself', 'yourself', 'ourselves', 'yourselves'].includes(englishSubject);
-                        if (!isReflexiveForm) {
-                            return {
-                                isCorrect: false,
-                                reason: `reflexive pronoun required (Latin "se" must be translated as "himself/herself/itself/themselves", not "${englishStruct.subject}")`
-                            };
-                        }
-                    } else {
-                        // We have a main subject, so validate proper reflexive matching
-                        // Mapping: main subject → ONLY reflexive forms allowed
-                        const reflexiveExpected = {
-                            'he': ['himself'],
-                            'she': ['herself'],
-                            'it': ['itself'],
-                            'they': ['themselves'],
-                            'i': ['myself'],
-                            'you': ['yourself', 'yourselves'],
-                            'we': ['ourselves']
-                        };
-                        
-                        const allowedSubjects = reflexiveExpected[mainSubject] || [];
-                        
-                        if (!allowedSubjects.includes(englishSubject)) {
-                            return {
-                                isCorrect: false,
-                                reason: `reflexive pronoun required (main subject is "${englishStruct.mainClauseSubject}", so reflexive subject must be "${allowedSubjects.join(' or ')}", not "${englishStruct.subject}")`
-                            };
-                        }
-                    }
-                } else if (!wordsMatch(latinSubjectDef, englishSubject)) {
-                    return {
-                        isCorrect: false,
-                        reason: `wrong subject (expected "${latinStruct.subject.definition}" but found "${englishStruct.subject}")`
                     };
                 }
             }
@@ -2289,7 +2483,7 @@
             t.definition = lexEntry.def; // Set definition from lexicon!
             
             // Set appropriate features based on part of speech
-            if (lexEntry.pos === 'noun' || lexEntry.pos === 'adjective' || lexEntry.pos === 'participle' || lexEntry.pos === 'gerundive') {
+            if (lexEntry.pos === 'noun' || lexEntry.pos === 'proper-noun' || lexEntry.pos === 'adjective' || lexEntry.pos === 'participle' || lexEntry.pos === 'gerundive') {
                 // If lexicon has case information, use it (for irregular forms like "omnis")
                 if (lexEntry.case) {
                     t.features.case = lexEntry.case;
@@ -2992,6 +3186,7 @@
     const LEXICON = {
         // Common verbs (with infinitives)
         'amo': { pos: 'verb', def: 'love' }, 'amas': { pos: 'verb', def: 'love' }, 'amat': { pos: 'verb', def: 'love' }, 'amamus': { pos: 'verb', def: 'love' }, 'amant': { pos: 'verb', def: 'love' }, 'amare': { pos: 'verb', def: 'love' },
+        'amor': { pos: 'verb', def: 'I am loved' }, 'amaris': { pos: 'verb', def: 'you are loved' }, 'amatur': { pos: 'verb', def: 'he/she/it is loved' }, 'amamur': { pos: 'verb', def: 'we are loved' }, 'amamini': { pos: 'verb', def: 'you (pl) are loved' }, 'amantur': { pos: 'verb', def: 'they are loved' },
         'spero': { pos: 'verb', def: 'hope' }, 'speras': { pos: 'verb', def: 'hope' }, 'sperat': { pos: 'verb', def: 'hope' }, 'speramus': { pos: 'verb', def: 'hope' }, 'sperant': { pos: 'verb', def: 'hope' }, 'sperare': { pos: 'verb', def: 'hope' },
         'laboro': { pos: 'verb', def: 'work' }, 'laboras': { pos: 'verb', def: 'work' }, 'laborat': { pos: 'verb', def: 'work' }, 'laboramus': { pos: 'verb', def: 'work' }, 'laborant': { pos: 'verb', def: 'work' }, 'laborare': { pos: 'verb', def: 'work' },
         'paro': { pos: 'verb', def: 'prepare' }, 'paras': { pos: 'verb', def: 'prepare' }, 'parat': { pos: 'verb', def: 'prepare' }, 'paramus': { pos: 'verb', def: 'prepare' }, 'parant': { pos: 'verb', def: 'prepare' }, 'parare': { pos: 'verb', def: 'prepare' },
@@ -3001,6 +3196,7 @@
         'puto': { pos: 'verb', def: 'think' }, 'putas': { pos: 'verb', def: 'think' }, 'putat': { pos: 'verb', def: 'think' }, 'putamus': { pos: 'verb', def: 'think' }, 'putant': { pos: 'verb', def: 'think' }, 'putare': { pos: 'verb', def: 'think' },
         'sum': { pos: 'verb', def: 'be' }, 'es': { pos: 'verb', def: 'be' }, 'est': { pos: 'verb', def: 'be' }, 'sumus': { pos: 'verb', def: 'be' }, 'estis': { pos: 'verb', def: 'be' }, 'sunt': { pos: 'verb', def: 'be' }, 'esse': { pos: 'verb', def: 'be' },
         'video': { pos: 'verb', def: 'see' }, 'vides': { pos: 'verb', def: 'see' }, 'videt': { pos: 'verb', def: 'see' }, 'videmus': { pos: 'verb', def: 'see' }, 'videtis': { pos: 'verb', def: 'see' }, 'vident': { pos: 'verb', def: 'see' }, 'vidi': { pos: 'verb', def: 'see' }, 'visum': { pos: 'verb', def: 'see' }, 'videre': { pos: 'verb', def: 'see' },
+        'videor': { pos: 'verb', def: 'I am seen, I seem' }, 'videris': { pos: 'verb', def: 'you are seen, you seem' }, 'videtur': { pos: 'verb', def: 'he/she/it is seen, it seems' }, 'videmur': { pos: 'verb', def: 'we are seen, we seem' }, 'videmini': { pos: 'verb', def: 'you (pl) are seen' }, 'videntur': { pos: 'verb', def: 'they are seen, they seem' },
         'uideo': { pos: 'verb', def: 'see' }, 'uides': { pos: 'verb', def: 'see' }, 'uidet': { pos: 'verb', def: 'see' }, 'uidemus': { pos: 'verb', def: 'see' }, 'uidetis': { pos: 'verb', def: 'see' }, 'uident': { pos: 'verb', def: 'see' }, 'uidi': { pos: 'verb', def: 'see' }, 'uisum': { pos: 'verb', def: 'see' }, 'uidere': { pos: 'verb', def: 'see' },
         'dico': { pos: 'verb', def: 'say' }, 'dicis': { pos: 'verb', def: 'say' }, 'dicit': { pos: 'verb', def: 'say' }, 'dicimus': { pos: 'verb', def: 'say' }, 'dicitis': { pos: 'verb', def: 'say' }, 'dicunt': { pos: 'verb', def: 'say' }, 'dixit': { pos: 'verb', def: 'say' }, 'dicere': { pos: 'verb', def: 'say' },
         'inquam': { pos: 'verb', def: 'say, I say' }, 'inquis': { pos: 'verb', def: 'say, you say' }, 'inquit': { pos: 'verb', def: 'say, he/she says' }, 'inquiunt': { pos: 'verb', def: 'say, they say' },
@@ -3010,16 +3206,19 @@
         'do': { pos: 'verb', def: 'give' }, 'dat': { pos: 'verb', def: 'give' }, 'dedi': { pos: 'verb', def: 'give' }, 'datum': { pos: 'verb', def: 'give' }, 'dare': { pos: 'verb', def: 'give' },
         'ago': { pos: 'verb', def: 'do, drive, act' }, 'agit': { pos: 'verb', def: 'do, drive' }, 'egi': { pos: 'verb', def: 'do, drive' }, 'actum': { pos: 'verb', def: 'do, drive' }, 'agere': { pos: 'verb', def: 'do, drive' },
         'pono': { pos: 'verb', def: 'put, place' }, 'ponit': { pos: 'verb', def: 'put, place' }, 'posui': { pos: 'verb', def: 'put, place' }, 'positum': { pos: 'verb', def: 'put, place' }, 'ponere': { pos: 'verb', def: 'put, place' },
-        'capio': { pos: 'verb', def: 'take, capture' }, 'capit': { pos: 'verb', def: 'take, capture' }, 'cepi': { pos: 'verb', def: 'take, capture' }, 'captum': { pos: 'verb', def: 'take, capture' }, 'capere': { pos: 'verb', def: 'take, capture' },
+        'capio': { pos: 'verb', def: 'take, capture' }, 'capis': { pos: 'verb', def: 'you take' }, 'capit': { pos: 'verb', def: 'he/she takes' }, 'capimus': { pos: 'verb', def: 'we take' }, 'capiunt': { pos: 'verb', def: 'they take' }, 'cepi': { pos: 'verb', def: 'take, capture' }, 'captum': { pos: 'verb', def: 'take, capture' }, 'capere': { pos: 'verb', def: 'take, capture' },
+        'capior': { pos: 'verb', def: 'I am taken, I am captured' }, 'caperis': { pos: 'verb', def: 'you are taken' }, 'capitur': { pos: 'verb', def: 'he/she/it is taken, is captured' }, 'capimur': { pos: 'verb', def: 'we are taken' }, 'capimini': { pos: 'verb', def: 'you (pl) are taken' }, 'capiuntur': { pos: 'verb', def: 'they are taken, they are captured' },
         'habeo': { pos: 'verb', def: 'have, hold' }, 'habet': { pos: 'verb', def: 'have, hold' }, 'habui': { pos: 'verb', def: 'have, hold' }, 'habitum': { pos: 'verb', def: 'have, hold' }, 'habere': { pos: 'verb', def: 'have, hold' },
         'vivo': { pos: 'verb', def: 'live' }, 'vivit': { pos: 'verb', def: 'live' }, 'vixi': { pos: 'verb', def: 'live' }, 'victum': { pos: 'verb', def: 'live' }, 'vivere': { pos: 'verb', def: 'live' },
         'uiuo': { pos: 'verb', def: 'live' }, 'uiuit': { pos: 'verb', def: 'live' }, 'uixi': { pos: 'verb', def: 'live' }, 'uictum': { pos: 'verb', def: 'live' }, 'uiuere': { pos: 'verb', def: 'live' },
         'eo': { pos: 'verb', def: 'go' }, 'it': { pos: 'verb', def: 'go' }, 'ire': { pos: 'verb', def: 'go' }, 'iit': { pos: 'verb', def: 'go' }, 'ierunt': { pos: 'verb', def: 'go' },
-        'duco': { pos: 'verb', def: 'lead' }, 'ducit': { pos: 'verb', def: 'lead' }, 'duxi': { pos: 'verb', def: 'lead' }, 'ductum': { pos: 'verb', def: 'lead' }, 'ducere': { pos: 'verb', def: 'lead' },
+        'duco': { pos: 'verb', def: 'lead' }, 'ducis': { pos: 'verb', def: 'you lead' }, 'ducit': { pos: 'verb', def: 'he/she leads' }, 'ducimus': { pos: 'verb', def: 'we lead' }, 'ducunt': { pos: 'verb', def: 'they lead' }, 'duxi': { pos: 'verb', def: 'lead' }, 'ductum': { pos: 'verb', def: 'lead' }, 'ducere': { pos: 'verb', def: 'lead' },
+        'ducor': { pos: 'verb', def: 'I am led' }, 'duceris': { pos: 'verb', def: 'you are led' }, 'ducitur': { pos: 'verb', def: 'he/she/it is led' }, 'ducimur': { pos: 'verb', def: 'we are led' }, 'ducimini': { pos: 'verb', def: 'you (pl) are led' }, 'ducuntur': { pos: 'verb', def: 'they are led' },
         'audio': { pos: 'verb', def: 'hear' }, 'audis': { pos: 'verb', def: 'hear' }, 'audit': { pos: 'verb', def: 'hear' }, 'audimus': { pos: 'verb', def: 'hear' }, 'auditis': { pos: 'verb', def: 'hear' }, 'audiunt': { pos: 'verb', def: 'hear' }, 'audivi': { pos: 'verb', def: 'hear' }, 'auditum': { pos: 'verb', def: 'hear' }, 'audire': { pos: 'verb', def: 'hear' },
         'scribo': { pos: 'verb', def: 'write' }, 'scribit': { pos: 'verb', def: 'write' }, 'scripsi': { pos: 'verb', def: 'write' }, 'scriptum': { pos: 'verb', def: 'write' }, 'scribere': { pos: 'verb', def: 'write' },
         'lego': { pos: 'verb', def: 'read, choose' }, 'legit': { pos: 'verb', def: 'read, choose' }, 'legi': { pos: 'verb', def: 'read, choose' }, 'lectum': { pos: 'verb', def: 'read, choose' }, 'legere': { pos: 'verb', def: 'read, choose' },
-        'mitto': { pos: 'verb', def: 'send' }, 'mittit': { pos: 'verb', def: 'send' }, 'misi': { pos: 'verb', def: 'send' }, 'missum': { pos: 'verb', def: 'send' }, 'mittere': { pos: 'verb', def: 'send' },
+        'mitto': { pos: 'verb', def: 'send' }, 'mittis': { pos: 'verb', def: 'you send' }, 'mittit': { pos: 'verb', def: 'he/she sends' }, 'mittimus': { pos: 'verb', def: 'we send' }, 'mittunt': { pos: 'verb', def: 'they send' }, 'misi': { pos: 'verb', def: 'send' }, 'missum': { pos: 'verb', def: 'send' }, 'mittere': { pos: 'verb', def: 'send' },
+        'mittor': { pos: 'verb', def: 'I am sent' }, 'mitteris': { pos: 'verb', def: 'you are sent' }, 'mittitur': { pos: 'verb', def: 'he/she/it is sent' }, 'mittimur': { pos: 'verb', def: 'we are sent' }, 'mittimini': { pos: 'verb', def: 'you (pl) are sent' }, 'mittuntur': { pos: 'verb', def: 'they are sent' },
         'porto': { pos: 'verb', def: 'carry' }, 'portat': { pos: 'verb', def: 'carry' }, 'portavi': { pos: 'verb', def: 'carry' }, 'portatum': { pos: 'verb', def: 'carry' }, 'portare': { pos: 'verb', def: 'carry' },
         'puto': { pos: 'verb', def: 'think, suppose' }, 'putas': { pos: 'verb', def: 'think' }, 'putat': { pos: 'verb', def: 'think' }, 'putamus': { pos: 'verb', def: 'think' }, 'putatis': { pos: 'verb', def: 'think' }, 'putant': { pos: 'verb', def: 'think' }, 'putavi': { pos: 'verb', def: 'think' }, 'putatum': { pos: 'verb', def: 'think' }, 'putare': { pos: 'verb', def: 'think' },
         'vinco': { pos: 'verb', def: 'conquer, win' }, 'vincit': { pos: 'verb', def: 'conquer' }, 'vici': { pos: 'verb', def: 'conquer' }, 'victum': { pos: 'verb', def: 'conquer' }, 'vincere': { pos: 'verb', def: 'conquer' },
@@ -3065,7 +3264,8 @@
         'coemo': { pos: 'verb', def: 'buy up' }, 'coemere': { pos: 'verb', def: 'to buy up' },
         'conficio': { pos: 'verb', def: 'make, accomplish, complete' }, 'conficiendum': { pos: 'noun', case: 'acc sg', def: 'the finishing, completing' },
         'conficiendas': { pos: 'gerundive', def: 'to be completed, for completing', case: 'acc pl fem' }, 'conficere': { pos: 'verb', def: 'to make, to accomplish' },
-        'deligo': { pos: 'verb', def: 'choose, select' }, 'deligit': { pos: 'verb', def: 'he/she chooses' }, 'deligi': { pos: 'verb', def: 'to be chosen' }, 'deligitur': { pos: 'verb', def: 'is chosen' },
+        'deligo': { pos: 'verb', def: 'choose, select' }, 'deligis': { pos: 'verb', def: 'you choose' }, 'deligit': { pos: 'verb', def: 'he/she chooses' }, 'deligimus': { pos: 'verb', def: 'we choose' }, 'deligunt': { pos: 'verb', def: 'they choose' },
+        'deligi': { pos: 'verb', def: 'to be chosen' }, 'deligor': { pos: 'verb', def: 'I am chosen' }, 'deligeris': { pos: 'verb', def: 'you are chosen' }, 'deligitur': { pos: 'verb', def: 'he/she/it is chosen' }, 'deligimur': { pos: 'verb', def: 'we are chosen' }, 'deligimini': { pos: 'verb', def: 'you (pl) are chosen' }, 'deliguntur': { pos: 'verb', def: 'they are chosen' },
         'suppeto': { pos: 'verb', def: 'be available, suffice' }, 'suppeteret': { pos: 'verb', def: 'might be available, might suffice' },
         'confirmo': { pos: 'verb', def: 'strengthen, assure, establish' }, 'confirmare': { pos: 'verb', def: 'to strengthen, assure, establish' },
         'defendo': { pos: 'verb', def: 'defend' }, 'deleo': { pos: 'verb', def: 'destroy' }, 'discedo': { pos: 'verb', def: 'depart' }, 'fero': { pos: 'verb', def: 'bear, carry' },
@@ -3921,4 +4121,3 @@
     </script>
 </body>
 </html>
-
