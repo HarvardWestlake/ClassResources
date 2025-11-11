@@ -26,6 +26,12 @@ h4, h5, h6 { font-weight: 600; }
   letter-spacing: 0.01em;
 }
 
+.lead {
+  font-size: 1.125rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem 0;
+}
+
 .red { color: #B1001A; text-transform: uppercase; }
 a:hover { text-decoration: underline; color: #B1001A; }
 
