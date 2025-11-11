@@ -601,7 +601,7 @@
         return volume;
     }
 
-    function addVoxelsSpherical(rh0, rh1, ph0, ph1, th0, th1, nr, nphi, nth) {
+    function addVoxelsSpherical(rh0, rh1, ph0, ph1, th0, th1, nr, nphi, nth, include) {
         const dr = (rh1 - rh0) / nr;
         const dphi = (ph1 - ph0) / nphi;
         const dtheta = (th1 - th0) / nth;
@@ -622,17 +622,39 @@
                     const thetac = th0 + (k + 0.5) * dtheta;
                     const tangential2 = Math.max(rhoc * Math.sin(phic) * dtheta * 0.98, 0.001);
                     const x = rhoc * Math.sin(phic) * Math.cos(thetac);
-                    const y = rhoc * Math.cos(phic); // world y
+                    const y = rhoc * Math.cos(phic); // world y (up)
                     const z = rhoc * Math.sin(phic) * Math.sin(thetac);
+                    if (include && !include(x, y, z)) continue;
                     const geom = new THREE.BoxGeometry(radial, tangential1, tangential2);
                     const box = new THREE.Mesh(geom, mat);
                     box.position.set(x, y, z);
-                    // approximate orientation: yaw by theta
-                    box.rotation.y = thetac;
+                    // Orient voxel to local spherical basis (r, e_phi, e_theta)
+                    const r = new THREE.Vector3(x, y, z).normalize();
+                    // azimuthal tangent (theta)
+                    const eTheta = new THREE.Vector3(-Math.sin(thetac), 0, Math.cos(thetac)).normalize();
+                    // polar tangent (phi)
+                    const ePhi = new THREE.Vector3(
+                        Math.cos(phic) * Math.cos(thetac),
+                        -Math.sin(phic),
+                        Math.cos(phic) * Math.sin(thetac)
+                    ).normalize();
+                    const basis = new THREE.Matrix4();
+                    basis.makeBasis(r, ePhi, eTheta);
+                    box.setRotationFromMatrix(basis);
                     columnsGroup.add(box);
                 }
                 for (let k = 0; k < nth; k++) {
-                    volume += (rhoc * rhoc) * Math.sin(phic) * dr * dphi * dtheta;
+                    if (!include) {
+                        volume += (rhoc * rhoc) * Math.sin(phic) * dr * dphi * dtheta;
+                        continue;
+                    }
+                    const thetac = th0 + (k + 0.5) * dtheta;
+                    const x = rhoc * Math.sin(phic) * Math.cos(thetac);
+                    const y = rhoc * Math.cos(phic);
+                    const z = rhoc * Math.sin(phic) * Math.sin(thetac);
+                    if (include(x, y, z)) {
+                        volume += (rhoc * rhoc) * Math.sin(phic) * dr * dphi * dtheta;
+                    }
                 }
             }
         }
@@ -734,15 +756,30 @@
         const preset = presetSelect.value;
         if (showSurface.checked && preset !== 'none') addVolumePreset(preset);
         if (showRegion.checked) {
-            // approximate spherical sector by showing its projection ring
-            addRegionPolar(0, rh1 * Math.sin((ph0 + ph1) / 2), th0, th1);
+            // For cylinder preset, show true projection ring radius R; otherwise approximate sector ring
+            const preset = presetSelect.value;
+            if (preset === 'cylinder') {
+                const R = parseFloat(rcMax.value);
+                addRegionPolar(0, R, th0, th1);
+            } else {
+                addRegionPolar(0, rh1 * Math.sin((ph0 + ph1) / 2), th0, th1);
+            }
         }
         let estimate = 0;
         if (showColumns.checked) {
             const nr = Math.max(2, parseInt(nx.value));
             const nphi = Math.max(2, parseInt(ny.value));
             const nth = Math.max(2, parseInt(nz.value));
-            estimate = addVoxelsSpherical(rh0, rh1, ph0, ph1, th0, th1, nr, nphi, nth);
+            const preset = presetSelect.value;
+            // Mask to clip spherical voxels to cylinder when cylinder preset is active
+            const include = (preset === 'cylinder')
+                ? ((x, y, z) => {
+                    const R = parseFloat(rcMax.value);
+                    const z0 = parseFloat(zMin.value), z1 = parseFloat(zMax.value);
+                    return (x * x + z * z) <= (R * R + 1e-9) && y >= (z0 - 1e-9) && y <= (z1 + 1e-9);
+                })
+                : null;
+            estimate = addVoxelsSpherical(rh0, rh1, ph0, ph1, th0, th1, nr, nphi, nth, include);
         }
         if (showWedge.checked) addDVWedgeSpherical(rh0, rh1, ph0, ph1, th0, th1);
         integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
