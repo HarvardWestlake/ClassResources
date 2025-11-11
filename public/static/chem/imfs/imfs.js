@@ -590,6 +590,22 @@ class IMFSim {
           const p = this.particles[i];
           if (p.state === "gas") p.acc[1] -= 300; // Reduced from 600
         }
+        // Add floor attraction for liquid particles to resist evaporation
+        // Stronger attraction for higher viscosity materials
+        const v = this.params.viscosity || 0;
+        const floorAttractionStrength = v > 5 ? 200 : v > 1 ? 100 : 20; // Honey: 200, DMSO: 100, Hexane: 20
+        const floorY = this.height;
+        for (let i = 0; i < this.particles.length; i++) {
+          const p = this.particles[i];
+          if (p.state === "liquid") {
+            const distFromFloor = floorY - (p.pos[1] + (p.radius || 4.5));
+            if (distFromFloor > 0 && distFromFloor < 50) {
+              // Attraction decreases with distance, strongest near floor
+              const attractionFactor = 1.0 - (distFromFloor / 50);
+              p.acc[1] += floorAttractionStrength * attractionFactor;
+            }
+          }
+        }
       }
       // Integrate (iterate backwards to safely remove particles)
       for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -634,8 +650,14 @@ class IMFSim {
       // Higher energy threshold for escaping dense liquid (boiling)
       // Viscosity makes it harder to evaporate - scale threshold with viscosity
       // Stronger intermolecular forces (via cohesion coefficients) naturally reduce evaporation
-      const escapeMultiplier = 1.5 + (this.params.viscosity || 0) * 0.4; // Higher viscosity = higher threshold
-      const thermalBoilingThreshold = 0.4 + (this.params.viscosity || 0) * 0.15; // Higher viscosity needs more thermal energy
+      // Map viscosity to escape multiplier: honey (10) -> 4.0, DMSO (1.2) -> 2.0, hexane (0.05) -> 1.5
+      const v = this.params.viscosity || 0;
+      const escapeMultiplier = v > 5 ? 1.5 + (v - 5) * 0.5 : 1.5 + v * 0.1; // Honey: 4.0, DMSO: 1.62, Hexane: 1.505
+      // Map viscosity to thermal threshold [0,1]: honey (10) -> 0.85, DMSO (1.2) -> 0.55, hexane (0.05) -> 0.25
+      // Piecewise: low v uses linear, high v uses slower scaling
+      const thermalBoilingThreshold = v <= 2 
+        ? Math.min(0.95, 0.25 + v * 0.25)  // DMSO: 0.25 + 1.2*0.25 = 0.55, Hexane: 0.25 + 0.05*0.25 = 0.2625
+        : Math.min(0.95, 0.5 + (v - 2) * 0.04375); // Honey: 0.5 + 8*0.04375 = 0.85
 
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
@@ -656,9 +678,12 @@ class IMFSim {
           // Boiling: Need both high thermal energy AND high kinetic energy
           // Surface particles can evaporate more easily
           if (p.localNeighbors < rhoMin) {
-            // Surface/edge particles: normal evaporation threshold
-            const surfaceThreshold = vGas2 * 0.9; // Slightly easier than bulk
-            if (v2 > surfaceThreshold && thermalEnergy > 0.2) {
+            // Surface/edge particles: material-dependent evaporation threshold
+            // Honey needs higher threshold, hexane needs lower
+            const surfaceMultiplier = v > 5 ? 1.8 : v > 1 ? 1.2 : 0.8; // Honey: 1.8, DMSO: 1.2, Hexane: 0.8
+            const surfaceThreshold = vGas2 * surfaceMultiplier;
+            const surfaceThermalThreshold = v <= 2 ? 0.15 + v * 0.2 : 0.4 + (v - 2) * 0.05; // Honey: 0.8, DMSO: 0.39, Hexane: 0.16
+            if (v2 > surfaceThreshold && thermalEnergy > surfaceThermalThreshold) {
               p.state = "gas";
               p.gasUntil = nowS + 1500;
               p.lastStateChange = nowS;
@@ -1160,7 +1185,7 @@ class IMFSim {
     }
     ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto";
     ctx.fillText(this.params.label, 10, 18);
-    // Right-side overlay: kT and KE
+    // Right-side overlay: KE only
     try {
       let keSum = 0;
       const n = Math.max(1, this.particles.length);
@@ -1170,9 +1195,7 @@ class IMFSim {
           0.5 * (p.mass || 1) * (p.vel[0] * p.vel[0] + p.vel[1] * p.vel[1]);
       }
       const keAvg = keSum / n;
-      const label = `kT ${this.params.kT.toFixed(2)}  •  KE ${keAvg.toFixed(
-        1
-      )}`;
+      const label = `KE ${keAvg.toFixed(1)}`;
       const tw = ctx.measureText(label).width;
       ctx.fillText(label, w - 10 - tw, 18);
     } catch (_) {}
@@ -2067,17 +2090,17 @@ function scenarioColor(kind) {
 function applyIMFCoeffsFor(sim, kind) {
   const v = Math.max(0, Number(sim.params.viscosity || 0));
   if (kind === "honey") {
-    sim.params.hbStrength = 2.0 * v; // Increased from 1.6 * v to make HB stronger
+    sim.params.hbStrength = 2.5 * v; // Increased from 2.0 * v to make HB stronger
     sim.params.dipole = 0.0;
-    sim.params.cohLJ = 1.5 + 0.8 * v; // Increased from 1.0 + 0.6*v (stronger Lennard-Jones attraction)
-    sim.params.cohHB = 1.5 + 1.0 * v; // Increased from 1.2 + 0.8*v (stronger hydrogen bonding)
+    sim.params.cohLJ = 2.0 + 1.0 * v; // Increased from 1.5 + 0.8*v (stronger Lennard-Jones attraction)
+    sim.params.cohHB = 2.0 + 1.2 * v; // Increased from 1.5 + 1.0*v (stronger hydrogen bonding)
     sim.params.cohDP = 1.0;
   } else if (kind === "dmso") {
     sim.params.hbStrength = 0.0;
-    sim.params.dipole = 1.3 * v; // scale dipole with viscosity
-    sim.params.cohLJ = 0.9 + 0.5 * v;
+    sim.params.dipole = 1.5 * v; // Increased from 1.3 * v
+    sim.params.cohLJ = 1.0 + 0.6 * v; // Increased from 0.9 + 0.5*v
     sim.params.cohHB = 1.0;
-    sim.params.cohDP = 1.1 + 0.7 * v;
+    sim.params.cohDP = 1.2 + 0.8 * v; // Increased from 1.1 + 0.7*v
   } else {
     // Hexane - extremely weak attractions (only very weak London dispersion)
     sim.params.hbStrength = 0.0;
@@ -2197,7 +2220,6 @@ export function mountIMFs(root) {
             <button id="t-heat" class="btn btn--outline">Heat</button>
           </div>
           <div class="stack-sm">
-            <div class="field"><label class="label">Temperature (kT)</label><input id="s-temp" class="range" type="range" min="0" max="3" step="0.05" value="1.00"><span class="muted" id="v-temp"></span></div>
             <div class="field"><label class="label">Particles (N)</label><input id="s-n" class="range" type="range" min="40" max="300" step="10" value="300"><span class="muted" id="v-n"></span></div>
             <div class="field"><label class="label">Heat Intensity</label><input id="s-heat" class="range" type="range" min="0" max="3" step="0.1" value="3.0"><span class="muted" id="v-heat"></span></div>
           </div>
@@ -2230,10 +2252,8 @@ export function mountIMFs(root) {
     mol: shadow.querySelector("#imfs-mol"),
     mol3d: shadow.querySelector("#imfs-3d"),
     sMaterial: shadow.querySelector("#s-material"),
-    sTemp: shadow.querySelector("#s-temp"),
     sN: shadow.querySelector("#s-n"),
     sHeat: shadow.querySelector("#s-heat"),
-    vTemp: shadow.querySelector("#v-temp"),
     vN: shadow.querySelector("#v-n"),
     vHeat: shadow.querySelector("#v-heat"),
     explain: shadow.querySelector("#explain"),
@@ -2382,7 +2402,6 @@ M  END
   }
 
   function updateReadouts() {
-    refs.vTemp.textContent = String(sim.params.kT.toFixed(2));
     refs.vN.textContent = String(sim.params.N);
     refs.vHeat.textContent = String(sim.heatIntensity.toFixed(1));
     // KE readout is updated via animation loop
@@ -2450,10 +2469,6 @@ M  END
   // Events
   refs.sMaterial.addEventListener("change", (e) => {
     setScenario(e.target.value);
-  });
-  refs.sTemp.addEventListener("input", (e) => {
-    sim.params.kT = Number(e.target.value);
-    updateReadouts();
   });
   refs.sN.addEventListener("input", (e) => {
     sim.params.N = Math.round(Number(e.target.value));
