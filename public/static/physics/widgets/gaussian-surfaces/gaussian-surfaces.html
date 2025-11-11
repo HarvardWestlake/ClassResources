@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gaussian Surfaces | Harvard-Westlake Educational Resources</title>
+
+    <!-- Import maps for ES modules without build step -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "plotly.js-dist-min": "https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.3/+esm"
+      }
+    }
+    </script>
+    
+    <!-- KaTeX for beautiful math rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <link rel="stylesheet" href="./gaussian-surfaces.css" />
+    <script type="module" src="./gaussian-surfaces.js"></script>
+  </head>
+  <body>
+    <header class="hw-topnav">
+      <div class="container container--wide hw-topnav__inner">
+        <a class="hw-brand" href="https://learnhw.web.app/">Harvard‑Westlake</a>
+        <nav class="hw-nav">
+          <a class="hw-nav__link" href="https://learnhw.web.app/">Home</a>
+          <a class="hw-nav__link active" href="https://learnhw.web.app/admin">Style Guide</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="container styleguide">
+        <a href="../../index.html" style="display: inline-block; margin-bottom: 1rem; color: var(--hw-red); text-decoration: none; font-weight: 500;">← Back to Physics Widgets</a>
+        <h1 class="h2">Gaussian Surfaces — Electric Field via Gauss's Law</h1>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Why Gauss's Law?</h2>
+          <p>
+            You've learned to calculate electric fields using Coulomb's Law and integration. For a point charge \(q\), the field is \(E = \frac{kq}{r^2}\). 
+            But what if we have a <strong>continuous charge distribution</strong>?
+          </p>
+          <div class="formula">
+            $$\vec{E} = k \int \frac{dq}{r^2} \hat{r}$$
+          </div>
+          <p>
+            This integral can be <strong>extremely difficult</strong> for complex geometries. Even for "simple" shapes like uniformly charged spheres or cylinders, 
+            the vector components and limits make integration tedious and error-prone.
+          </p>
+          <p>
+            <strong>Gauss's Law provides an elegant shortcut</strong> when the charge distribution has <strong>symmetry</strong>. 
+            Instead of integrating over every charge element, we use the relationship between electric flux and enclosed charge.
+          </p>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Electric Flux: The Key Concept</h2>
+          <p class="muted">Understanding electric flux is essential for applying Gauss's Law.</p>
+          
+          <h3>What is Electric Flux?</h3>
+          <p>
+            Electric flux (Φ) measures "how much electric field passes through a surface." Think of it like water flow through a net—
+            more field perpendicular to the surface means more flux.
+          </p>
+          
+          <div class="formula">
+            $$\Phi_E = \int \vec{E} \cdot d\vec{A}$$
+          </div>
+          
+          <ul class="bullets">
+            <li>\(\vec{E}\) is the electric field vector</li>
+            <li>\(d\vec{A}\) is an infinitesimal area element vector (points outward from surface)</li>
+            <li>The dot product \(\vec{E} \cdot d\vec{A} = E \, dA \cos(\theta)\) means only the perpendicular component contributes</li>
+            <li>Units: N·m²/C or V·m</li>
+          </ul>
+
+          <div class="alert alert--info">
+            <strong>Key Insight:</strong> When the field is parallel to the surface (\(\theta = 90°\)), flux is zero. 
+            When perpendicular (\(\theta = 0°\)), flux is maximized.
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Gauss's Law</h2>
+          <p class="muted">One of Maxwell's four fundamental equations of electromagnetism.</p>
+          
+          <h3>The Law</h3>
+          <div class="formula">
+            $$\oint \vec{E} \cdot d\vec{A} = \frac{Q_{\text{enclosed}}}{\varepsilon_0}$$
+          </div>
+          
+          <p>
+            The total electric flux through any <strong>closed surface</strong> equals the enclosed charge divided by the permittivity of free space 
+            (\(\varepsilon_0 = 8.854 \times 10^{-12}\) C²/(N·m²)).
+          </p>
+
+          <h3>What This Means</h3>
+          <ul class="bullets">
+            <li>The <strong>shape</strong> of the Gaussian surface doesn't matter—only the enclosed charge</li>
+            <li>Field lines "emanate" from positive charges and "terminate" on negative charges</li>
+            <li>External charges contribute <strong>zero net flux</strong> (field lines enter and exit)</li>
+            <li>This is true for <strong>any</strong> closed surface, but useful only with symmetry</li>
+          </ul>
+
+          <div class="alert alert--warning">
+            <strong>Important:</strong> Gauss's Law is always true, but only <em>useful</em> for calculating E-fields when symmetry allows 
+            us to pull E out of the integral.
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">The Three Symmetries</h2>
+          <p>Gauss's Law is practical when charge distribution has one of three symmetries:</p>
+          
+          <div class="grid-3">
+            <div class="card">
+              <h3>Spherical Symmetry</h3>
+              <p class="muted">Sphere, charged shell</p>
+              <ul class="list-plain">
+                <li>• Gaussian surface: <strong>Sphere</strong></li>
+                <li>• Field perpendicular to surface everywhere</li>
+                <li>• E constant at radius r</li>
+                <li>• Result: E ∝ 1/r²</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Cylindrical Symmetry</h3>
+              <p class="muted">Infinite line, charged rod</p>
+              <ul class="list-plain">
+                <li>• Gaussian surface: <strong>Cylinder</strong></li>
+                <li>• Field perpendicular to curved surface</li>
+                <li>• E constant at radius r</li>
+                <li>• Result: E ∝ 1/r</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Planar Symmetry</h3>
+              <p class="muted">Infinite sheet, parallel plates</p>
+              <ul class="list-plain">
+                <li>• Gaussian surface: <strong>Pillbox</strong></li>
+                <li>• Field perpendicular to end caps</li>
+                <li>• E constant near plane</li>
+                <li>• Result: E = constant</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Step-by-Step: Applying Gauss's Law</h2>
+          <p>Follow these steps to solve any Gauss's Law problem:</p>
+          
+          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
+            <h3>Step 1: Identify Symmetry</h3>
+            <p>Does the charge distribution have spherical, cylindrical, or planar symmetry? If not, Gauss's Law won't help—use integration instead.</p>
+          </div>
+
+          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
+            <h3>Step 2: Choose Gaussian Surface</h3>
+            <p>Select a surface that matches the symmetry and <strong>passes through the point where you want to find \(E\)</strong>. 
+            The surface should be positioned so \(E\) is constant and perpendicular everywhere (or parallel/zero).</p>
+          </div>
+
+          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
+            <h3>Step 3: Calculate Flux</h3>
+            <p>Evaluate \(\oint \vec{E} \cdot d\vec{A}\). With good symmetry, this simplifies to \(E \cdot A\) where \(A\) is the surface area 
+            (since \(E\) is constant and perpendicular).</p>
+          </div>
+
+          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
+            <h3>Step 4: Find Enclosed Charge</h3>
+            <p>Calculate \(Q_{\text{enclosed}}\) inside your Gaussian surface. For uniform distributions, use \(Q = \rho V\) (volume) or \(Q = \lambda L\) (line) or \(Q = \sigma A\) (surface).</p>
+          </div>
+
+          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
+            <h3>Step 5: Apply Gauss's Law</h3>
+            <p>Set the flux equal to \(Q_{\text{enclosed}}/\varepsilon_0\) and solve for \(E\). Don't forget direction (radial for sphere/cylinder, perpendicular for plane).</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Conductors vs Insulators</h2>
+          <p>The behavior inside charged objects depends on whether they conduct electricity:</p>
+          
+          <div class="grid-2">
+            <div class="card">
+              <h3>Conductors</h3>
+              <p class="muted">Metals, free electrons can move</p>
+              <ul class="bullets">
+                <li><strong>\(E = 0\) inside:</strong> Charges move to surface until equilibrium</li>
+                <li><strong>All charge on surface:</strong> \(Q_{\text{enclosed}} = 0\) for \(r &lt; R\)</li>
+                <li><strong>Discontinuous \(E\):</strong> Sharp jump from 0 to \(E_{\text{surface}}\)</li>
+                <li><strong>In visualizations:</strong> Flat line inside, vertical jump at surface</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>Insulators</h3>
+              <p class="muted">Plastic, glass, charge fixed in volume</p>
+              <ul class="bullets">
+                <li><strong>\(E \neq 0\) inside:</strong> Field increases linearly from center</li>
+                <li><strong>Charge throughout:</strong> \(Q_{\text{enclosed}}\) increases with \(r^3\) (sphere) or \(r^2\) (cylinder)</li>
+                <li><strong>Continuous \(E\):</strong> Smooth transition at surface</li>
+                <li><strong>In visualizations:</strong> Linear rise inside, smooth curve outside</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="formula">
+            <strong>Check the "Conductor" checkbox in visualizations below to toggle between these behaviors!</strong>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Example: Charged Sphere</h2>
+          <p><strong>Problem:</strong> A sphere of radius R carries uniform charge Q. Find E(r) everywhere.</p>
+          
+          <h3>Solution for Conductor (\(r \ge R\) only):</h3>
+          <ol class="bullets">
+            <li><strong>Symmetry:</strong> Spherical → use spherical Gaussian surface</li>
+            <li><strong>Gaussian surface:</strong> Sphere of radius \(r\) centered on charged sphere</li>
+            <li><strong>Flux:</strong> \(E\) perpendicular everywhere, constant at radius \(r\)
+              <div class="formula">$$\Phi = E \cdot 4\pi r^2$$</div>
+            </li>
+            <li><strong>Enclosed charge:</strong> All charge \(Q\) is enclosed (on surface)
+              <div class="formula">$$Q_{\text{enc}} = Q$$</div>
+            </li>
+            <li><strong>Gauss's Law:</strong>
+              <div class="formula">
+                $$E \cdot 4\pi r^2 = \frac{Q}{\varepsilon_0}$$
+                $$E = \frac{Q}{4\pi \varepsilon_0 r^2} = \frac{kQ}{r^2}$$
+              </div>
+            </li>
+          </ol>
+
+          <div class="alert alert--success">
+            <strong>Result:</strong> Same as point charge! This is why we can treat charged spheres as point charges when outside them.
+          </div>
+
+          <p style="margin-top: 1rem;"><strong>Try it below:</strong> Set Gaussian radius &gt; Sphere radius and observe \(E = kQ/r^2\) on the graph.</p>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Charged Sphere Visualization</h2>
+          <p class="muted">Adjust parameters and observe the Gaussian sphere for r &lt; R and r &gt; R.</p>
+
+          <div class="grid-2">
+            <div class="card viewer-card">
+              <div class="viewer" id="sphereCanvas"></div>
+              <button id="resetSphereView" class="reset-btn" title="Reset camera view">↺ Reset View</button>
+              <div class="controls-hint">🎮 WASD/QE to move • Mouse to rotate/pan • Scroll to zoom</div>
+              <div class="mobile-controls" id="sphereMobileControls">
+                <button class="mobile-btn" data-key="w" title="Move Forward">▲</button>
+                <div class="mobile-controls-row">
+                  <button class="mobile-btn" data-key="a" title="Move Left">◀</button>
+                  <button class="mobile-btn" data-key="s" title="Move Back">▼</button>
+                  <button class="mobile-btn" data-key="d" title="Move Right">▶</button>
+                </div>
+                <div class="mobile-controls-row">
+                  <button class="mobile-btn" data-key="q" title="Move Up">Q</button>
+                  <button class="mobile-btn" data-key="e" title="Move Down">E</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card chart-card">
+              <h3>Sphere: E(r) vs Distance</h3>
+              <div id="sphereChart"></div>
+              <p class="help-text">Linear plot showing 1/r² inverse-square law outside the sphere. The orange marker indicates the current Gaussian surface position.</p>
+            </div>
+          </div>
+
+          <div class="card controls-card" style="margin-top: 0.75rem;">
+            <h3>Sphere Controls</h3>
+            <div class="control-group">
+              <label for="sphereCharge">Charge Q (nC): <span id="sphereChargeVal">2.0</span></label>
+              <input id="sphereCharge" type="range" min="-10" max="10" step="0.1" value="2" class="sphere-control" />
+            </div>
+            <div class="control-group">
+              <label for="sphereRadius">Sphere Radius R (cm): <span id="sphereRadiusVal">5.0</span></label>
+              <input id="sphereRadius" type="range" min="1" max="10" step="0.1" value="5" class="sphere-control" />
+            </div>
+            <div class="control-group">
+              <label for="sphereGaussian">Gaussian Radius r (cm): <span id="sphereGaussianVal">8.0</span></label>
+              <input id="sphereGaussian" type="range" min="0.5" max="20" step="0.1" value="8" class="sphere-control" />
+            </div>
+            
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="sphereConductor" class="sphere-control" checked />
+                <span>Conductor (E=0 inside)</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="sphereShowField" class="sphere-control" />
+                <span>Show E-field vectors (from charge)</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="sphereShowDA" class="sphere-control" />
+                <span>Show dA vectors (on Gaussian)</span>
+              </label>
+            </div>
+            
+            <div class="readout">
+              <div><span class="label">E(r) at Gaussian surface:</span> <span id="sphereEVal" class="value">—</span></div>
+            </div>
+            <p class="help-text">Positive Q renders red; negative Q renders blue. Orange E-field vectors originate from the charged sphere. Green dA vectors (area elements) point outward from the Gaussian surface.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Infinite Line Charge Visualization</h2>
+          <p class="muted">The charged rod (shown in color) represents an infinite line charge. The Gaussian cylinder (semi-transparent) has adjustable length L.</p>
+
+          <div class="grid-2">
+            <div class="card viewer-card">
+              <div class="viewer" id="cylinderCanvas"></div>
+              <button id="resetCylinderView" class="reset-btn" title="Reset camera view">↺ Reset View</button>
+              <div class="controls-hint">🎮 WASD/QE to move • Mouse to rotate/pan • Scroll to zoom</div>
+              <div class="mobile-controls" id="cylinderMobileControls">
+                <button class="mobile-btn" data-key="w" title="Move Forward">▲</button>
+                <div class="mobile-controls-row">
+                  <button class="mobile-btn" data-key="a" title="Move Left">◀</button>
+                  <button class="mobile-btn" data-key="s" title="Move Back">▼</button>
+                  <button class="mobile-btn" data-key="d" title="Move Right">▶</button>
+                </div>
+                <div class="mobile-controls-row">
+                  <button class="mobile-btn" data-key="q" title="Move Up">Q</button>
+                  <button class="mobile-btn" data-key="e" title="Move Down">E</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card chart-card">
+              <h3>Cylinder: E(r) vs Distance</h3>
+              <div id="cylinderChart"></div>
+              <p class="help-text">Linear plot showing 1/r inverse relationship outside the line charge. The orange marker indicates the current Gaussian surface position.</p>
+            </div>
+          </div>
+
+          <div class="card controls-card" style="margin-top: 0.75rem;">
+            <h3>Line Charge Controls</h3>
+            <div class="control-group">
+              <label for="cylinderLambda">Linear Charge Density λ (nC/m): <span id="cylinderLambdaVal">5.0</span></label>
+              <input id="cylinderLambda" type="range" min="-20" max="20" step="0.1" value="5" class="cylinder-control" />
+            </div>
+            <div class="control-group">
+              <label for="cylinderRadius">Rod Radius a (cm): <span id="cylinderRadiusVal">3.0</span></label>
+              <input id="cylinderRadius" type="range" min="1" max="10" step="0.1" value="3" class="cylinder-control" />
+            </div>
+            <div class="control-group">
+              <label for="cylinderGaussian">Gaussian Radius r (cm): <span id="cylinderGaussianVal">6.0</span></label>
+              <input id="cylinderGaussian" type="range" min="0.5" max="30" step="0.1" value="6" class="cylinder-control" />
+            </div>
+            <div class="control-group">
+              <label for="cylinderLength">Gaussian Length L (m): <span id="cylinderLengthVal">1.0</span></label>
+              <input id="cylinderLength" type="range" min="0.2" max="3" step="0.1" value="1" class="cylinder-control" />
+            </div>
+            
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="cylinderConductor" class="cylinder-control" checked />
+                <span>Conductor (E=0 inside)</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="cylinderShowField" class="cylinder-control" />
+                <span>Show E-field vectors (from charge)</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="cylinderShowDA" class="cylinder-control" />
+                <span>Show dA vectors (on Gaussian)</span>
+              </label>
+            </div>
+            
+            <div class="readout">
+              <div><span class="label">E(r) at Gaussian surface:</span> <span id="cylinderEVal" class="value">—</span></div>
+            </div>
+            <p class="help-text">The long rod represents an infinite line charge. Orange E-field vectors radiate from the charged rod. Green dA vectors point outward from the finite Gaussian cylinder surface.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Infinite Charged Plane Visualization</h2>
+          <p class="muted">An infinite plane with uniform surface charge density σ. The electric field is constant everywhere!</p>
+          
+          <div class="alert alert--info" style="margin-bottom: 1rem;">
+            <strong>🔬 Unique Property of Planar Symmetry:</strong> Unlike spheres (\(E \propto 1/r^2\)) and cylinders (\(E \propto 1/r\)), 
+            an infinite plane produces <strong>constant \(E\) at ALL distances</strong>! <strong>Single plane:</strong> Pillbox centered on plane to always enclose charge. 
+            <strong>Two planes:</strong> Move pillbox between plates to see \(E = \sigma/\varepsilon_0\) inside, \(E = 0\) outside.
+          </div>
+
+          <div class="grid-2">
+            <div class="card viewer-card">
+              <div class="viewer" id="planeCanvas"></div>
+              <button id="resetPlaneView" class="reset-btn" title="Reset camera view">↺ Reset View</button>
+              <div class="controls-hint">🎮 WASD/QE to move • Mouse to rotate/pan • Scroll to zoom</div>
+              <div class="mobile-controls" id="planeMobileControls">
+                <button class="mobile-btn" data-key="w" title="Move Forward">▲</button>
+                <div class="mobile-controls-row">
+                  <button class="mobile-btn" data-key="a" title="Move Left">◀</button>
+                  <button class="mobile-btn" data-key="s" title="Move Back">▼</button>
+                  <button class="mobile-btn" data-key="d" title="Move Right">▶</button>
+                </div>
+                <div class="mobile-controls-row">
+                  <button class="mobile-btn" data-key="q" title="Move Up">Q</button>
+                  <button class="mobile-btn" data-key="e" title="Move Down">E</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card chart-card">
+              <h3>Plane: E vs Distance</h3>
+              <div id="planeChart"></div>
+              <!-- Chart help text removed to prevent overlap -->
+            </div>
+          </div>
+
+          <div class="card controls-card" style="margin-top: 0.75rem;">
+            <h3>Plane Controls</h3>
+            <div class="control-group">
+              <label for="planeSigma">Surface Charge Density σ (nC/m²): <span id="planeSigmaVal">5.0</span></label>
+              <input id="planeSigma" type="range" min="-10" max="10" step="0.1" value="5" class="plane-control" />
+            </div>
+            <div class="readout" style="margin-top: 0.5rem; margin-bottom: 0.75rem;">
+              <div><span class="label">Pillbox Position z (cm):</span> <span id="planeDistanceVal" class="value">0.0 (centered)</span></div>
+            </div>
+            <div class="control-group" id="planeSeparationGroup" style="display: none;">
+              <label for="planeSeparation">Plane Separation d (cm): <span id="planeSeparationVal">10.0</span></label>
+              <input id="planeSeparation" type="range" min="5" max="30" step="0.5" value="10" class="plane-control" />
+            </div>
+            
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="planeTwoPlanes" class="plane-control" />
+                <span>Two Parallel Planes (opposite charge)</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="planeShowField" class="plane-control" />
+                <span>Show E-field vectors</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="planeShowDA" class="plane-control" />
+                <span>Show dA vectors (on pillbox)</span>
+              </label>
+            </div>
+            
+            <div class="readout">
+              <div><span class="label">E(z) at observation point:</span> <span id="planeEVal" class="value">—</span></div>
+            </div>
+            <p class="help-text" style="font-size: 0.85rem;">Cyan pillbox = Gaussian surface. <strong>Single plane:</strong> Pillbox centered on plane, E-vectors point away (positive σ) or toward (negative σ) plane. <strong>Two planes:</strong> Pillbox on positive plate, E-vectors point from + to - plate, dA only on outward cap. All E-vectors correctly show field direction based on charge sign.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Key Observations</h2>
+          <ul class="bullets">
+            <li><strong>Sphere:</strong> \(E \propto 1/r^2\) outside. Doubling \(r\) reduces \(E\) by a factor of 4. (Inverse-square law)</li>
+            <li><strong>Cylinder:</strong> \(E \propto 1/r\) outside. Doubling \(r\) halves \(E\). (Inverse law)</li>
+            <li><strong>Plane:</strong> \(E = \text{constant}\) everywhere! <strong>No distance dependence</strong>—this is the remarkable property of infinite planes.</li>
+            <li><strong>Two parallel plates:</strong> Fields add between plates (\(E = \sigma/\varepsilon_0\)), cancel outside (\(E = 0\))—the basis for capacitors!</li>
+            <li>The cyan pillbox is the Gaussian surface for planes—a short cylinder whose end caps (perpendicular to Z) capture flux.</li>
+            <li>Orange E-field vectors show field direction and magnitude at the observation point (or between plates).</li>
+            <li>Green dA vectors point outward from Gaussian surface caps—for pillbox, this means along ±Z axis.</li>
+            <li>Move the observation distance slider for planes and watch: unlike sphere/cylinder, the graph stays flat (constant E)!</li>
+          </ul>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">When to Use Gauss's Law</h2>
+          <p>Gauss's Law is your <strong>first choice</strong> when you see:</p>
+          
+          <div class="grid-2">
+            <div class="card">
+              <h3>✅ Use Gauss's Law</h3>
+              <ul class="bullets">
+                <li>Spherical symmetry (sphere, shell)</li>
+                <li>Cylindrical symmetry (infinite line/rod)</li>
+                <li>Planar symmetry (infinite sheet, parallel plates)</li>
+                <li>Finding E everywhere around symmetric object</li>
+                <li>Proving E = 0 inside conductors</li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h3>❌ Use Direct Integration</h3>
+              <ul class="bullets">
+                <li>Finite objects (short rod, disk, ring)</li>
+                <li>Asymmetric distributions</li>
+                <li>Finding E at specific points only</li>
+                <li>Multiple charges without symmetry</li>
+                <li>Non-uniform charge distributions</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Practice Tips</h2>
+          <div class="alert alert--info">
+            <strong>Common Mistakes to Avoid:</strong>
+          </div>
+          <ul class="bullets">
+            <li><strong>Forgetting symmetry:</strong> Gauss's Law only simplifies calculations when E is constant on the surface</li>
+            <li><strong>Wrong enclosed charge:</strong> For r &lt; R, only the charge <em>inside</em> your Gaussian surface matters</li>
+            <li><strong>Mixing conductor/insulator:</strong> Conductors have E=0 inside; insulators don't</li>
+            <li><strong>Sign errors:</strong> E points away from positive charge, toward negative charge</li>
+            <li><strong>Units:</strong> Convert nC → C and cm → m before calculating!</li>
+          </ul>
+
+          <div class="alert alert--success" style="margin-top: 1rem;">
+            <strong>Pro Tip:</strong> After solving with Gauss's Law, check dimensions. E-field must have units N/C or V/m.
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="h5 eyebrow">Summary: The Power of Gauss's Law</h2>
+          <p>You've learned that while Coulomb's Law requires difficult integrals for continuous charge distributions, 
+          Gauss's Law provides an elegant shortcut when symmetry is present. By choosing the right Gaussian surface, 
+          you can calculate electric fields in just a few steps.</p>
+
+          <div class="formula" style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); padding: 1.5rem; margin: 1rem 0;">
+            <strong>The Key Equation:</strong>
+            $$\oint \vec{E} \cdot d\vec{A} = \frac{Q_{\text{enclosed}}}{\varepsilon_0}$$
+          </div>
+
+          <p><strong>Master these concepts:</strong></p>
+          <ul class="bullets">
+            <li>Electric flux measures field "passing through" a surface</li>
+            <li>Gauss's Law relates total flux to enclosed charge</li>
+            <li>Symmetry is essential—spherical, cylindrical, or planar</li>
+            <li>Choose Gaussian surfaces where E is constant and perpendicular</li>
+            <li>Conductors have E=0 inside; insulators have E increasing from center</li>
+          </ul>
+
+          <p style="margin-top: 1rem;">
+            <strong>Keep practicing!</strong> Use the visualizations above to develop intuition for how E-fields behave 
+            around symmetric charge distributions. Experiment with different parameters and watch the graphs respond in real-time.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="hw-footer">
+      <div class="container container--wide">
+        <div class="muted">© Harvard‑Westlake · Educational Widget</div>
+      </div>
+    </footer>
+  </body>
+</html>
