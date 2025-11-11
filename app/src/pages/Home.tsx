@@ -48,6 +48,14 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
+          <Link className="widget-card" to="/physics">
+            <div className="title-row">
+              <h3>Physics</h3>
+            </div>
+            <p>Select a physics simulation to explore.</p>
+            <span className="button">Open</span>
+          </Link>
+
           <Link className="widget-card" to="/history">
             <div className="title-row">
               <h3>History</h3>
