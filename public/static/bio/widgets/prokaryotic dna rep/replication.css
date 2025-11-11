@@ -13,12 +13,18 @@
 
 /* === Shared Style Guide (HTCS) === */
 body {
-  font-family: 'Source Sans', Arial, sans-serif;
+  font-family: 'Source Sans 3', Arial, sans-serif;
   line-height: 1.6;
 }
 
 h1, h2, h3 { font-weight: 900; }
 h4, h5, h6 { font-weight: 600; }
+
+.h1 {
+  font-size: 2.25rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
 
 .red { color: #B1001A; text-transform: uppercase; }
 a:hover { text-decoration: underline; color: #B1001A; }
@@ -34,14 +40,29 @@ textarea:focus-visible {
   outline-offset: 1px;
 }
 
+/* Button base (match HW guide: 44px min height, clear focus) */
+.controls button {
+  appearance: none;
+  padding: 10px 14px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.controls button:focus-visible {
+  outline: 2px solid #B1001A;
+  outline-offset: 2px;
+}
+
 button.primary {
   background: #B1001A;
   color: #ffffff;
   border-radius: 6px;
-  border: none;
 }
+button.primary:hover { background: #8f0015; }
 button.outline {
-  border: 2px solid #B1001A;
+  border: 1px solid #B1001A;
   color: #B1001A;
   background: transparent;
   border-radius: 6px;
@@ -59,7 +80,7 @@ button.ghost {
   color: #ffffff;
 }
 .controls button.outline:disabled {
-  background: #f1f5f9; /* light gray fill */
+  background: #f8fafc; /* light gray fill */
   color: #94a3b8;      /* gray text */
   border-color: #cbd5e1;
 }
