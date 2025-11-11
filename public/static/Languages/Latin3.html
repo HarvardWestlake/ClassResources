@@ -718,11 +718,21 @@
         });
 
         // Assign colors per sentence (reset color index for each sentence)
+        // Each sentence starts with a different color than the previous sentence ended with
         const colorIndexBySentence = new Map();
+        let lastUsedColorIdx = -1; // Track the last color used in previous sentence
+
         groupsWithSentence.forEach(g => {
             if (!colorIndexBySentence.has(g.sentenceNum)) {
-                colorIndexBySentence.set(g.sentenceNum, 0);
+                // Starting a new sentence - ensure first color is different from last sentence's last color
+                let startColorIdx = 0;
+                if (lastUsedColorIdx !== -1) {
+                    // Start with the next color in sequence to ensure visual separation
+                    startColorIdx = (lastUsedColorIdx + 1) % palette.length;
+                }
+                colorIndexBySentence.set(g.sentenceNum, startColorIdx);
             }
+
             const colorIdx = colorIndexBySentence.get(g.sentenceNum);
             const color = palette[colorIdx % palette.length];
 
@@ -733,7 +743,10 @@
                 });
             });
 
-            colorIndexBySentence.set(g.sentenceNum, colorIdx + 1);
+            // Increment color index for this sentence
+            const nextColorIdx = (colorIdx + 1) % palette.length;
+            colorIndexBySentence.set(g.sentenceNum, nextColorIdx);
+            lastUsedColorIdx = colorIdx; // Track last used color
         });
 
         // Replace words with spans in order using regex
@@ -842,7 +855,13 @@
 
     function buildTooltipHtml(t) {
         if (!t) return '';
-        const def = t.definition || 'Unknown';
+        let def = t.definition || 'Unknown';
+
+        // Safety check: if definition is same as the Latin word (normalized or original), show "Unknown"
+        if (def === t.normalized || def === t.original || def === 'unknown') {
+            def = 'Unknown';
+        }
+
         const pos = t.pos || 'Unknown';
         let extra = '';
         if (pos === 'noun') {
@@ -3334,7 +3353,9 @@ console.log('[DEBUG] Final subject:', structure.subject);
         'pono': { pos: 'verb', def: 'put, place' }, 'ponit': { pos: 'verb', def: 'put, place' }, 'posui': { pos: 'verb', def: 'put, place' }, 'positum': { pos: 'verb', def: 'put, place' }, 'ponere': { pos: 'verb', def: 'put, place' },
         'capio': { pos: 'verb', def: 'take, capture' }, 'capis': { pos: 'verb', def: 'take' }, 'capit': { pos: 'verb', def: 'takes' }, 'capimus': { pos: 'verb', def: 'take' }, 'capiunt': { pos: 'verb', def: 'take' }, 'cepi': { pos: 'verb', def: 'took, captured' }, 'captum': { pos: 'verb', def: 'take, capture' }, 'capere': { pos: 'verb', def: 'take, capture' },
         'capior': { pos: 'verb', def: 'am taken, am captured' }, 'caperis': { pos: 'verb', def: 'are taken' }, 'capitur': { pos: 'verb', def: 'is taken, is captured' }, 'capimur': { pos: 'verb', def: 'are taken' }, 'capimini': { pos: 'verb', def: 'are taken' }, 'capiuntur': { pos: 'verb', def: 'are taken, are captured' },
-        'habeo': { pos: 'verb', def: 'have, hold' }, 'habet': { pos: 'verb', def: 'have, hold' }, 'habui': { pos: 'verb', def: 'have, hold' }, 'habitum': { pos: 'verb', def: 'have, hold' }, 'habere': { pos: 'verb', def: 'have, hold' },
+        'habeo': { pos: 'verb', def: 'have, hold' }, 'habes': { pos: 'verb', def: 'have' }, 'habet': { pos: 'verb', def: 'has' }, 'habemus': { pos: 'verb', def: 'have' }, 'habetis': { pos: 'verb', def: 'have' }, 'habent': { pos: 'verb', def: 'have' },
+        'habui': { pos: 'verb', def: 'had' }, 'habuisti': { pos: 'verb', def: 'had' }, 'habuit': { pos: 'verb', def: 'had' }, 'habuimus': { pos: 'verb', def: 'had' }, 'habuistis': { pos: 'verb', def: 'had' }, 'habuerunt': { pos: 'verb', def: 'had' },
+        'habitum': { pos: 'verb', def: 'have, hold' }, 'habere': { pos: 'verb', def: 'have, hold' },
         'vivo': { pos: 'verb', def: 'live' }, 'vivit': { pos: 'verb', def: 'live' }, 'vixi': { pos: 'verb', def: 'live' }, 'victum': { pos: 'verb', def: 'live' }, 'vivere': { pos: 'verb', def: 'live' },
         'uiuo': { pos: 'verb', def: 'live' }, 'uiuit': { pos: 'verb', def: 'live' }, 'uixi': { pos: 'verb', def: 'live' }, 'uictum': { pos: 'verb', def: 'live' }, 'uiuere': { pos: 'verb', def: 'live' },
         'eo': { pos: 'verb', def: 'go' }, 'it': { pos: 'verb', def: 'go' }, 'ire': { pos: 'verb', def: 'go' }, 'iit': { pos: 'verb', def: 'go' }, 'ierunt': { pos: 'verb', def: 'go' },
