@@ -42,6 +42,28 @@
         --card: #ffffff;
         --accent: var(--hw-red);
       }
+      /* Dark mode variable overrides */
+      body[data-theme="dark"] {
+        --bg: #0f172a; /* slate-900 */
+        --text: #e5e7eb; /* slate-200 */
+        --card: #111827; /* slate-900-ish */
+        --hw-gray-200: #334155; /* slate-700 */
+        --hw-gray-100: #1f2937; /* slate-800 */
+        --hw-gray-600: #94a3b8; /* slate-400 */
+        --hw-gray-700: #cbd5e1; /* slate-300 for strokes on dark */
+      }
+      body[data-theme="dark"] .tsw-grid {
+        stroke: #1e293b;
+      }
+      body[data-theme="dark"] .tsw-area {
+        fill: rgba(230, 0, 0, 0.18);
+      }
+      body[data-theme="dark"] .widget-grid .card,
+      body[data-theme="dark"] .card {
+        border-color: var(--hw-gray-200);
+        background: var(--card);
+        color: var(--text);
+      }
       * {
         box-sizing: border-box;
       }
@@ -433,6 +455,13 @@
           <a href="https://learnhw.web.app/admin" target="_blank" rel="noopener"
             >Admin</a
           >
+          <button
+            class="btn secondary"
+            id="theme-toggle"
+            style="margin-left: 12px"
+          >
+            Dark
+          </button>
         </nav>
       </header>
 
@@ -663,6 +692,49 @@
         <a href="#" id="open-privacy">Privacy settings</a>
       </footer>
     </div>
+
+    <script>
+      (function () {
+        function applyTheme(theme) {
+          try {
+            document.body.setAttribute("data-theme", theme);
+          } catch (e) {}
+          var btn = document.getElementById("theme-toggle");
+          if (btn) btn.textContent = theme === "dark" ? "Light" : "Dark";
+          try {
+            localStorage.setItem("tsw_theme", theme);
+          } catch (e) {}
+        }
+        function initTheme() {
+          var saved = null;
+          try {
+            saved = localStorage.getItem("tsw_theme");
+          } catch (e) {}
+          var theme =
+            saved ||
+            (window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light");
+          applyTheme(theme);
+          var btn = document.getElementById("theme-toggle");
+          if (btn) {
+            btn.addEventListener("click", function () {
+              var next =
+                document.body.getAttribute("data-theme") === "dark"
+                  ? "light"
+                  : "dark";
+              applyTheme(next);
+            });
+          }
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", initTheme);
+        } else {
+          initTheme();
+        }
+      })();
+    </script>
 
     <div
       id="cookie-banner"
