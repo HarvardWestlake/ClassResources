@@ -118,7 +118,7 @@ function scenarioDefaults(kind) {
       viscosity: 10, // Increased from 5 to make it much harder to evaporate
       hbStrength: 2.5, // Increased from 1.8 to make hydrogen bonds stronger
       dipole: 0.0,
-      N: 300, // Increased from 200 to 300
+      N: 200,
       color: "#5ac8fa",
     };
   }
@@ -127,10 +127,10 @@ function scenarioDefaults(kind) {
       label: "DMSO (dipole–dipole)",
       epsilon: 0.6,
       sigma: 10,
-      viscosity: 1.2,
+      viscosity: 0.1,
       hbStrength: 0.0,
-      dipole: 1.6,
-      N: 300, // Increased from 200 to 300
+      dipole: 0.6,
+      N: 200,
       color: "#ffd60a",
     };
   }
@@ -142,7 +142,7 @@ function scenarioDefaults(kind) {
     viscosity: 0.05, // Extremely low viscosity - particles barely stick together
     hbStrength: 0.0,
     dipole: 0.0,
-    N: 300, // Increased from 200 to 300
+    N: 200,
     color: "#8ab6ff",
   };
 }
@@ -151,7 +151,7 @@ class IMFSim {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.width = canvas.clientWidth || 450; // Halved from 900 to 450
+    this.width = canvas.clientWidth || 225; // Half-width default
     this.height = canvas.clientHeight || 420;
     this.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     this.setSize();
@@ -167,7 +167,7 @@ class IMFSim {
     this.moleculesVisible = true;
     this.lastThermoMs = 0;
     this.heatingOn = false;
-    this.heatIntensity = 3.0; // Heat intensity multiplier (0-3)
+    this.heatIntensity = 5.0; // Heat intensity multiplier (0-5)
     this.heatAccel = 80; // px/s^2 along velocity direction when heating
     // Gas and escape tracking
     this.gasCount = 0; // Current gas particle count
@@ -177,6 +177,7 @@ class IMFSim {
     this.currentScenario = null; // Track current scenario for history
     this.gasStart = performance.now(); // Start time for current scenario
     this.trialEnded = false; // Track if current trial has ended at 30s
+    this.completedTrials = new Set(); // Track which scenarios have completed trials
     this.spawnParticles();
     this.onVisibility = () => {
       if (document.hidden) this.stop();
@@ -185,7 +186,7 @@ class IMFSim {
   }
 
   setSize() {
-    const cssW = this.canvas.clientWidth || 450; // Halved from 900
+    const cssW = this.canvas.clientWidth || 225; // Half-width default
     const cssH = this.canvas.clientHeight || 420;
     this.width = cssW;
     this.height = cssH;
@@ -208,7 +209,7 @@ class IMFSim {
   }
 
   adjustParticleCount(targetN) {
-    const n = Math.max(1, Math.min(200, Math.floor(targetN))); // Limit to 200
+    const n = Math.max(1, Math.min(500, Math.floor(targetN))); // Limit to 500
     this.params.N = n;
     // Remove extras
     while (this.particles.length > n) this.particles.pop();
@@ -229,8 +230,8 @@ class IMFSim {
   changeScenario(kind) {
     const def = scenarioDefaults(kind);
     this.params = { ...def, kT: this.params.kT };
-    // Cap particle count at 200
-    if (this.params.N > 200) this.params.N = 200;
+    // Cap particle count at 500
+    if (this.params.N > 500) this.params.N = 500;
     const previousScenario = this.currentScenario;
     this.currentScenario = kind; // Track scenario for history
     // If switching scenarios while heating, start a new trial at t=0 for the new scenario
@@ -609,7 +610,7 @@ class IMFSim {
             const distFromFloor = floorY - (p.pos[1] + (p.radius || 4.5));
             if (distFromFloor > 0 && distFromFloor < 50) {
               // Attraction decreases with distance, strongest near floor
-              const attractionFactor = 1.0 - (distFromFloor / 50);
+              const attractionFactor = 1.0 - distFromFloor / 50;
               p.acc[1] += floorAttractionStrength * attractionFactor;
             }
           }
@@ -661,16 +662,18 @@ class IMFSim {
       // Map viscosity to escape multiplier: honey (10) -> 4.0, DMSO (1.2) -> 2.2, hexane (0.05) -> 1.5
       const v = this.params.viscosity || 0;
       // Better separation: DMSO should be significantly harder to evaporate than hexane
-      const escapeMultiplier = v > 5 
-        ? 1.5 + (v - 5) * 0.5  // Honey: 4.0
-        : v > 1 
-          ? 1.5 + (v - 0.05) * 0.5  // DMSO: 1.5 + 1.15*0.5 = 2.075 (increased from 1.62)
-          : 1.5 + v * 0.1;  // Hexane: 1.505
+      const escapeMultiplier =
+        v > 5
+          ? 1.5 + (v - 5) * 0.5 // Honey: 4.0
+          : v > 1
+          ? 1.5 + (v - 0.05) * 0.9 // DMSO: 1.5 + 1.15*0.9 = 2.535 (increased from 1.62)
+          : 1.5 + v * 0.1; // Hexane: 1.505
       // Map viscosity to thermal threshold [0,1]: honey (10) -> 0.85, DMSO (1.2) -> 0.6, hexane (0.05) -> 0.26
       // Piecewise: low v uses linear, high v uses slower scaling
-      const thermalBoilingThreshold = v <= 2 
-        ? Math.min(0.95, 0.25 + v * 0.29)  // DMSO: 0.25 + 1.2*0.29 = 0.598, Hexane: 0.25 + 0.05*0.29 = 0.2645
-        : Math.min(0.95, 0.5 + (v - 2) * 0.04375); // Honey: 0.5 + 8*0.04375 = 0.85
+      const thermalBoilingThreshold =
+        v <= 2
+          ? Math.min(0.95, 0.25 + v * 0.29) // DMSO: 0.25 + 1.2*0.29 = 0.598, Hexane: 0.25 + 0.05*0.29 = 0.2645
+          : Math.min(0.95, 0.5 + (v - 2) * 0.04375); // Honey: 0.5 + 8*0.04375 = 0.85
 
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
@@ -694,19 +697,24 @@ class IMFSim {
             // Surface/edge particles: material-dependent evaporation threshold
             // Honey needs highest threshold, DMSO needs moderate-high, hexane needs lowest
             // Better separation between DMSO and hexane
-            const surfaceMultiplier = v > 5 
-              ? 1.8  // Honey: 1.8
-              : v > 1 
-                ? 1.5  // DMSO: 1.5 (increased from 1.2)
-                : 0.7;  // Hexane: 0.7 (reduced from 0.8 for faster evaporation)
+            const surfaceMultiplier =
+              v > 5
+                ? 1.8 // Honey: 1.8
+                : v > 1
+                ? 1.5 // DMSO: 1.5 (increased from 1.2)
+                : 0.7; // Hexane: 0.7 (reduced from 0.8 for faster evaporation)
             const surfaceThreshold = vGas2 * surfaceMultiplier;
             // Surface thermal threshold: DMSO needs significantly more thermal energy than hexane
-            const surfaceThermalThreshold = v > 5 
-              ? 0.4 + (v - 2) * 0.05  // Honey: 0.8
-              : v > 1 
-                ? 0.2 + v * 0.3  // DMSO: 0.2 + 1.2*0.3 = 0.56 (increased from 0.39)
-                : 0.12 + v * 0.15;  // Hexane: 0.12 + 0.05*0.15 = 0.1275 (reduced from 0.16)
-            if (v2 > surfaceThreshold && thermalEnergy > surfaceThermalThreshold) {
+            const surfaceThermalThreshold =
+              v > 5
+                ? 0.4 + (v - 2) * 0.05 // Honey: 0.8
+                : v > 1
+                ? 0.2 + v * 0.3 // DMSO: 0.2 + 1.2*0.3 = 0.56 (increased from 0.39)
+                : 0.12 + v * 0.15; // Hexane: 0.12 + 0.05*0.15 = 0.1275 (reduced from 0.16)
+            if (
+              v2 > surfaceThreshold &&
+              thermalEnergy > surfaceThermalThreshold
+            ) {
               p.state = "gas";
               p.gasUntil = nowS + 1500;
               p.lastStateChange = nowS;
@@ -1160,10 +1168,16 @@ class IMFSim {
         ctx.fillText(splashText4, w / 2, h / 2 + 15);
 
         // Draw restart button
-        const btnX = w / 2 - 60;
-        const btnY = h / 2 + 40;
-        const btnW = 120;
+        // Check if all 3 trials have been completed
+        const allTrialsCompleted = this.completedTrials.size >= 3;
+        const buttonText = allTrialsCompleted
+          ? "Restart Trials"
+          : "Go to Next Trial";
+        // Adjust button width for longer text
+        const btnW = allTrialsCompleted ? 140 : 120;
         const btnH = 35;
+        const btnX = w / 2 - btnW / 2;
+        const btnY = h / 2 + 40;
 
         ctx.fillStyle = "#dc2626";
         ctx.fillRect(btnX, btnY, btnW, btnH);
@@ -1173,10 +1187,16 @@ class IMFSim {
 
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, Roboto";
-        ctx.fillText("Go to Next Trial", w / 2, btnY + btnH / 2 + 4);
+        ctx.fillText(buttonText, w / 2, btnY + btnH / 2 + 4);
 
         // Store button bounds for click detection
-        this.restartButtonBounds = { x: btnX, y: btnY, w: btnW, h: btnH };
+        this.restartButtonBounds = {
+          x: btnX,
+          y: btnY,
+          w: btnW,
+          h: btnH,
+          allTrialsCompleted,
+        };
 
         ctx.textAlign = "left";
         ctx.textBaseline = "alphabetic";
@@ -1744,6 +1764,20 @@ class IMFSim {
       if (t >= 30) {
         this.trialEnded = true;
         this.stop(); // Stop simulation at 30s
+        // Mark current scenario as completed
+        if (this.currentScenario) {
+          this.completedTrials.add(this.currentScenario);
+        }
+        // Check playground goal if in playground mode
+        if (typeof window.checkPlaygroundGoal === "function") {
+          try {
+            const total =
+              this.particles.length + (this.escapedParticles?.length || 0);
+            const escapedPct =
+              total > 0 ? Math.round((this.escapedCount / total) * 100) : 0;
+            window.checkPlaygroundGoal(escapedPct);
+          } catch (_) {}
+        }
       }
     }
 
@@ -1777,6 +1811,14 @@ class IMFSim {
         this.drawGasGraph();
       }
     } catch (_) {}
+
+    // Update playground goal progress
+    if (typeof window.updatePlaygroundGoalProgress === "function") {
+      try {
+        window.updatePlaygroundGoalProgress();
+      } catch (_) {}
+    }
+
     this.frameId = requestAnimationFrame(this.loop);
   };
 
@@ -1915,7 +1957,7 @@ IMFSim.prototype.setGasCanvas = function (canvas) {
     ctx.clearRect(0, 0, w, h);
 
     // Group history by scenario - only track escaped particles
-    const scenarios = ["honey", "dmso", "hexane"];
+    const scenarios = ["honey", "dmso", "hexane", "playground"];
     const scenarioData = {};
     scenarios.forEach((sc) => {
       scenarioData[sc] = {
@@ -2037,6 +2079,7 @@ IMFSim.prototype.setGasCanvas = function (canvas) {
       honey: "#3a9bc8",
       dmso: "#ccaa08",
       hexane: "#6a8acc",
+      playground: "#8b5cf6", // Purple for playground
     };
 
     // Draw escaped count lines (solid) - show all scenarios overlaid
@@ -2111,11 +2154,21 @@ function getCSSVar(name, fallback) {
 function scenarioColor(kind) {
   if (kind === "honey") return getCSSVar("--accent", "#5ac8fa");
   if (kind === "dmso") return getCSSVar("--yellow", "#ffd60a");
+  if (kind === "playground") return "#8b5cf6"; // Purple for playground
   return getCSSVar("--green", "#34c759"); // hexane
 }
 
 function applyIMFCoeffsFor(sim, kind) {
   const v = Math.max(0, Number(sim.params.viscosity || 0));
+  if (kind === "playground") {
+    // Use playground parameters directly
+    const hb = sim.params.hbStrength || 0;
+    const dp = sim.params.dipole || 0;
+    sim.params.cohLJ = 1.0 + 0.5 * v;
+    sim.params.cohHB = hb > 0 ? 2.0 + hb * 1.5 : 0;
+    sim.params.cohDP = dp > 0 ? 1.5 + dp * 1.2 : 0;
+    return;
+  }
   if (kind === "honey") {
     // Hydrogen bonds: strongest IMF
     sim.params.hbStrength = 3.0 * v; // Increased to make H-bonds clearly strongest
@@ -2159,19 +2212,86 @@ export function mountIMFs(root) {
   // IMFs local shim styles for sizing and rounding
   const shim = document.createElement("style");
   shim.textContent = `
-    .imfs-shell { padding: 12px 0; max-width: 100%; width: 100%; }
-    .container.container--wide { max-width: 100%; width: 100%; padding-left: 4px; padding-right: 4px; }
-    .imfs-wrap { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
-    @media (max-width: 1100px) { .imfs-wrap { grid-template-columns: 1fr; } }
-    .imfs-sim-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
-    @media (max-width: 1400px) { .imfs-sim-container { grid-template-columns: 1fr; } }
-    .imfs-sim { width: 100% !important; max-width: 100% !important; height: 420px; display: block; border-radius: 12px; background: #ffffff; overflow: hidden; box-sizing: border-box; }
+    .imfs-shell { padding: 12px 0; max-width: 100%; width: 100%; overflow-x: hidden; }
+    .container.container--wide { max-width: 100%; width: 100%; padding-left: 4px; padding-right: 4px; box-sizing: border-box; overflow-x: hidden; }
+    .imfs-wrap { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    /* Compact controls styling */
+    .imfs-controls-row { grid-column: 1; display: block; }
+    .imfs-controls-row .panel { max-width: 100%; padding: 12px; box-sizing: border-box; }
+    .controls-compact { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-start; width: 100%; box-sizing: border-box; }
+    .controls-compact .control-group { display: flex; flex-direction: column; gap: 4px; flex: 0 1 auto; min-width: 0; }
+    .controls-compact .control-group:first-child { flex: 0 0 auto; min-width: 160px; }
+    .controls-compact .control-group.compact-dropdown { flex: 1 1 140px; min-width: 120px; max-width: 200px; }
+    .controls-compact .control-group.compact-dropdown .label { font-size: 12px; margin-bottom: 2px; }
+    .controls-compact .control-group.compact-dropdown .select,
+    .controls-compact .control-group.compact-dropdown .range { font-size: 13px; padding: 4px 8px; width: 100%; box-sizing: border-box; }
+    .controls-compact .control-group.compact-dropdown .range { height: 24px; }
+    .controls-compact .control-group.compact-dropdown .muted { font-size: 11px; }
+    .controls-compact .normal-controls { display: flex; flex-direction: row; gap: 10px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+    .controls-compact .settings-dropdown { flex: 0 0 auto; min-width: 120px; }
+    .controls-compact .settings-toggle { padding: 6px 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .controls-compact .playground-controls { display: flex; flex-direction: row; gap: 10px; align-items: center; flex: 1 1 auto; min-width: 0; }
+    .controls-compact .playground-goal { flex: 1 1 auto; margin: 0; min-width: 0; }
+    .controls-compact .playground-params-dropdown { flex: 0 0 auto; min-width: 120px; }
+    .controls-compact .playground-params-toggle { padding: 6px 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .controls-compact .control-buttons { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+    .controls-compact .control-buttons .btn { padding: 6px 12px; font-size: 13px; min-width: 60px; box-sizing: border-box; }
+    @media (max-width: 768px) {
+      .imfs-controls-row .panel { padding: 10px 6px; margin: 0 2px; }
+      .controls-compact { flex-direction: column; gap: 10px; align-items: stretch; }
+      .controls-compact .control-group { width: 100%; min-width: 0; max-width: 100%; }
+      .controls-compact .control-group:first-child { min-width: 0; }
+      .controls-compact .control-group.compact-dropdown { max-width: 100%; }
+      .controls-compact .normal-controls { flex-direction: column; width: 100%; gap: 8px; }
+      .controls-compact .control-buttons { width: 100%; justify-content: center; }
+      .controls-compact .control-buttons .btn { flex: 1 1 0; min-width: 0; }
+      .controls-compact .playground-controls { flex-direction: column; width: 100%; gap: 8px; }
+      .controls-compact .playground-goal { width: 100%; }
+      .controls-compact .playground-params-dropdown { width: 100%; }
+      .controls-compact .settings-dropdown { width: 100%; }
+    }
+    .imfs-main-row { display: grid; grid-template-columns: 1fr 225px 1fr; gap: 16px; align-items: start; }
+    .imfs-3d-row { grid-column: 1 / -1; display: block; margin-top: 8px; }
+    .imfs-educational-row { grid-column: 1 / -1; display: block; margin-top: 8px; }
+    @media (max-width: 1100px) { 
+      .imfs-wrap { grid-template-columns: 1fr; }
+      .imfs-main-row { display: grid; grid-template-columns: 1fr; gap: 16px; }
+      .imfs-sim { width: 100% !important; max-width: 100%; margin: 0 auto; }
+      .imfs-gas { width: 100% !important; max-width: 100%; }
+      .ai-narrator-panel { height: auto; max-height: 400px; }
+    }
+    @media (max-width: 768px) {
+      .imfs-shell { padding: 4px 0; }
+      .imfs-controls-row .panel { padding: 10px 6px; margin: 0 2px; }
+      .imfs-main-row { display: flex; flex-direction: column; gap: 12px; }
+      .imfs-sim { height: 300px !important; width: calc(100% - 4px) !important; max-width: calc(100% - 4px); margin: 0 auto; }
+      .imfs-gas { height: 300px !important; width: calc(100% - 4px) !important; max-width: calc(100% - 4px); }
+      .ai-narrator-panel { height: auto !important; max-height: 300px; margin: 0 2px; padding: 10px 8px; }
+      .imfs-3d { height: 200px; margin: 0 2px; }
+      .imfs-educational { padding: 12px; margin: 0 2px; }
+      .imfs-educational > div[style*="grid"] { grid-template-columns: 1fr !important; }
+      .container.container--wide { padding-left: 2px; padding-right: 2px; }
+    }
+    .imfs-sim-container { display: contents; }
+    .imfs-sim { width: 225px !important; height: 420px; display: block; margin: 0 auto; border-radius: 12px; background: #ffffff; border: 1px solid #d1d5db; overflow: hidden; box-sizing: border-box; }
     .imfs-gas { width: 100% !important; max-width: 100% !important; height: 420px; background: #ffffff; border: 1px solid #d1d5db; border-radius: 12px; display: block; box-sizing: border-box; }
     .imfs-3d { width: 100%; height: 280px; min-height: 200px; border-radius: 12px; background: #ffffff; overflow: hidden; position: relative; }
+    .imfs-educational { width: 100%; background: #ffffff; border: 1px solid #d1d5db; border-radius: 12px; padding: 20px; box-sizing: border-box; }
     /* removed thermostat box */
     /* Ensure molecule strokes and labels are visible on light background */
     #imfs-mol line { stroke: #0e1116; stroke-width: 3px; }
     #imfs-mol text { fill: #0e1116; }
+    /* AI Narrator */
+    .ai-narrator-panel { height: 420px; overflow-y: auto; background: #ffffff; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+    .ai-narrator-panel .narrator-content { overflow-y: auto; height: 100%; }
+    .ai-narrator-panel .narrator-section { margin: 12px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+    .ai-narrator-panel .narrator-section:last-child { border-bottom: none; }
+    .ai-narrator-panel .title { font-weight: 600; margin: 0 0 8px 0; color: #111827; font-size: 14px; }
+    .ai-narrator-panel .line { color: #374151; margin: 6px 0; line-height: 1.5; }
+    .ai-narrator-panel .line:first-child { margin-top: 0; }
+    .ai-narrator-panel .narrator-highlight { font-weight: 600; color: #dc2626; }
+    .ai-narrator-panel .narrator-emphasis { font-weight: 600; color: #059669; font-style: italic; }
+    .ai-narrator-panel .narrator-tip { color: #7c3aed; font-style: italic; }
     /* Scenario buttons with yellow hover + glow */
     .scenario { background: #ffffff; color: #111827; border: 1px solid #d1d5db; }
     .scenario:hover { border-color: #ffd60a; background: #fff7cc; box-shadow: 0 0 0 2px #ffd60a inset, 0 0 12px rgba(255,214,10,0.55); }
@@ -2195,6 +2315,60 @@ export function mountIMFs(root) {
     .row { display: grid; gap: 8px; }
     .row.controls { display: flex; flex-wrap: wrap; gap: 8px; }
     .row.controls[style*="justify-content"] { justify-content: center !important; }
+    /* Settings dropdown */
+    .settings-dropdown { position: relative; margin-bottom: 8px; }
+    .settings-toggle { width: 100%; padding: 8px 12px; background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+    .settings-toggle:hover { background: #fee2e2; border-color: #dc2626; }
+    .settings-toggle::after { content: "▼"; font-size: 10px; transition: transform 0.2s; }
+    .settings-dropdown.open .settings-toggle::after { transform: rotate(180deg); }
+    .settings-menu { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #ffffff; border: 1px solid #d1d5db; border-radius: 4px; margin-top: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 100; overflow: hidden; }
+    .settings-dropdown.open .settings-menu { display: block; }
+    .settings-menu .btn { width: 100%; border-radius: 0; border-left: none; border-right: none; border-top: none; margin: 0; }
+    .settings-menu .btn:first-child { border-top: none; }
+    .settings-menu .btn:last-child { border-bottom: none; }
+    /* Playground parameters dropdown */
+    .playground-params-dropdown { position: relative; margin-bottom: 8px; }
+    .playground-params-toggle { width: 100%; padding: 8px 12px; background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+    .playground-params-toggle:hover { background: #fee2e2; border-color: #dc2626; }
+    .playground-params-toggle::after { content: "▼"; font-size: 10px; transition: transform 0.2s; }
+    .playground-params-dropdown.open .playground-params-toggle::after { transform: rotate(180deg); }
+    .playground-params-menu { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #ffffff; border: 1px solid #d1d5db; border-radius: 4px; margin-top: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 100; overflow-y: auto; max-height: 400px; padding: 12px; }
+    .playground-params-dropdown.open .playground-params-menu { display: block; }
+    .playground-params-menu .field { margin-bottom: 12px; }
+    .playground-params-menu .field:last-child { margin-bottom: 0; }
+    /* Celebration and sadness animations */
+    .celebration-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s; }
+    .celebration-content { background: #ffffff; border-radius: 16px; padding: 40px; text-align: center; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .celebration-content.success { border: 4px solid #059669; }
+    .celebration-content.failure { border: 4px solid #dc2626; }
+    .celebration-content h2 { margin: 0 0 16px 0; font-size: 32px; font-weight: 800; }
+    .celebration-content.success h2 { color: #059669; }
+    .celebration-content.failure h2 { color: #dc2626; }
+    .celebration-content p { margin: 0; font-size: 18px; color: #374151; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scaleIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    /* Playground mode styles */
+    .playground-mode .normal-controls { display: none; }
+    .playground-mode .playground-controls { display: flex; flex-direction: row; gap: 10px; align-items: center; }
+    .playground-mode .control-buttons #b-play,
+    .playground-mode .control-buttons #b-pause,
+    .playground-mode .control-buttons #b-reset { display: none; }
+    .playground-mode .control-buttons #pg-reset { display: inline-block !important; }
+    .normal-mode .playground-controls { display: none; }
+    .normal-mode .control-buttons #pg-reset { display: none !important; }
+    .normal-mode .normal-controls { display: flex; flex-direction: row; gap: 8px; }
+    .playground-goal { background: #fef2f2; border: 2px solid #dc2626; border-radius: 6px; padding: 8px; margin-bottom: 0; }
+    .playground-goal h4 { margin: 0 0 4px 0; color: #dc2626; font-size: 12px; font-weight: 600; }
+    .playground-goal .goal-text { color: #111827; font-weight: 600; margin-bottom: 4px; font-size: 12px; }
+    .playground-goal .goal-progress { color: #374151; font-size: 11px; }
+    .playground-goal.success { background: #f0fdf4; border-color: #059669; }
+    .playground-goal.success h4 { color: #059669; }
+    .playground-goal.failure { background: #fef2f2; border-color: #dc2626; }
+    .parameter-explanation { font-size: 11px; color: #6b7280; margin-top: 4px; font-style: italic; }
+    .imf-checkbox-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .imf-checkbox { display: flex; align-items: center; gap: 8px; }
+    .imf-checkbox input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    .imf-checkbox label { cursor: pointer; font-weight: 500; }
     /* Debug panel styles */
     .debug-panel { 
       position: fixed; 
@@ -2247,40 +2421,178 @@ export function mountIMFs(root) {
     </section>
     <section class="panel">
       <div class="imfs-wrap">
-        <div class="panel">
-          <h3 class="h5" style="margin-top:0;">Controls</h3>
-          <div class="field" style="margin-bottom:12px;">
-            <label class="label">Material</label>
-            <select id="s-material" class="select" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:4px; background:#ffffff; color:#111827; font-size:14px;">
-              <option value="honey">Honey (H-bond)</option>
-              <option value="dmso">DMSO (dipole)</option>
-              <option value="hexane">Hexane (dispersion)</option>
-            </select>
+        <div class="imfs-controls-row">
+          <div class="panel">
+            <div class="controls-compact">
+              <div class="control-group">
+                <button id="mode-toggle" class="btn" style="padding: 6px 12px; font-size: 13px; white-space: nowrap; width: 100%;">Switch to Playground</button>
+              </div>
+              <div class="normal-controls">
+                <div class="control-group compact-dropdown">
+                  <label class="label">Material</label>
+                  <select id="s-material" class="select" style="width:100%; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; background:#ffffff; color:#111827; font-size:13px;">
+                    <option value="honey">Honey</option>
+                    <option value="dmso">DMSO</option>
+                    <option value="hexane">Hexane</option>
+                  </select>
+                </div>
+                <div class="control-group compact-dropdown">
+                  <label class="label">Particles</label>
+                  <input id="s-n" class="range" type="range" min="40" max="500" step="10" value="200" style="height:24px;">
+                  <span class="muted" id="v-n" style="font-size:11px;"></span>
+                </div>
+                <div class="control-group compact-dropdown">
+                  <label class="label">Heat Intensity</label>
+                  <input id="s-heat" class="range" type="range" min="0" max="5" step="0.1" value="5.0" style="height:24px;">
+                  <span class="muted" id="v-heat" style="font-size:11px;"></span>
+                </div>
+              </div>
+              <div class="settings-dropdown">
+                <button id="settings-toggle" class="settings-toggle" style="padding: 6px 10px; font-size: 13px;">Settings</button>
+                <div class="settings-menu">
+                  <button id="t-gravity" class="btn btn--outline">Gravity</button>
+                  <button id="t-contour" class="btn btn--outline">Contour</button>
+                  <button id="t-shade" class="btn btn--outline">Shade Contour</button>
+                  <button id="t-molecules" class="btn btn--outline">Molecules</button>
+                  <button id="t-heat" class="btn btn--outline">Heat</button>
+                </div>
+              </div>
+              <div class="playground-controls">
+                <div class="playground-params-dropdown">
+                  <button id="playground-params-toggle" class="playground-params-toggle" style="padding: 6px 10px; font-size: 13px;">Parameters</button>
+                  <div class="playground-params-menu">
+                    <div class="field">
+                      <label class="label">Viscosity</label>
+                      <input id="pg-viscosity" class="range" type="range" min="0.05" max="10" step="0.05" value="1.0">
+                      <span class="muted" id="v-viscosity">1.0</span>
+                      <div class="parameter-explanation">Controls how strongly particles stick together. Higher = stronger IMFs, harder to evaporate</div>
+                    </div>
+                    <div class="field">
+                      <label class="label">Epsilon (LDF Strength)</label>
+                      <input id="pg-epsilon" class="range" type="range" min="0.05" max="0.7" step="0.01" value="0.3">
+                      <span class="muted" id="v-epsilon">0.3</span>
+                      <div class="parameter-explanation">London Dispersion Force strength. Higher = stronger attraction between nonpolar molecules</div>
+                    </div>
+                    <div class="field">
+                      <label class="label">Sigma (Particle Size)</label>
+                      <input id="pg-sigma" class="range" type="range" min="8" max="12" step="0.5" value="10">
+                      <span class="muted" id="v-sigma">10</span>
+                      <div class="parameter-explanation">Particle size/radius. Affects collision frequency and packing</div>
+                    </div>
+                    <div class="field">
+                      <label class="label">Hydrogen Bond Strength</label>
+                      <input id="pg-hbStrength" class="range" type="range" min="0" max="3" step="0.1" value="1.5">
+                      <span class="muted" id="v-hbStrength">1.5</span>
+                      <div class="parameter-explanation">Strength of H-bonds (only active if H-bond checkbox enabled). Higher = much stronger attraction</div>
+                    </div>
+                    <div class="field">
+                      <label class="label">Dipole Strength</label>
+                      <input id="pg-dipole" class="range" type="range" min="0" max="2" step="0.1" value="0.5">
+                      <span class="muted" id="v-dipole">0.5</span>
+                      <div class="parameter-explanation">Dipole-dipole interaction strength (only active if Dipole checkbox enabled)</div>
+                    </div>
+                    <div class="field">
+                      <label class="label">Particles (N)</label>
+                      <input id="pg-n" class="range" type="range" min="40" max="500" step="10" value="200">
+                      <span class="muted" id="v-pg-n">200</span>
+                      <div class="parameter-explanation">Number of particles in simulation</div>
+                    </div>
+                    <div class="field">
+                      <label class="label">Heat Intensity</label>
+                      <input id="pg-heat" class="range" type="range" min="0" max="5" step="0.1" value="5.0">
+                      <span class="muted" id="v-pg-heat">5.0</span>
+                      <div class="parameter-explanation">How much thermal energy is added per second</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="playground-goal" id="playground-goal" style="padding: 8px; margin-bottom: 0;">
+                  <div class="goal-text" id="goal-text" style="font-size: 12px; margin-bottom: 4px;">Loading...</div>
+                  <div class="goal-progress" id="goal-progress" style="font-size: 11px;">Ready</div>
+                </div>
+                <div class="imf-checkbox-group" style="display: none;">
+                  <div class="imf-checkbox">
+                    <input type="checkbox" id="cb-hbond" checked>
+                    <label for="cb-hbond" style="font-size: 12px;">H-bond</label>
+                  </div>
+                  <div class="imf-checkbox">
+                    <input type="checkbox" id="cb-dipole" checked>
+                    <label for="cb-dipole" style="font-size: 12px;">Dipole</label>
+                  </div>
+                </div>
+              </div>
+              <div class="control-buttons">
+                <button id="b-play" class="btn" style="padding: 6px 12px; font-size: 13px; min-width: 60px;">Play</button>
+                <button id="b-pause" class="btn btn--outline" style="padding: 6px 12px; font-size: 13px; min-width: 60px;">Pause</button>
+                <button id="b-reset" class="btn btn--ghost" style="padding: 6px 12px; font-size: 13px; min-width: 60px;">Reset</button>
+                <button id="pg-reset" class="btn btn--ghost" style="padding: 6px 12px; font-size: 13px; min-width: 60px; display: none;">Reset Playground</button>
+              </div>
+            </div>
           </div>
-          <div class="row controls" style="margin-bottom:8px;">
-            <button id="t-gravity" class="btn btn--outline">Gravity</button>
-            <button id="t-contour" class="btn btn--outline">Contour</button>
-            <button id="t-shade" class="btn btn--outline">Shade Contour</button>
-            <button id="t-molecules" class="btn btn--outline">Molecules</button>
-            <button id="t-heat" class="btn btn--outline">Heat</button>
-          </div>
-          <div class="stack-sm">
-            <div class="field"><label class="label">Particles (N)</label><input id="s-n" class="range" type="range" min="40" max="300" step="10" value="300"><span class="muted" id="v-n"></span></div>
-            <div class="field"><label class="label">Heat Intensity</label><input id="s-heat" class="range" type="range" min="0" max="3" step="0.1" value="3.0"><span class="muted" id="v-heat"></span></div>
-          </div>
-          <div class="row controls" style="margin-top:8px;">
-            <button id="b-play" class="btn">Play</button>
-            <button id="b-pause" class="btn btn--outline">Pause</button>
-            <button id="b-reset" class="btn btn--ghost">Reset</button>
-          </div>
-          <div class="muted" style="margin-top:10px;" id="explain"></div>
         </div>
-        <div class="stack-sm">
-          <div class="imfs-sim-container">
-            <canvas id="imfs-sim" class="imfs-sim" width="450" height="420" aria-label="Intermolecular forces simulation" role="img"></canvas>
-            <canvas id="imfs-gas" class="imfs-gas" width="450" height="420" aria-label="Gas and escaped particles chart" role="img"></canvas>
+        <div class="imfs-main-row">
+          <div id="ai-narrator" class="ai-narrator-panel">
+            <div class="narrator-content">
+              <p class="line muted">Live narration will explain what you see and how it relates to IMFs (hydrogen bonding, dipole–dipole, and London dispersion).</p>
+            </div>
           </div>
+          <canvas id="imfs-sim" class="imfs-sim" width="225" height="420" aria-label="Intermolecular forces simulation" role="img"></canvas>
+          <canvas id="imfs-gas" class="imfs-gas" width="450" height="420" aria-label="Gas and escaped particles chart" role="img"></canvas>
+        </div>
+        <div class="imfs-3d-row">
           <div id="imfs-3d" class="imfs-3d" aria-label="3D molecule" role="img"></div>
+        </div>
+        <div class="imfs-educational-row">
+          <div id="imfs-educational" class="imfs-educational">
+            <h3 class="h5" style="margin-top:0; margin-bottom:16px;">Understanding Intermolecular Forces</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+              <div>
+                <h4 style="margin-top:0; margin-bottom:12px; color: #111827; font-size: 16px; font-weight: 600;">What Are IMFs?</h4>
+                <p style="margin: 0 0 12px 0; color: #374151; line-height: 1.6;">
+                  Intermolecular forces (IMFs) are attractive forces between molecules that determine many physical properties, including boiling point, melting point, viscosity, and solubility. Unlike chemical bonds (which hold atoms together within molecules), IMFs are weaker forces that act between separate molecules.
+                </p>
+                <p style="margin: 0; color: #374151; line-height: 1.6;">
+                  The strength of IMFs directly affects how easily molecules can escape from the liquid phase into the gas phase—a process called evaporation. Stronger IMFs mean higher boiling points and slower evaporation rates.
+                </p>
+              </div>
+              <div>
+                <h4 style="margin-top:0; margin-bottom:12px; color: #111827; font-size: 16px; font-weight: 600;">Types of IMFs</h4>
+                <p style="margin: 0 0 8px 0; color: #374151; line-height: 1.6;">
+                  <strong style="color: #dc2626;">Hydrogen Bonding:</strong> The strongest IMF, occurring when H is bonded to N, O, or F. Hydrogen bonds are directional and can be 10-40 kJ/mol. Examples: water, honey, DNA base pairs.
+                </p>
+                <p style="margin: 0 0 8px 0; color: #374151; line-height: 1.6;">
+                  <strong style="color: #dc2626;">Dipole–Dipole:</strong> Attractions between polar molecules with permanent dipoles. Strength: 5-25 kJ/mol. Examples: DMSO, acetone, chloroform.
+                </p>
+                <p style="margin: 0; color: #374151; line-height: 1.6;">
+                  <strong style="color: #dc2626;">London Dispersion Forces (LDFs):</strong> Weakest IMF, caused by temporary electron distribution fluctuations. Present in all molecules, but dominant in nonpolar substances. Strength: 0.1-10 kJ/mol. Examples: hexane, noble gases, alkanes.
+                </p>
+              </div>
+              <div>
+                <h4 style="margin-top:0; margin-bottom:12px; color: #111827; font-size: 16px; font-weight: 600;">Real-World Impacts</h4>
+                <p style="margin: 0 0 8px 0; color: #374151; line-height: 1.6;">
+                  <strong>Boiling Points:</strong> Water (H-bonding) boils at 100°C, while hexane (LDFs only) boils at 69°C. Stronger IMFs require more energy to separate molecules.
+                </p>
+                <p style="margin: 0 0 8px 0; color: #374151; line-height: 1.6;">
+                  <strong>Viscosity:</strong> Honey's high viscosity comes from extensive H-bonding networks. Motor oils use long-chain molecules to increase LDFs and viscosity.
+                </p>
+                <p style="margin: 0 0 8px 0; color: #374151; line-height: 1.6;">
+                  <strong>Solubility:</strong> "Like dissolves like"—polar solvents (water) dissolve polar solutes; nonpolar solvents (hexane) dissolve nonpolar solutes.
+                </p>
+                <p style="margin: 0; color: #374151; line-height: 1.6;">
+                  <strong>Surface Tension:</strong> Water's high surface tension (due to H-bonding) allows insects to walk on it and creates the meniscus in glass tubes.
+                </p>
+              </div>
+            </div>
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+              <h4 style="margin-top:0; margin-bottom:12px; color: #111827; font-size: 16px; font-weight: 600;">Sources & Further Reading</h4>
+              <ul style="margin: 0; padding-left: 20px; color: #374151; line-height: 1.8;">
+                <li>Brown, T. L., et al. <em>Chemistry: The Central Science</em>. Pearson Education.</li>
+                <li>Atkins, P., & de Paula, J. <em>Physical Chemistry</em>. Oxford University Press.</li>
+                <li>Zumdahl, S. S., & Zumdahl, S. A. <em>Chemistry</em>. Cengage Learning.</li>
+                <li>Khan Academy: <a href="https://www.khanacademy.org/science/ap-chemistry-beta" style="color: #dc2626; text-decoration: none;">Intermolecular Forces</a></li>
+                <li>LibreTexts Chemistry: <a href="https://chem.libretexts.org/Bookshelves/Physical_and_Theoretical_Chemistry_Textbook_Maps" style="color: #dc2626; text-decoration: none;">Intermolecular Forces and Liquids</a></li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -2296,12 +2608,40 @@ export function mountIMFs(root) {
     gas: shadow.querySelector("#imfs-gas"),
     mol: shadow.querySelector("#imfs-mol"),
     mol3d: shadow.querySelector("#imfs-3d"),
+    narrator: shadow.querySelector("#ai-narrator"),
     sMaterial: shadow.querySelector("#s-material"),
     sN: shadow.querySelector("#s-n"),
     sHeat: shadow.querySelector("#s-heat"),
     vN: shadow.querySelector("#v-n"),
     vHeat: shadow.querySelector("#v-heat"),
-    explain: shadow.querySelector("#explain"),
+    settingsToggle: shadow.querySelector("#settings-toggle"),
+    settingsDropdown: shadow.querySelector(".settings-dropdown"),
+    modeToggle: shadow.querySelector("#mode-toggle"),
+    playgroundGoal: shadow.querySelector("#playground-goal"),
+    goalText: shadow.querySelector("#goal-text"),
+    goalProgress: shadow.querySelector("#goal-progress"),
+    cbHbond: shadow.querySelector("#cb-hbond"),
+    cbDipole: shadow.querySelector("#cb-dipole"),
+    cbLdf: shadow.querySelector("#cb-ldf"),
+    pgViscosity: shadow.querySelector("#pg-viscosity"),
+    pgEpsilon: shadow.querySelector("#pg-epsilon"),
+    pgSigma: shadow.querySelector("#pg-sigma"),
+    pgHbStrength: shadow.querySelector("#pg-hbStrength"),
+    pgDipole: shadow.querySelector("#pg-dipole"),
+    pgN: shadow.querySelector("#pg-n"),
+    pgHeat: shadow.querySelector("#pg-heat"),
+    vViscosity: shadow.querySelector("#v-viscosity"),
+    vEpsilon: shadow.querySelector("#v-epsilon"),
+    vSigma: shadow.querySelector("#v-sigma"),
+    vHbStrength: shadow.querySelector("#v-hbStrength"),
+    vDipole: shadow.querySelector("#v-dipole"),
+    vPgN: shadow.querySelector("#v-pg-n"),
+    vPgHeat: shadow.querySelector("#v-pg-heat"),
+    pgReset: shadow.querySelector("#pg-reset"),
+    playgroundParamsToggle: shadow.querySelector("#playground-params-toggle"),
+    playgroundParamsDropdown: shadow.querySelector(
+      ".playground-params-dropdown"
+    ),
     tGravity: shadow.querySelector("#t-gravity"),
     tContour: shadow.querySelector("#t-contour"),
     tShade: shadow.querySelector("#t-shade"),
@@ -2330,7 +2670,9 @@ export function mountIMFs(root) {
         return false;
       };
       refs.mol3d.addEventListener("wheel", preventZoom, { passive: false });
-      refs.mol3d.addEventListener("touchstart", preventZoom, { passive: false });
+      refs.mol3d.addEventListener("touchstart", preventZoom, {
+        passive: false,
+      });
       refs.mol3d.addEventListener("touchmove", preventZoom, { passive: false });
       // Disable mouse interactions that could cause zoom/rotation
       refs.mol3d.addEventListener("mousedown", preventZoom, { passive: false });
@@ -2477,17 +2819,241 @@ M  END
   function updateReadouts() {
     refs.vN.textContent = String(sim.params.N);
     refs.vHeat.textContent = String(sim.heatIntensity.toFixed(1));
+    // Update playground readouts if in playground mode
+    if (playgroundMode && refs.vViscosity) {
+      refs.vViscosity.textContent = Number(refs.pgViscosity.value).toFixed(2);
+      refs.vEpsilon.textContent = Number(refs.pgEpsilon.value).toFixed(2);
+      refs.vSigma.textContent = Number(refs.pgSigma.value).toFixed(1);
+      refs.vHbStrength.textContent = Number(refs.pgHbStrength.value).toFixed(1);
+      refs.vDipole.textContent = Number(refs.pgDipole.value).toFixed(1);
+      refs.vPgN.textContent = String(refs.pgN.value);
+      refs.vPgHeat.textContent = Number(refs.pgHeat.value).toFixed(1);
+    }
     // KE readout is updated via animation loop
   }
 
   let currentKind = "honey";
-  // Removed 3D mode
+  // Playground mode state
+  let playgroundMode = false;
+  let currentGoal = null;
+
+  // Goal definitions
+  const possibleGoals = [
+    {
+      type: "exact",
+      target: 25,
+      text: "Reach exactly 25% evaporated after 30 seconds",
+    },
+    {
+      type: "exact",
+      target: 50,
+      text: "Reach exactly 50% evaporated after 30 seconds",
+    },
+    {
+      type: "exact",
+      target: 75,
+      text: "Reach exactly 75% evaporated after 30 seconds",
+    },
+    {
+      type: "range",
+      min: 30,
+      max: 40,
+      text: "Reach between 30-40% evaporated after 30 seconds",
+    },
+    {
+      type: "range",
+      min: 60,
+      max: 70,
+      text: "Reach between 60-70% evaporated after 30 seconds",
+    },
+    {
+      type: "range",
+      min: 15,
+      max: 35,
+      text: "Have at least 15% evaporated but less than 35% after 30 seconds",
+    },
+  ];
+
+  function generateRandomGoal() {
+    const goal =
+      possibleGoals[Math.floor(Math.random() * possibleGoals.length)];
+    currentGoal = { ...goal };
+    if (refs.goalText) {
+      refs.goalText.textContent = goal.text;
+    }
+    return goal;
+  }
+
+  function checkGoal(escapedPct) {
+    if (!currentGoal) return null;
+    let success = false;
+    if (currentGoal.type === "exact") {
+      success = Math.abs(escapedPct - currentGoal.target) < 2; // Within 2%
+    } else if (currentGoal.type === "range") {
+      success = escapedPct >= currentGoal.min && escapedPct <= currentGoal.max;
+    }
+    return success;
+  }
+
+  function getParameterLimits() {
+    const hbond = refs.cbHbond?.checked || false;
+    const dipole = refs.cbDipole?.checked || false;
+    const ldf = true; // Always active
+
+    let viscosityMin = 0.05,
+      viscosityMax = 10;
+    let epsilonMin = 0.05,
+      epsilonMax = 0.7;
+
+    if (hbond && dipole) {
+      // Union: both checked - use the broader range that encompasses both
+      viscosityMin = Math.min(5, 0.5); // 0.5 (min of both mins)
+      viscosityMax = Math.max(10, 2); // 10 (max of both maxes)
+      epsilonMin = Math.min(0.5, 0.4); // 0.4 (min of both mins)
+      epsilonMax = Math.max(0.7, 0.6); // 0.7 (max of both maxes)
+    } else if (hbond) {
+      viscosityMin = 5;
+      viscosityMax = 10;
+      epsilonMin = 0.5;
+      epsilonMax = 0.7;
+    } else if (dipole) {
+      viscosityMin = 0.5;
+      viscosityMax = 2;
+      epsilonMin = 0.4;
+      epsilonMax = 0.6;
+    } else {
+      // Only LDF
+      viscosityMin = 0.05;
+      viscosityMax = 1;
+      epsilonMin = 0.05;
+      epsilonMax = 0.3;
+    }
+
+    return { viscosityMin, viscosityMax, epsilonMin, epsilonMax };
+  }
+
+  function updateParameterLimits() {
+    const limits = getParameterLimits();
+    if (refs.pgViscosity) {
+      refs.pgViscosity.min = String(limits.viscosityMin);
+      refs.pgViscosity.max = String(limits.viscosityMax);
+      let val = Number(refs.pgViscosity.value);
+      if (val < limits.viscosityMin) val = limits.viscosityMin;
+      if (val > limits.viscosityMax) val = limits.viscosityMax;
+      refs.pgViscosity.value = String(val);
+    }
+    if (refs.pgEpsilon) {
+      refs.pgEpsilon.min = String(limits.epsilonMin);
+      refs.pgEpsilon.max = String(limits.epsilonMax);
+      let val = Number(refs.pgEpsilon.value);
+      if (val < limits.epsilonMin) val = limits.epsilonMin;
+      if (val > limits.epsilonMax) val = limits.epsilonMax;
+      refs.pgEpsilon.value = String(val);
+    }
+    // Enable/disable H-bond and Dipole sliders based on checkboxes
+    if (refs.pgHbStrength) {
+      refs.pgHbStrength.disabled = !refs.cbHbond?.checked;
+    }
+    if (refs.pgDipole) {
+      refs.pgDipole.disabled = !refs.cbDipole?.checked;
+    }
+    updateReadouts();
+  }
+
+  function applyPlaygroundParams() {
+    if (!playgroundMode) return;
+    sim.params.viscosity = Number(refs.pgViscosity.value);
+    sim.params.epsilon = Number(refs.pgEpsilon.value);
+    sim.params.sigma = Number(refs.pgSigma.value);
+    sim.params.hbStrength = refs.cbHbond?.checked
+      ? Number(refs.pgHbStrength.value)
+      : 0;
+    sim.params.dipole = refs.cbDipole?.checked
+      ? Number(refs.pgDipole.value)
+      : 0;
+    sim.params.N = Math.round(Number(refs.pgN.value));
+    sim.heatIntensity = Number(refs.pgHeat.value);
+    sim.adjustParticleCount(sim.params.N);
+    applyIMFCoeffsFor(sim, "playground");
+    sim.currentScenario = "playground"; // Set scenario for tracking
+    sim.spawnParticles();
+    sim.draw();
+  }
+
+  function resetPlayground() {
+    const limits = getParameterLimits();
+    // Reset to middle of allowed ranges
+    const viscosityDefault = (limits.viscosityMin + limits.viscosityMax) / 2;
+    const epsilonDefault = (limits.epsilonMin + limits.epsilonMax) / 2;
+
+    if (refs.pgViscosity) refs.pgViscosity.value = String(viscosityDefault);
+    if (refs.pgEpsilon) refs.pgEpsilon.value = String(epsilonDefault);
+    if (refs.pgSigma) refs.pgSigma.value = "10";
+    if (refs.pgHbStrength) refs.pgHbStrength.value = "1.5";
+    if (refs.pgDipole) refs.pgDipole.value = "0.5";
+    if (refs.pgN) refs.pgN.value = "200";
+    if (refs.pgHeat) refs.pgHeat.value = "5.0";
+
+    updateParameterLimits();
+    applyPlaygroundParams();
+    generateRandomGoal();
+    if (refs.playgroundGoal) {
+      refs.playgroundGoal.classList.remove("success", "failure");
+    }
+    if (refs.goalProgress) {
+      refs.goalProgress.textContent = "Ready to start";
+    }
+    sim.gasStart = performance.now();
+    sim.escapedCount = 0;
+    sim.escapedParticles = [];
+    sim.trialEnded = false;
+    sim.stop(); // Stop simulation
+    sim.draw();
+  }
+
+  function togglePlaygroundMode() {
+    // Fully reset everything when switching modes
+    sim.stop();
+    sim.gasHistory = [];
+    sim.escapedCount = 0;
+    sim.escapedParticles = [];
+    sim.trialEnded = false;
+    sim.completedTrials.clear();
+    sim.gasStart = performance.now();
+
+    playgroundMode = !playgroundMode;
+    const shellElement = shadow.querySelector(".imfs-shell");
+    if (shellElement) {
+      shellElement.classList.remove("normal-mode", "playground-mode");
+      shellElement.classList.add(
+        playgroundMode ? "playground-mode" : "normal-mode"
+      );
+    }
+    if (refs.modeToggle) {
+      refs.modeToggle.textContent = playgroundMode ? "Normal" : "Playground";
+    }
+    if (playgroundMode) {
+      updateParameterLimits();
+      generateRandomGoal();
+      applyPlaygroundParams();
+    } else {
+      // Reset to normal mode - fully reset
+      setScenario("honey");
+      sim.draw();
+    }
+  }
 
   function setScenario(kind) {
     sim.changeScenario(kind);
     const accent = scenarioColor(kind);
     sim.params.color = accent;
     applyIMFCoeffsFor(sim, kind);
+    // Update AI narrator immediately on scenario change
+    if (typeof renderNarration === "function") {
+      try {
+        renderNarration(true);
+      } catch (_) {}
+    }
     // Update shell dataset and CSS var for accent glow
     try {
       const rootShell = shadow.querySelector(".imfs-shell");
@@ -2509,7 +3075,6 @@ M  END
           stroke: accent,
           labelColor: accent,
         });
-      refs.explain.innerHTML = `Multiple –OH groups on sugars act as donors/acceptors, forming a transient hydrogen-bond network with water. This network raises cohesion and viscosity.`;
       // No 3D viewer
     } else if (kind === "dmso") {
       if (refs.mol)
@@ -2518,7 +3083,6 @@ M  END
           stroke: accent,
           labelColor: accent,
         });
-      refs.explain.innerHTML = `Dimethyl sulfoxide has a strong S=O dipole (δ− on O, δ+ on S). Molecules align anti-parallel, producing significant dipole–dipole attraction.`;
       // No 3D viewer
     } else {
       if (refs.mol)
@@ -2527,9 +3091,14 @@ M  END
           stroke: accent,
           labelColor: accent,
         });
-      refs.explain.innerHTML = `Hexane is nonpolar; only London dispersion occurs. Attractions are weakest, giving low cohesion and viscosity.`;
       // No 3D viewer
     }
+    // Sync particle count slider with actual value
+    try {
+      if (refs.sN) {
+        refs.sN.value = String(sim.params.N);
+      }
+    } catch (_) {}
     updateReadouts();
     currentKind = kind;
     // Update ball-and-stick 3D preview (3Dmol)
@@ -2540,24 +3109,213 @@ M  END
   }
 
   // Events
-  refs.sMaterial.addEventListener("change", (e) => {
-    setScenario(e.target.value);
-  });
-  refs.sN.addEventListener("input", (e) => {
-    sim.params.N = Math.round(Number(e.target.value));
-    sim.adjustParticleCount(sim.params.N);
-    updateReadouts();
-  });
-  refs.sHeat.addEventListener("input", (e) => {
-    sim.heatIntensity = Number(e.target.value);
-    updateReadouts();
-  });
+  if (refs.sMaterial) {
+    refs.sMaterial.addEventListener("change", (e) => {
+      if (!playgroundMode) {
+        setScenario(e.target.value);
+      }
+    });
+  }
+  if (refs.sN) {
+    refs.sN.addEventListener("input", (e) => {
+      if (!playgroundMode) {
+        sim.params.N = Math.round(Number(e.target.value));
+        sim.adjustParticleCount(sim.params.N);
+        updateReadouts();
+      }
+    });
+  }
+  if (refs.sHeat) {
+    refs.sHeat.addEventListener("input", (e) => {
+      if (!playgroundMode) {
+        sim.heatIntensity = Number(e.target.value);
+        updateReadouts();
+      }
+    });
+  }
   shadow.querySelector("#b-play").addEventListener("click", () => sim.start());
   shadow.querySelector("#b-pause").addEventListener("click", () => sim.stop());
   shadow.querySelector("#b-reset").addEventListener("click", () => {
     sim.spawnParticles();
     sim.draw();
   });
+
+  // Playground mode toggle
+  if (refs.modeToggle) {
+    refs.modeToggle.addEventListener("click", togglePlaygroundMode);
+  }
+
+  // Playground parameter controls
+  if (refs.pgViscosity) {
+    refs.pgViscosity.addEventListener("input", (e) => {
+      updateReadouts();
+      applyPlaygroundParams();
+    });
+  }
+  if (refs.pgEpsilon) {
+    refs.pgEpsilon.addEventListener("input", (e) => {
+      updateReadouts();
+      applyPlaygroundParams();
+    });
+  }
+  if (refs.pgSigma) {
+    refs.pgSigma.addEventListener("input", (e) => {
+      updateReadouts();
+      applyPlaygroundParams();
+    });
+  }
+  if (refs.pgHbStrength) {
+    refs.pgHbStrength.addEventListener("input", (e) => {
+      updateReadouts();
+      applyPlaygroundParams();
+    });
+  }
+  if (refs.pgDipole) {
+    refs.pgDipole.addEventListener("input", (e) => {
+      updateReadouts();
+      applyPlaygroundParams();
+    });
+  }
+  if (refs.pgN) {
+    refs.pgN.addEventListener("input", (e) => {
+      updateReadouts();
+      applyPlaygroundParams();
+    });
+  }
+  if (refs.pgHeat) {
+    refs.pgHeat.addEventListener("input", (e) => {
+      updateReadouts();
+      sim.heatIntensity = Number(e.target.value);
+    });
+  }
+
+  // IMF checkbox handlers
+  if (refs.cbHbond) {
+    refs.cbHbond.addEventListener("change", () => {
+      updateParameterLimits();
+      applyPlaygroundParams();
+    });
+  }
+  if (refs.cbDipole) {
+    refs.cbDipole.addEventListener("change", () => {
+      updateParameterLimits();
+      applyPlaygroundParams();
+    });
+  }
+
+  function updatePlaygroundGoalProgress() {
+    if (!playgroundMode || !refs.goalProgress || !currentGoal) return;
+    if (!sim.heatingOn) {
+      if (refs.goalProgress) {
+        refs.goalProgress.textContent = "Turn on Heat to start the trial";
+      }
+      return;
+    }
+    const total = sim.particles.length + (sim.escapedParticles?.length || 0);
+    const escapedPct =
+      total > 0 ? Math.round((sim.escapedCount / total) * 100) : 0;
+    const t = (performance.now() - sim.gasStart) / 1000;
+    const timeRemaining = Math.max(0, 30 - t);
+    refs.goalProgress.textContent = `Current: ${escapedPct}% evaporated | Time remaining: ${timeRemaining.toFixed(
+      1
+    )}s`;
+  }
+
+  function checkPlaygroundGoal(escapedPct) {
+    if (!playgroundMode || !currentGoal || !refs.playgroundGoal) return;
+    const success = checkGoal(escapedPct);
+    refs.playgroundGoal.classList.remove("success", "failure");
+    if (success) {
+      refs.playgroundGoal.classList.add("success");
+      if (refs.goalProgress) {
+        refs.goalProgress.textContent = `✅ Success! Reached ${escapedPct}% evaporated`;
+      }
+      // Show celebration
+      showCelebration(true, escapedPct);
+    } else {
+      refs.playgroundGoal.classList.add("failure");
+      if (refs.goalProgress) {
+        refs.goalProgress.textContent = `❌ Failed. Reached ${escapedPct}% evaporated (target: ${
+          currentGoal.type === "exact"
+            ? currentGoal.target + "%"
+            : currentGoal.min + "-" + currentGoal.max + "%"
+        })`;
+      }
+      // Show sadness
+      showCelebration(false, escapedPct);
+    }
+  }
+
+  function showCelebration(success, escapedPct) {
+    // Remove any existing overlay
+    const existing = document.querySelector(".celebration-overlay");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "celebration-overlay";
+    overlay.innerHTML = `
+      <div class="celebration-content ${success ? "success" : "failure"}">
+        <h2>${success ? "🎉 Success!" : "😢 Not Quite"}</h2>
+        <p>${
+          success
+            ? `You reached ${escapedPct}% evaporated! Great job understanding how IMFs affect evaporation!`
+            : `You reached ${escapedPct}% evaporated. Try adjusting the parameters and try again!`
+        }</p>
+        <button class="btn" style="margin-top: 20px; width: auto; padding: 8px 24px;" onclick="this.closest('.celebration-overlay').remove()">Close</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (overlay.parentNode) overlay.remove();
+    }, 5000);
+  }
+
+  // Make functions accessible to simulation loop
+  window.updatePlaygroundGoalProgress = updatePlaygroundGoalProgress;
+  window.checkPlaygroundGoal = checkPlaygroundGoal;
+
+  // Initialize shell with normal-mode class
+  const shellElement = shadow.querySelector(".imfs-shell");
+  if (shellElement) {
+    shellElement.classList.add("normal-mode");
+  }
+
+  // Settings dropdown toggle
+  if (refs.settingsToggle && refs.settingsDropdown) {
+    refs.settingsToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      refs.settingsDropdown.classList.toggle("open");
+    });
+    // Close dropdown when clicking outside or on a button inside
+    const closeDropdown = (e) => {
+      if (!refs.settingsDropdown.contains(e.target)) {
+        refs.settingsDropdown.classList.remove("open");
+      } else if (e.target.classList.contains("btn")) {
+        // Close after a short delay to allow button click to register
+        setTimeout(() => {
+          refs.settingsDropdown.classList.remove("open");
+        }, 100);
+      }
+    };
+    document.addEventListener("click", closeDropdown);
+  }
+
+  // Playground params dropdown toggle
+  if (refs.playgroundParamsToggle && refs.playgroundParamsDropdown) {
+    refs.playgroundParamsToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      refs.playgroundParamsDropdown.classList.toggle("open");
+    });
+    // Close dropdown when clicking outside or on a button inside
+    const closeDropdown = (e) => {
+      if (!refs.playgroundParamsDropdown.contains(e.target)) {
+        refs.playgroundParamsDropdown.classList.remove("open");
+      }
+    };
+    document.addEventListener("click", closeDropdown);
+  }
 
   // New toggles: Gravity, Contour, Shade Contour
   if (refs.tGravity)
@@ -2598,17 +3356,104 @@ M  END
       }
     });
 
+  // --- AI Narrator ---
+  let narratorTimer = null;
+  function imfTypeFor(kind) {
+    if (kind === "honey") return "Hydrogen bonding (strongest)";
+    if (kind === "dmso") return "Dipole–dipole (medium)";
+    return "London dispersion (weakest)";
+  }
+  function renderNarration(force = false) {
+    if (!refs.narrator) return;
+    const total = sim.particles.length + (sim.escapedParticles?.length || 0);
+    const gas = sim.gasCount || 0;
+    const escaped = sim.escapedCount || 0;
+    const tSec = Math.max(0, ((performance.now() - sim.gasStart) / 1000) | 0);
+    const scenario = sim.currentScenario || "honey";
+    const imf = imfTypeFor(scenario);
+    const gasPct = total > 0 ? Math.round((gas / total) * 100) : 0;
+    const escapedPct = total > 0 ? Math.round((escaped / total) * 100) : 0;
+    const heating = sim.heatingOn ? "on" : "off";
+    const gravity = sim.gravityOn ? "on" : "off";
+
+    const scenarioName = scenario.charAt(0).toUpperCase() + scenario.slice(1);
+    const imfType =
+      scenario === "honey"
+        ? "Hydrogen bonding"
+        : scenario === "dmso"
+        ? "Dipole–dipole"
+        : "London dispersion";
+    const imfStrength =
+      scenario === "honey"
+        ? "strongest"
+        : scenario === "dmso"
+        ? "medium"
+        : "weakest";
+
+    const explanation =
+      scenario === "honey"
+        ? 'Strong <span class="narrator-emphasis">hydrogen bonds</span> keep particles tightly clustered together. This makes evaporation very difficult—particles need significant thermal energy to break free.'
+        : scenario === "dmso"
+        ? '<span class="narrator-emphasis">Dipole–dipole</span> interactions align molecules anti-parallel, creating moderate cohesion. Evaporation requires moderate thermal energy—more than hexane but less than honey.'
+        : 'Weak <span class="narrator-emphasis">London dispersion forces</span> provide minimal attraction between particles. With little holding them together, particles evaporate easily even at low temperatures.';
+
+    const html = `
+      <div class="narrator-content">
+        <div class="narrator-section">
+          <div class="title">${scenarioName} — <span class="narrator-emphasis">${imfType}</span></div>
+          <div class="line">IMF Strength: <span class="narrator-highlight">${imfStrength}</span> | Time: <span class="narrator-highlight">${tSec}s</span></div>
+          <div class="line">Heating: <span class="narrator-highlight">${heating}</span> | Gravity: <span class="narrator-highlight">${gravity}</span></div>
+        </div>
+        <div class="narrator-section">
+          <div class="line"><strong>Current State:</strong></div>
+          <div class="line">Gas particles: <span class="narrator-highlight">${gas}</span> (<span class="narrator-highlight">${gasPct}%</span>)</div>
+          <div class="line">Escaped total: <span class="narrator-highlight">${escaped}</span> (<span class="narrator-highlight">${escapedPct}%</span>)</div>
+        </div>
+        <div class="narrator-section">
+          <div class="line"><strong>What's Happening:</strong></div>
+          <div class="line">${explanation}</div>
+          ${
+            heating === "on"
+              ? '<div class="line narrator-highlight" style="margin-top: 8px; padding: 8px; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 4px;"><strong>🔥 Real Boiling Behavior:</strong> Notice how molecules at the bottom heat up first and push unheated molecules upward! This creates convection currents—just like real boiling water on a stovetop. The heated particles gain thermal energy and kinetic energy, rising while cooler particles sink to replace them.</div>'
+              : ""
+          }
+        </div>
+        <div class="narrator-section">
+          <div class="line"><strong>IMF Hierarchy:</strong></div>
+          <div class="line"><span class="narrator-emphasis">Hydrogen bonds</span> > <span class="narrator-emphasis">Dipole–dipole</span> > <span class="narrator-emphasis">London dispersion</span></div>
+          <div class="line">Evaporation order: Honey (hardest) < DMSO (medium) < Hexane (easiest)</div>
+        </div>
+        <div class="narrator-section">
+          <div class="line narrator-tip"><strong>💡 Tip:</strong> Turn heat on to add thermal energy. Surface particles evaporate first because they have fewer neighbors holding them back!</div>
+        </div>
+      </div>
+    `;
+    refs.narrator.innerHTML = html;
+  }
+  function startNarrator() {
+    try {
+      renderNarration(true);
+    } catch (_) {}
+    if (narratorTimer) clearInterval(narratorTimer);
+    narratorTimer = setInterval(() => {
+      try {
+        renderNarration(false);
+      } catch (_) {}
+    }, 1500);
+  }
+  startNarrator();
+
   // Debug panel functionality
   let selectedParticle = null;
   let debugUpdateInterval = null;
-  
+
   // Make debug panel draggable
   let isDragging = false;
   let dragStartX = 0;
   let dragStartY = 0;
   let panelStartX = 0;
   let panelStartY = 0;
-  
+
   if (refs.debugPanel) {
     const debugHeader = refs.debugPanel.querySelector("h4");
     if (debugHeader) {
@@ -2623,7 +3468,7 @@ M  END
         e.preventDefault();
       });
     }
-    
+
     document.addEventListener("mousemove", (e) => {
       if (!isDragging || !refs.debugPanel.classList.contains("active")) return;
       const dx = e.clientX - dragStartX;
@@ -2637,7 +3482,7 @@ M  END
       refs.debugPanel.style.top = `${Math.max(0, Math.min(newY, maxY))}px`;
       refs.debugPanel.style.right = "auto";
     });
-    
+
     document.addEventListener("mouseup", () => {
       isDragging = false;
     });
@@ -2777,7 +3622,7 @@ M  END
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Check if "Go to Next Trial" button was clicked
+    // Check if "Go to Next Trial" or "Restart Trials" button was clicked
     if (sim.trialEnded && sim.restartButtonBounds) {
       const btn = sim.restartButtonBounds;
       if (
@@ -2786,6 +3631,26 @@ M  END
         y >= btn.y &&
         y <= btn.y + btn.h
       ) {
+        // If all trials completed, restart from beginning
+        if (btn.allTrialsCompleted) {
+          // Reset everything
+          sim.completedTrials.clear();
+          sim.gasHistory = [];
+          sim.trialEnded = false;
+          sim.escapedCount = 0;
+          sim.escapedParticles = [];
+          sim.currentScenario = null;
+          // Start with honey
+          setScenario("honey");
+          sim.gasStart = performance.now();
+          sim.heatingOn = true;
+          sim.spawnParticles();
+          sim.start();
+          sim.draw();
+          if (refs.tHeat) refs.tHeat.classList.add("is-active");
+          return;
+        }
+
         // Cycle to next material and start trial with heat automatically on
         const materials = ["honey", "dmso", "hexane"];
         const currentIndex = materials.indexOf(sim.currentScenario || "honey");
@@ -2859,7 +3724,8 @@ M  END
   sim.currentScenario = "honey"; // Ensure initial scenario is set
   sim.params.color = scenarioColor("honey");
   sim.draw();
-  sim.start();
+  // Don't auto-start - wait for user to click Play
+  // sim.start();
   // Set gravity button to active state (gravity is on by default)
   if (refs.tGravity && sim.gravityOn) {
     refs.tGravity.classList.add("is-active");
