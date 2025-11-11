@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DNA Replication (Prokaryotic) – Step-by-Step</title>
-    <link rel="stylesheet" href="/static/shared/hw-ui.css" />
     <link rel="stylesheet" href="replication.css" />
   </head>
   <body>
@@ -18,15 +17,15 @@
           </svg>
         </div>
         <div class="panel controls" aria-label="Replication controls">
-          <button id="helicase-start" type="button" class="btn">Helicase + Topoisomerase (Unwinds DNA helix)</button>
-          <button id="primase-start" type="button" class="btn" aria-label="Lay down RNA primers (Primase)">Primase (Lays down RNA primers)</button>
+          <button id="helicase-start" type="button" class="primary">Helicase + Topoisomerase (Unwinds DNA helix)</button>
+          <button id="primase-start" type="button" class="primary" aria-label="Lay down RNA primers (Primase)">Primase (Lays down RNA primers)</button>
           <span id="helicase-status" aria-hidden="true"></span>
           <span id="primase-status" aria-hidden="true"></span>
-          <button id="pol3-start" type="button" class="btn">DNA Pol III (Synthesizes DNA)</button>
-          <button id="pol1-start" type="button" class="btn" aria-label="Replace RNA primers with DNA (DNA Pol I)">DNA Pol I (Replaces RNA primers with DNA)</button>
-          <button id="ligase-start" type="button" class="btn">DNA Ligase (Seals nicks)</button>
-          <span id="order-notice" role="alert" aria-live="polite" class="muted" style="display:none"></span>
-          <button id="helicase-reset" type="button" class="btn btn--outline" style="display:none">Reset</button>
+          <button id="pol3-start" type="button" class="primary">DNA Pol III (Synthesizes DNA)</button>
+          <button id="pol1-start" type="button" class="primary" aria-label="Replace RNA primers with DNA (DNA Pol I)">DNA Pol I (Replaces RNA primers with DNA)</button>
+          <button id="ligase-start" type="button" class="primary">DNA Ligase (Seals nicks)</button>
+          <span id="order-notice" role="alert" aria-live="polite" class="alert warning" style="display:none"></span>
+          <button id="helicase-reset" type="button" class="outline" style="display:none">Reset</button>
         </div>
       </div>
     </main>

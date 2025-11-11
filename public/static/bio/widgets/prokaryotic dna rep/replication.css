@@ -11,6 +11,66 @@
   --control-border: #cbd5e1;
 }
 
+/* === Shared Style Guide (HTCS) === */
+body {
+  font-family: 'Source Sans', Arial, sans-serif;
+  line-height: 1.6;
+}
+
+h1, h2, h3 { font-weight: 900; }
+h4, h5, h6 { font-weight: 600; }
+
+.red { color: #B1001A; text-transform: uppercase; }
+a:hover { text-decoration: underline; color: #B1001A; }
+
+input, select, textarea {
+  min-height: 44px;
+  border: 1px solid #ccc;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #B1001A; /* Focus ring */
+  outline-offset: 1px;
+}
+
+button.primary {
+  background: #B1001A;
+  color: #ffffff;
+  border-radius: 6px;
+  border: none;
+}
+button.outline {
+  border: 2px solid #B1001A;
+  color: #B1001A;
+  background: transparent;
+  border-radius: 6px;
+}
+button.ghost {
+  background: none;
+  color: #B1001A;
+  border: none;
+}
+.badge.primary { background: #B1001A; color: #ffffff; }
+.badge.accent { background: #F4C542; color: #000000; }
+.alert.info { background: #e3f4fd; color: #0c3a53; }
+.alert.success { background: #d4fdd6; color: #237a27; }
+.alert.warning { background: #fff4db; color: #a35e00; }
+
+/* Light panel chrome to match app cards */
+.panel {
+  background: #ffffff;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+}
+.container {
+  margin: 0 auto;
+}
+.container--narrow {
+  max-width: 900px;
+}
+/* === End Shared Style Guide === */
+
 * { box-sizing: border-box; }
 
 #replication-demo {
@@ -158,7 +218,6 @@ svg#replication-svg {
 
 .controls #order-notice {
   margin-left: 8px;
-  color: #dc2626; /* red for error */
   font-size: 0.9rem;
 }
 
