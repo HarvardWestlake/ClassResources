@@ -148,6 +148,27 @@
       .helper-box .row > div:last-child {
         padding-left: 16px;
       }
+      /* Neutral version for live trig substitution panel (no yellow) */
+      .subpanel-box {
+        background: #fff;
+        border: 1px solid var(--hw-gray-200);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      }
+      .subpanel-box h3 {
+        margin: 0 0 12px 0;
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--hw-gray-900);
+      }
+      .subpanel-box .row > div:first-child {
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
+        padding-right: 16px;
+      }
+      .subpanel-box .row > div:last-child {
+        padding-left: 16px;
+      }
       .helper-list {
         margin: 8px 0 0 18px;
         padding: 0;
@@ -529,7 +550,7 @@
 
         <div
           id="tsw-subpanel"
-          class="helper-box"
+          class="subpanel-box"
           style="margin-top: 12px; display: none"
         >
           <h3>Trig Substitution</h3>
@@ -658,43 +679,51 @@
       const analyzeBtn = document.getElementById("analyzeBtn");
       const clearBtn = document.getElementById("clearBtn");
 
-      function parseA(value) {
-        const m = value.match(/([0-9]+(?:\.[0-9]+)?)/);
-        return m ? parseFloat(m[1]) : null;
-      }
-
       function analyzeExpression(raw) {
         if (!raw) return { summary: "Enter an expression to analyze." };
         const s = raw.replace(/\s+/g, "").toLowerCase();
-        const sqrtMatch = s.match(/sqrt\((.+)\)/);
-        let inside = sqrtMatch ? sqrtMatch[1] : s;
+        // Support sqrt(expr) or 1/(expr) (we only examine the inner expr)
+        let inside = s;
+        const sqrtMatch = s.match(/^sqrt\((.+)\)$/);
+        const invMatch = s.match(/^1\/\((.+)\)$/);
+        if (sqrtMatch) inside = sqrtMatch[1];
+        else if (invMatch) inside = invMatch[1];
 
-        // Try to detect forms a^2 - x^2, a^2 + x^2, x^2 - a^2 (up to constants)
-        const minusForm = inside.match(
-          /^([0-9.]+)\s*[-]?x\^?2|\(?([0-9.]+)-x\^2\)?$/
-        );
-        // Fallback direct checks
-        const isA2MinusX2 =
-          /(\d+)\-x\^2/.test(inside) ||
-          /\((\d+)\)\-x\^2/.test(inside) ||
-          /([0-9.]+)\s*-\s*x\^2/.test(inside);
-        const isA2PlusX2 =
-          /(\d+)\+x\^2/.test(inside) || /([0-9.]+)\s*\+\s*x\^2/.test(inside);
-        const isX2MinusA2 =
-          /x\^2\-\d+/.test(inside) || /x\^2\s*-\s*([0-9.]+)/.test(inside);
+        // Detect canonical numeric forms and capture the constant a^2:
+        //   a^2 - x^2, a^2 + x^2, x^2 - a^2, x^2 + a^2
+        const mMinus = inside.match(/^\(?([0-9.]+)\)?-x\^2$/);
+        const mPlus = inside.match(/^\(?([0-9.]+)\)?\+x\^2$/);
+        const mXMinus = inside.match(/^x\^2-\(?([0-9.]+)\)?$/);
+        const mXPlus = inside.match(/^x\^2\+\(?([0-9.]+)\)?$/);
 
         let a = null;
-        if (isA2MinusX2) a = parseA(inside);
-        if (isA2PlusX2) a = parseA(inside);
-        if (isX2MinusA2) a = parseA(inside);
-
         let rec = "";
-        if (isA2MinusX2) {
-          rec = `Detected √(a² − x²). Use x = a sin θ. a ≈ ${a ?? "a"}.`;
-        } else if (isA2PlusX2) {
-          rec = `Detected √(a² + x²). Use x = a tan θ. a ≈ ${a ?? "a"}.`;
-        } else if (isX2MinusA2) {
-          rec = `Detected √(x² − a²). Use x = a sec θ. a ≈ ${a ?? "a"}.`;
+        const fmt = (v) =>
+          Math.abs(v - Math.round(v)) < 1e-9
+            ? String(Math.round(v))
+            : v
+                .toFixed(3)
+                .replace(/\\.0+$/, "")
+                .replace(/(\\.\\d*?)0+$/, "$1");
+
+        if (mMinus) {
+          const a2 = parseFloat(mMinus[1]);
+          a = Number.isFinite(a2) && a2 >= 0 ? Math.sqrt(a2) : null;
+          rec = `Detected √(a² − x²). Use x = a sin θ. a ≈ ${
+            a != null ? fmt(a) : "a"
+          }.`;
+        } else if (mPlus || mXPlus) {
+          const a2 = parseFloat((mPlus || mXPlus)[1]);
+          a = Number.isFinite(a2) && a2 >= 0 ? Math.sqrt(a2) : null;
+          rec = `Detected √(a² + x²). Use x = a tan θ. a ≈ ${
+            a != null ? fmt(a) : "a"
+          }.`;
+        } else if (mXMinus) {
+          const a2 = parseFloat(mXMinus[1]);
+          a = Number.isFinite(a2) && a2 >= 0 ? Math.sqrt(a2) : null;
+          rec = `Detected √(x² − a²). Use x = a sec θ. a ≈ ${
+            a != null ? fmt(a) : "a"
+          }.`;
         } else {
           rec =
             "Pattern not immediately recognized. Consider completing the square or factoring.";
@@ -712,7 +741,7 @@
           if (subSel) {
             if (/\-x\^2/.test(res.inside)) {
               subSel.value = "sin";
-            } else if (/\+x\^2/.test(res.inside)) {
+            } else if (/\+x\^2/.test(res.inside) || /x\^2\+/.test(res.inside)) {
               subSel.value = "tan";
             } else if (/x\^2\-/.test(res.inside)) {
               subSel.value = "sec";
@@ -1415,6 +1444,21 @@
             } catch (e) {}
           }
         });
+        // Extra safety: poll briefly for KaTeX, then render once available
+        if (!window.katex) {
+          let tries = 0;
+          const timer = setInterval(function () {
+            if (window.katex || tries > 20) {
+              clearInterval(timer);
+              if (window.katex) {
+                try {
+                  renderSubPanel();
+                } catch (e) {}
+              }
+            }
+            tries += 1;
+          }, 150);
+        }
       })();
     </script>
 
