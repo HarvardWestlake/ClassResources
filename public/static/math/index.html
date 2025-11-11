@@ -345,7 +345,6 @@
 
         function toLatex(expr) {
           if (!expr) return "";
-          // Convert sqrt(x) -> \\sqrt{x}
           return expr.replace(/sqrt\(([^)]+)\)/g, "\\\\sqrt{$1}");
         }
 
@@ -401,27 +400,16 @@
             var card = document.createElement("a");
             card.className = "widget-card";
             card.href = meta.entry || "widgets/trigonometric-Sub/trig-sub.html";
-            var functionText =
-              meta.functions && meta.functions.length
-                ? meta.functions
-                    .map(function (f) {
-                      return toLatex(f.label);
-                    })
-                    .join(", ")
-                : "Trigonometric Substitution";
+            // Simplified cover text: just list the substitution families
+            // Requested: show compact names instead of full expressions
+            var functionText = "sin, tan, sec";
             card.innerHTML =
               '<div class="title-row">' +
               "<h3>" +
               (meta.title || "Trigonometric Substitution Explorer") +
               "</h3>" +
               '<div class="function">' +
-              // Wrap in inline math delimiters for KaTeX auto-render
-              functionText
-                .split(", ")
-                .map(function (s) {
-                  return "\\(" + s + "\\)";
-                })
-                .join(", ") +
+              functionText +
               "</div>" +
               "</div>" +
               "<p>" +
