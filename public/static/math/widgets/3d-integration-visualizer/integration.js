@@ -99,6 +99,34 @@
                 if (autoRotateResumeTimer) clearTimeout(autoRotateResumeTimer);
                 autoRotateResumeTimer = setTimeout(() => { autoRotateZ = true; }, ms);
             }
+            // Zoom utility: uses OrbitControls dolly if present, else move camera along view vector
+            function zoomBy(factor, anchorEvent) {
+                pauseAutoRotate(1200);
+                const s = Math.max(0.0001, Math.min(1000, factor));
+                if (controls && typeof controls.dollyIn === 'function' && typeof controls.dollyOut === 'function') {
+                    if (s < 1) controls.dollyIn(s); else controls.dollyOut(s);
+                    controls.update && controls.update();
+                } else {
+                    const tgt = (controls && controls.target) ? controls.target : new THREE.Vector3(0, 0, 0);
+                    const dir = new THREE.Vector3();
+                    camera.getWorldDirection(dir);
+                    const dist = camera.position.distanceTo(tgt);
+                    const step = Math.max(0.05, dist * Math.abs(s - 1));
+                    camera.position.addScaledVector(dir, s < 1 ? -step : step);
+                    camera.updateProjectionMatrix();
+                }
+                if (anchorEvent) showClickDot(anchorEvent, '#b81f53', 3);
+            }
+            // Mouse wheel / trackpad zoom
+            el.addEventListener('wheel', (evt) => {
+                const speed = (controls && controls.zoomSpeed) ? controls.zoomSpeed : 1;
+                const intensity = 0.0015 * speed;
+                const s = Math.pow(1 + intensity, Math.abs(evt.deltaY));
+                const factor = (evt.deltaY < 0) ? (1 / s) : s;
+                zoomBy(factor, evt);
+                evt.preventDefault();
+                evt.stopImmediatePropagation();
+            }, { passive: false });
             el.addEventListener('pointerdown', (evt) => {
                 console.log('canvas pointerdown (drag start)', { button: evt.button, x: evt.clientX, y: evt.clientY });
                 isDragging = true;
@@ -121,8 +149,16 @@
                     const dy = e.clientY - lastY;
                     lastX = e.clientX;
                     lastY = e.clientY;
+                    // Modifier-drag zoom (Shift or Alt)
+                    if (e.shiftKey || e.altKey) {
+                        const intensity = 0.006 * (e.shiftKey ? 1 : 0.5);
+                        const s = Math.exp(Math.abs(dy) * intensity);
+                        const factor = (dy < 0) ? (1 / s) : s; // drag up => zoom in
+                        zoomBy(factor, e);
+                        return;
+                    }
                     console.log('canvas drag move', { dx, dy, x: e.clientX, y: e.clientY });
-                    // light blue trail dot during drag
+                    // light blue trail dot during rotate/pan drag
                     showClickDot(e, '#4cc3ff', 4);
                     // Drive camera orbit if available; otherwise rotate the content as fallback
                     try {
