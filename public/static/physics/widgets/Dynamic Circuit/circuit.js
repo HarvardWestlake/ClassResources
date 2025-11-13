@@ -24,6 +24,32 @@
   const elR2VI = document.getElementById("r2VI");
   const elR2P = document.getElementById("r2P");
 
+  // New Add-Mode buttons (toggle between Series/Parallel)
+  const elSeriesBtn = document.getElementById("addAsSeriesBtn");
+  const elParallelBtn = document.getElementById("addAsParallelBtn");
+  const elAddModeSeries = document.querySelector('input[name="addmode"][value="series"]');
+  const elAddModeParallel = document.querySelector('input[name="addmode"][value="parallel"]');
+  function setAddModeBtn(mode) {
+    if (!elAddModeSeries || !elAddModeParallel || !elSeriesBtn || !elParallelBtn) return;
+    if (mode === "series") {
+      elAddModeSeries.checked = true;
+      elSeriesBtn.classList.add("btn");
+      elSeriesBtn.classList.remove("btn--outline");
+      elParallelBtn.classList.add("btn--outline");
+      elParallelBtn.classList.remove("btn");
+    } else {
+      elAddModeParallel.checked = true;
+      elParallelBtn.classList.add("btn");
+      elParallelBtn.classList.remove("btn--outline");
+      elSeriesBtn.classList.add("btn--outline");
+      elSeriesBtn.classList.remove("btn");
+    }
+  }
+  if (elSeriesBtn) elSeriesBtn.addEventListener("click", () => setAddModeBtn("series"));
+  if (elParallelBtn) elParallelBtn.addEventListener("click", () => setAddModeBtn("parallel"));
+  // Initialize default state
+  setAddModeBtn("series");
+
   // Geometry
   const W = 900, H = 460;
   const margin = 110; // more white space around the circuit
@@ -330,8 +356,107 @@
     return { Rtot, Itot, Ptot: V * Itot, per };
   }
 
+  // ===== Multi-select grouping helpers =====
+  function findPathToComponent(id) {
+    for (let topIndex = 0; topIndex < resistors.length; topIndex++) {
+      const node = resistors[topIndex];
+      if (node && node.kind === "comp" && node.id === id) {
+        return { topIndex, parallelNode: null, branchIndex: null, seriesNode: null, seriesIndex: 0 };
+      }
+      if (node && node.kind === "parallel" && Array.isArray(node.children)) {
+        for (let branchIndex = 0; branchIndex < node.children.length; branchIndex++) {
+          const ch = node.children[branchIndex];
+          if (ch.kind === "comp" && ch.id === id) {
+            return { topIndex, parallelNode: node, branchIndex, seriesNode: null, seriesIndex: 0 };
+          }
+          if (ch.kind === "series" && Array.isArray(ch.children)) {
+            const si = ch.children.findIndex(cc => cc.id === id);
+            if (si !== -1) {
+              return { topIndex, parallelNode: node, branchIndex, seriesNode: ch, seriesIndex: si };
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function computeSelectionGroup(selIds) {
+    const paths = selIds.map(findPathToComponent).filter(Boolean);
+    if (paths.length === 0) return null;
+    if (paths.length === 1) {
+      const p = paths[0];
+      if (p.parallelNode) {
+        // Single in a branch
+        return {
+          kind: "branch-series",
+          topIndex: p.topIndex,
+          parallelNode: p.parallelNode,
+          branchIndex: p.branchIndex,
+          seriesNode: p.seriesNode,
+          seriesSpan: [p.seriesIndex, p.seriesIndex]
+        };
+      }
+      // Single at top level
+      return { kind: "top-series", topSpan: [p.topIndex, p.topIndex] };
+    }
+    // Check if all share the same nearest parallel ancestor
+    const allHaveParallel = paths.every(p => !!p.parallelNode);
+    if (allHaveParallel) {
+      const ref = paths[0].parallelNode;
+      const sameParallel = paths.every(p => p.parallelNode === ref);
+      if (sameParallel) {
+        // How many distinct branches touched?
+        const branchSet = new Set(paths.map(p => p.branchIndex));
+        if (branchSet.size >= 2) {
+          return { kind: "parallel-group", topIndex: paths[0].topIndex, parallelNode: ref };
+        }
+        // Same branch -> branch-series span
+        const branchIndex = paths[0].branchIndex;
+        const indices = paths.map(p => (p.seriesNode ? p.seriesIndex : 0));
+        const lo = Math.min(...indices);
+        const hi = Math.max(...indices);
+        const seriesNode = paths.find(p => p.seriesNode)?.seriesNode || null;
+        return {
+          kind: "branch-series",
+          topIndex: paths[0].topIndex,
+          parallelNode: ref,
+          branchIndex,
+          seriesNode,
+          seriesSpan: [lo, hi]
+        };
+      }
+    }
+    // Fall back to top-level series segment
+    const topIdx = paths.map(p => p.topIndex);
+    const lo = Math.min(...topIdx);
+    const hi = Math.max(...topIdx);
+    return { kind: "top-series", topSpan: [lo, hi] };
+  }
+
+  function insertSeriesAfterTopIndex(comp, idx) {
+    resistors.splice(idx + 1, 0, comp);
+  }
+  function ensureBranchSeriesNode(parallelNode, branchIndex) {
+    const child = parallelNode.children[branchIndex];
+    if (child && child.kind === "series") return child;
+    // Convert single component (or unexpected) into series node
+    const asComp = child.kind === "comp" ? child : { kind: "comp", id: child.id, R: child.R, type: child.type };
+    const seriesNode = { kind: "series", children: [asComp] };
+    parallelNode.children[branchIndex] = seriesNode;
+    return seriesNode;
+  }
+  function insertIntoBranchSeries(comp, parallelNode, branchIndex, seriesNode, insertAfterIndex) {
+    const ser = seriesNode || ensureBranchSeriesNode(parallelNode, branchIndex);
+    const pos = Math.max(0, Math.min(insertAfterIndex + 1, ser.children.length));
+    ser.children.splice(pos, 0, comp);
+  }
+  function addBranchToParallel(comp, parallelNode) {
+    parallelNode.children.push(comp);
+  }
+
   // Localized parallel group renderers on top/bottom and left/right edges
-  function drawLocalParallelGroupTop(cx, yMain, children, pMax, res) {
+  function drawLocalParallelGroupTop(cx, yMain, children, pMax, res, brightnessMap) {
     const halfSpan = Math.max(RES_RENDER_LEN, 120) / 2;
     const xL = cx - halfSpan, xR = cx + halfSpan;
     // mask the main wire segment to avoid bypass look
@@ -364,7 +489,8 @@
         c.children.forEach((cc, k) => {
           const cx = xL + spacing * (k + 1);
           const sel = selectedIds.has(cc.id);
-          const pow = Math.max(0, (res.per[cc.id]?.P || 0));
+          const powRaw = Math.max(0, (res.per[cc.id]?.P || 0));
+          const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
           const g = componentHorizontal(cc.type || "resistor", cx, l.y, RES_RENDER_LEN, pow, sel);
           g.dataset.resistorId = cc.id;
           g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(cc.id); else selectedIds.add(cc.id); update(); });
@@ -381,7 +507,8 @@
         });
       } else {
         const sel = selectedIds.has(c.id);
-        const pow = Math.max(0, (res.per[c.id]?.P || 0));
+        const powRaw = Math.max(0, (res.per[c.id]?.P || 0));
+        const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
         const g = componentHorizontal(c.type || "resistor", (xL + xR) / 2, l.y, length, pow, sel);
         g.dataset.resistorId = c.id;
         g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(c.id); else selectedIds.add(c.id); update(); });
@@ -399,7 +526,7 @@
     });
   }
 
-  function drawLocalParallelGroupLeft(xMain, cy, children, pMax, res) {
+  function drawLocalParallelGroupLeft(xMain, cy, children, pMax, res, brightnessMap) {
     const halfSpan = Math.max(RES_RENDER_LEN, 120) / 2;
     const yT = cy - halfSpan, yB = cy + halfSpan;
     // mask the main wire segment to avoid bypass look
@@ -432,7 +559,8 @@
         c.children.forEach((cc, k) => {
           const cy = yT + spacing * (k + 1);
           const sel = selectedIds.has(cc.id);
-          const pow = Math.max(0, (res.per[cc.id]?.P || 0));
+          const powRaw = Math.max(0, (res.per[cc.id]?.P || 0));
+          const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
           const g = componentVertical(cc.type || "resistor", l.x, cy, RES_RENDER_LEN, pow, sel);
           g.dataset.resistorId = cc.id;
           g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(cc.id); else selectedIds.add(cc.id); update(); });
@@ -449,7 +577,8 @@
         });
       } else {
         const sel = selectedIds.has(c.id);
-        const pow = Math.max(0, (res.per[c.id]?.P || 0));
+        const powRaw = Math.max(0, (res.per[c.id]?.P || 0));
+        const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
         const g = componentVertical(c.type || "resistor", l.x, (yT + yB) / 2, length, pow, sel);
         g.dataset.resistorId = c.id;
         g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(c.id); else selectedIds.add(c.id); update(); });
@@ -822,6 +951,29 @@
       }
     }
 
+    // Global brightness transform based on circuit power distribution:
+    // - If all powers are low (max <= 1.0W), apply cbrt to expand differences
+    // - Else if the highest individual power <= 1.5W, square values to exaggerate differences
+    // - Else if the lowest individual power >= 4W, apply sqrt to compress range
+    // - Otherwise, identity (no change)
+    let pMaxAll = 0;
+    let pMinAll = Infinity;
+    for (const k in res.per) {
+      if (Object.prototype.hasOwnProperty.call(res.per, k)) {
+        const p = Math.max(0, res.per[k].P);
+        pMaxAll = Math.max(pMaxAll, p);
+        pMinAll = Math.min(pMinAll, p);
+      }
+    }
+    let brightnessMap = (p) => p;
+    if (pMaxAll <= 1.0) {
+      brightnessMap = (p) => Math.cbrt(p);
+    } else if (pMaxAll <= 1.5) {
+      brightnessMap = (p) => p * p;
+    } else if (pMinAll >= 4) {
+      brightnessMap = (p) => Math.sqrt(p);
+    }
+
     if (mode === "series") {
       drawRectangleLoop();
       // Series: distribute evenly around all four edges, colinear with the local edge
@@ -880,11 +1032,12 @@
           const x2 = px + half;
           if (item && item.kind === "parallel" && Array.isArray(item.children)) {
             // Localized parallel group on top/bottom edge
-            drawLocalParallelGroupTop(px, y, item.children, pMax, res);
+            drawLocalParallelGroupTop(px, y, item.children, pMax, res, brightnessMap);
           } else {
             const r = item;
             const sel = selectedIds.has(r.id);
-            const f = Math.max(0, (res.per[r.id]?.P || 0));
+            const fRaw = Math.max(0, (res.per[r.id]?.P || 0));
+            const f = brightnessMap(fRaw);
             svg.appendChild(dot(x1, y));
             svg.appendChild(dot(x2, y));
             const g = componentHorizontal(r.type || "resistor", px, y, rLen, f, sel);
@@ -933,11 +1086,12 @@
           const y1 = py - half;
           const y2 = py + half;
           if (item && item.kind === "parallel" && Array.isArray(item.children)) {
-            drawLocalParallelGroupLeft(x, py, item.children, pMax, res);
+            drawLocalParallelGroupLeft(x, py, item.children, pMax, res, brightnessMap);
           } else {
             const r = item;
             const sel = selectedIds.has(r.id);
-            const f = Math.max(0, (res.per[r.id]?.P || 0));
+            const fRaw = Math.max(0, (res.per[r.id]?.P || 0));
+            const f = brightnessMap(fRaw);
             svg.appendChild(dot(x, y1));
             svg.appendChild(dot(x, y2));
             const g = componentVertical(r.type || "resistor", x, py, rLen, f, sel);
@@ -1015,7 +1169,7 @@
         const rId = l.id;
         const comp = list.find(x => x.id === rId);
         const sel = selectedIds.has(rId);
-        const f = Math.max(0, res.per[rId].P);
+        const f = brightnessMap(Math.max(0, res.per[rId].P));
         const g = componentHorizontal(comp?.type || "resistor", (xL + xR) / 2, l.y, length, f, sel);
         g.dataset.resistorId = rId;
         g.addEventListener("click", (e) => {
@@ -1103,52 +1257,73 @@
     const R = Math.max(0.01, parseFloat(elNewR.value || "0"));
     const addMode = (elAddMode.find(r => r.checked)?.value) || "series";
     const sel = Array.from(selectedIds);
-    if (sel.length > 1) {
-      showToast("Select 0 or 1 component to add.");
-      return;
-    }
-    if (addMode === "parallel" && sel.length === 0) {
-      showToast("Select a resistor to add a parallel branch.");
-      return;
-    }
     const id = `r${nextId++}`;
     const comp = { kind: "comp", id, R, type };
-    if (addMode === "series") {
-      if (sel.length === 1) {
-        const info = findSelectionInfo(sel[0]);
-        if (info && info.level === "parallel") {
-          const parent = resistors[info.idx];
-          const old = parent.children[info.childIndex];
-          parent.children[info.childIndex] = { kind: "series", children: [old, comp] };
-        } else if (info && info.level === "parallel-series") {
-          const parent = resistors[info.idx];
-          const ser = parent.children[info.childIndex];
-          ser.children.splice(info.seriesIndex + 1, 0, comp);
-        } else if (info && info.level === "top") {
-          resistors.splice(info.idx + 1, 0, comp);
-        } else {
-          resistors.push(comp);
-        }
-      } else {
+    if (sel.length === 0) {
+      // Fallback behavior when nothing selected
+      if (addMode === "series") {
         resistors.push(comp);
+        update();
+      } else {
+        showToast("To add in parallel, select components within the same parallel group.");
+      }
+      return;
+    }
+    const group = computeSelectionGroup(sel);
+    if (!group) { showToast("Couldn't resolve selection."); return; }
+    if (addMode === "series") {
+      if (group.kind === "parallel-group") {
+        insertSeriesAfterTopIndex(comp, group.topIndex);
+      } else if (group.kind === "branch-series") {
+        const insertAfter = group.seriesSpan ? group.seriesSpan[1] : 0;
+        insertIntoBranchSeries(comp, group.parallelNode, group.branchIndex, group.seriesNode, insertAfter);
+      } else if (group.kind === "top-series") {
+        insertSeriesAfterTopIndex(comp, group.topSpan[1]);
       }
       update();
       return;
     }
-    if (sel.length === 1) {
-      const selId = sel[0];
-      const idx = resistors.findIndex(x => x.id === selId || (x.kind === "parallel" && x.children?.some(c => c.id === selId)));
-      if (idx === -1) { showToast("Couldn't locate the selected component."); return; }
-      const target = resistors[idx];
-      if (target && target.kind === "parallel") {
-        target.children.push(comp);
-      } else {
-        const old = target;
-        const oldComp = old.kind === "comp" ? old : { kind: "comp", id: old.id, R: old.R, type: old.type };
-        resistors.splice(idx, 1, { kind: "parallel", children: [oldComp, comp] });
-      }
+    // addMode === 'parallel'
+    if (group.kind === "parallel-group") {
+      addBranchToParallel(comp, group.parallelNode);
       update();
+      return;
     }
+    if (group.kind === "branch-series") {
+      addBranchToParallel(comp, group.parallelNode);
+      update();
+      return;
+    }
+    // top-series: allow wrapping a single top-level component into a new parallel group
+    if (group.kind === "top-series") {
+      if (sel.length === 1) {
+        const path = findPathToComponent(sel[0]);
+        if (!path || typeof path.topIndex !== "number") {
+          showToast("Couldn't resolve selection.");
+          return;
+        }
+        const target = resistors[path.topIndex];
+        if (!target) {
+          showToast("Couldn't locate the selected component.");
+          return;
+        }
+        if (target.kind === "parallel") {
+          // Selected a top-level parallel group (edge case): add a new branch
+          addBranchToParallel(comp, target);
+        } else {
+          // Wrap top-level component with a new parallel group
+          const oldComp = target.kind === "comp" ? target : { kind: "comp", id: target.id, R: target.R, type: target.type };
+          resistors.splice(path.topIndex, 1, { kind: "parallel", children: [oldComp, comp] });
+        }
+        update();
+        return;
+      }
+      // Multiple top-level items selected: require selecting within a single parallel group
+      showToast("To add in parallel, select components within the same parallel group.");
+      return;
+    }
+    // Fallback
+    showToast("To add in parallel, select components within the same parallel group.");
   }
   if (elAddResistor) {
     elAddResistor.addEventListener("click", () => handleAdd("resistor"));
