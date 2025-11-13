@@ -22,12 +22,16 @@ resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
 // UI controls
-const pauseCheckbox = document.getElementById('pause');
 // Mode radios
 const modeDrag = document.getElementById('modeDrag');
 const modePaintPos = document.getElementById('modePaintPos');
 const modePaintNeg = document.getElementById('modePaintNeg');
 const modeDelete = document.getElementById('modeDelete');
+// Mode labels for visual active state
+const lblModeDrag = document.getElementById('lblModeDrag');
+const lblModePaintPos = document.getElementById('lblModePaintPos');
+const lblModePaintNeg = document.getElementById('lblModePaintNeg');
+const lblModeDelete = document.getElementById('lblModeDelete');
 // Add buttons
 const btnAddConductor = document.getElementById('btnAddConductor');
 const btnAddInsulator = document.getElementById('btnAddInsulator');
@@ -37,6 +41,13 @@ function updateMode() {
   mode = (modeDelete && modeDelete.checked) ? 'delete'
     : (modePaintPos.checked ? 'paintPos'
     : (modePaintNeg.checked ? 'paintNeg' : 'drag'));
+  renderModeUI();
+}
+function renderModeUI() {
+  if (lblModeDrag) lblModeDrag.classList.toggle('active', mode === 'drag');
+  if (lblModePaintPos) lblModePaintPos.classList.toggle('active', mode === 'paintPos');
+  if (lblModePaintNeg) lblModePaintNeg.classList.toggle('active', mode === 'paintNeg');
+  if (lblModeDelete) lblModeDelete.classList.toggle('active', mode === 'delete');
 }
 modeDrag.addEventListener('change', updateMode);
 modePaintPos.addEventListener('change', updateMode);
@@ -46,6 +57,142 @@ if (btnClearAll) {
   btnClearAll.addEventListener('click', () => {
     clearAllSpheres();
   });
+}
+// Initialize mode UI
+renderModeUI();
+// Intro modal elements and logic
+const introModal = document.getElementById('introModal');
+const introStep1 = document.getElementById('introStep1');
+const introStep2 = document.getElementById('introStep2');
+const introBack = document.getElementById('introBack');
+const introNext = document.getElementById('introNext');
+const introFinish = document.getElementById('introFinish');
+let introStepIndex = 0; // 0 or 1
+let simulationPaused = false;
+function renderIntroStep() {
+  if (!introModal) return;
+  if (introStep1) introStep1.hidden = (introStepIndex !== 0);
+  if (introStep2) introStep2.hidden = (introStepIndex !== 1);
+  if (introBack) introBack.hidden = (introStepIndex === 0);
+  if (introNext) introNext.hidden = (introStepIndex !== 0);
+  if (introFinish) introFinish.hidden = (introStepIndex !== 1);
+}
+function showIntro() {
+  if (!introModal) return;
+  introModal.style.display = ''; // visible
+  // Pause simulation while intro is shown
+  simulationPaused = true;
+  introStepIndex = 0;
+  renderIntroStep();
+  // Focus the first button for a11y
+  if (introNext) introNext.focus();
+}
+function hideIntro() {
+  if (!introModal) return;
+  introModal.style.display = 'none';
+  // Resume simulation
+  simulationPaused = false;
+}
+if (introBack) {
+  introBack.addEventListener('click', (e) => {
+    e.stopPropagation();
+    introStepIndex = Math.max(0, introStepIndex - 1);
+    renderIntroStep();
+    if (introStepIndex === 0 && introNext) introNext.focus();
+  });
+}
+if (introNext) {
+  introNext.addEventListener('click', (e) => {
+    e.stopPropagation();
+    introStepIndex = Math.min(1, introStepIndex + 1);
+    renderIntroStep();
+    if (introStepIndex === 1 && introFinish) introFinish.focus();
+    if (introStepIndex === 1) drawIntroGraphic();
+  });
+}
+if (introFinish) {
+  introFinish.addEventListener('click', (e) => {
+    e.stopPropagation();
+    hideIntro();
+  });
+}
+// Keyboard shortcuts: Enter/Space to advance, Escape to close
+window.addEventListener('keydown', (e) => {
+  if (!introModal || introModal.style.display === 'none') return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    if (introStepIndex === 0 && introNext) {
+      introNext.click();
+    } else if (introStepIndex === 1 && introFinish) {
+      introFinish.click();
+    }
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    hideIntro();
+  } else if (e.key === 'ArrowLeft' && introBack && !introBack.hidden) {
+    e.preventDefault();
+    introBack.click();
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    if (introStepIndex === 0 && introNext) {
+      introNext.click();
+    }
+  }
+});
+
+// Intro modal sample rendering using Sphere.draw for visual parity
+function drawIntroGraphic() {
+  const introCanvas = document.getElementById('introCanvas');
+  if (!introCanvas) return;
+  const iCtx = introCanvas.getContext('2d');
+  if (!iCtx) return;
+  // HiDPI setup
+  const cssW = introCanvas.clientWidth || 220;
+  const cssH = introCanvas.clientHeight || 220;
+  const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  if (introCanvas.width !== Math.floor(cssW * ratio) || introCanvas.height !== Math.floor(cssH * ratio)) {
+    introCanvas.width = Math.floor(cssW * ratio);
+    introCanvas.height = Math.floor(cssH * ratio);
+  }
+  iCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  // Clear
+  iCtx.clearRect(0, 0, cssW, cssH);
+  // Soft background like the main view
+  const g = iCtx.createRadialGradient(cssW * 0.5, cssH * 0.5, Math.min(cssW, cssH) * 0.1, cssW * 0.5, cssH * 0.5, Math.max(cssW, cssH) * 0.8);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(1, '#f8fafc');
+  iCtx.fillStyle = g;
+  iCtx.fillRect(0, 0, cssW, cssH);
+  // Build a conductor with polarized electrons using the same rendering as simulation
+  const cx = cssW * 0.5;
+  const cy = cssH * 0.5;
+  const r = Math.min(cssW, cssH) * 0.36;
+  const n = targetElectronCountForRadius(r);
+  const s = new Sphere(cx, cy, r, n, 16, 'conductor'); // slight positive offset for red contrast
+  // Create a non-uniform electron distribution: cluster around angle 0, sparse elsewhere
+  const electrons = new Array(n);
+  const clusterCount = Math.floor(n * 0.7);
+  for (let i = 0; i < clusterCount; i++) {
+    // Cluster near angle 0 with some spread
+    const spread = 0.7;
+    const u = (Math.random() - 0.5) * 2; // -1..1
+    electrons[i] = u * spread;
+  }
+  for (let i = clusterCount; i < n; i++) {
+    // Distribute remaining around opposite side with wider spread
+    const base = Math.PI;
+    const spread = 1.0;
+    const u = (Math.random() - 0.5) * 2;
+    let th = base + u * spread;
+    // wrap to [-PI, PI]
+    if (th > Math.PI) th -= Math.PI * 2;
+    if (th < -Math.PI) th += Math.PI * 2;
+    electrons[i] = th;
+  }
+  s.angles = electrons;
+  // Keep protons uniform as in the simulation (already set by constructor)
+  // Draw with the same algorithm (conic gradient when available)
+  s.draw(iCtx, false);
 }
 // Add-mode ephemeral state
 let pendingAdd = null; // 'conductor' | 'insulator' | null
@@ -94,39 +241,10 @@ const VIEW_PAD = 16;
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 // Keep surface density ~constant: helper imported from core.js
 function computeView() {
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (!world.spheres.length) {
-    viewScale = 1; viewOffsetX = 0; viewOffsetY = 0; return;
-  }
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const s of world.spheres) {
-    minX = Math.min(minX, s.center.x - s.radius);
-    minY = Math.min(minY, s.center.y - s.radius);
-    maxX = Math.max(maxX, s.center.x + s.radius);
-    maxY = Math.max(maxY, s.center.y + s.radius);
-  }
-  const bbW = Math.max(1, maxX - minX);
-  const bbH = Math.max(1, maxY - minY);
-  // Only scale down when needed; never scale up or recenter unnecessarily
-  const scaleX = (w - VIEW_PAD * 2) / bbW;
-  const scaleY = (h - VIEW_PAD * 2) / bbH;
-  const fitScale = Math.min(scaleX, scaleY);
-  if (!isFinite(viewScale) || viewScale <= 0) viewScale = 1;
-  if (fitScale < viewScale) {
-    viewScale = Math.max(1e-6, Math.min(1, fitScale));
-  }
-  // Clamp offsets so the bounding box stays within padded screen, but don't recenter
-  const minOffX = VIEW_PAD - minX * viewScale;
-  const maxOffX = (w - VIEW_PAD) - maxX * viewScale;
-  const minOffY = VIEW_PAD - minY * viewScale;
-  const maxOffY = (h - VIEW_PAD) - maxY * viewScale;
-  // Ensure minOff <= maxOff; if not, they cross due to rounding; swap or average
-  const loX = Math.min(minOffX, maxOffX), hiX = Math.max(minOffX, maxOffX);
-  const loY = Math.min(minOffY, maxOffY), hiY = Math.max(minOffY, maxOffY);
-  if (!isFinite(viewOffsetX)) viewOffsetX = loX;
-  if (!isFinite(viewOffsetY)) viewOffsetY = loY;
-  viewOffsetX = clamp(viewOffsetX, loX, hiX);
-  viewOffsetY = clamp(viewOffsetY, loY, hiY);
+  // Freeze camera: fixed scale and zero offsets (no auto-zoom/pan)
+  viewScale = 1;
+  viewOffsetX = 0;
+  viewOffsetY = 0;
 }
 function worldToScreen(x, y) {
   return { x: viewOffsetX + x * viewScale, y: viewOffsetY + y * viewScale };
@@ -196,11 +314,26 @@ function pickSphere(p) {
   }
   return null;
 }
+function maxRadiusForCenter(c) {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  return Math.max(0, Math.min(c.x, w - c.x, c.y, h - c.y));
+}
+function clampSphereToScreen(s) {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const r = s.radius;
+  s.center.x = clamp(s.center.x, r, w - r);
+  s.center.y = clamp(s.center.y, r, h - r);
+}
+function clampCenterForRadius(c, r) {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  return { x: clamp(c.x, r, w - r), y: clamp(c.y, r, h - r) };
+}
 canvas.addEventListener('pointerdown', (e) => {
   const p = getEventPos(e);
   if (pendingAdd) {
     // begin creation
-    addDraft = { type: pendingAdd, id: e.pointerId, center: p, radius: MIN_RADIUS_PX };
+    const c0 = clampCenterForRadius(p, MIN_RADIUS_PX);
+    addDraft = { type: pendingAdd, id: e.pointerId, center: c0, radius: MIN_RADIUS_PX };
     canvas.setPointerCapture(e.pointerId);
   } else if (mode === 'delete') {
     const s = pickSphere(p);
@@ -226,12 +359,17 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   const p = getEventPos(e);
   if (addDraft && addDraft.id === e.pointerId) {
-    const r = Math.max(MIN_RADIUS_PX, len(sub(p, addDraft.center)));
-    addDraft.radius = r;
+    const raw = len(sub(p, addDraft.center));
+    const desired = Math.max(MIN_RADIUS_PX, raw);
+    // Do NOT move the center during sizing; clamp radius to fit current center
+    const rMax = maxRadiusForCenter(addDraft.center);
+    const r = Math.min(desired, rMax);
+    addDraft.radius = isFinite(r) ? Math.max(MIN_RADIUS_PX, r) : MIN_RADIUS_PX;
     return;
   }
   if (dragging && dragging.id === e.pointerId) {
     dragging.sphere.center = add(p, dragging.sphere.dragOffset);
+    clampSphereToScreen(dragging.sphere);
     return;
   }
   if (painting && painting.id === e.pointerId) {
@@ -247,15 +385,21 @@ function endDrag(e) {
     // finalize creation
     const d = addDraft;
     const kind = d.type;
-    const r = Math.max(MIN_RADIUS_PX, d.radius);
+    // Keep the center where it was during sizing; clamp only radius
+    const c = d.center;
+    const desired = Math.max(MIN_RADIUS_PX, d.radius);
+    const rMax = maxRadiusForCenter(c);
+    const r = Math.min(desired, rMax);
     if (kind === 'conductor') {
       const n = targetElectronCountForRadius(r);
-      const s = new Sphere(d.center.x, d.center.y, r, n, 0, 'conductor');
+      const s = new Sphere(c.x, c.y, r, n, 0, 'conductor');
       s.grounded = false;
+      clampSphereToScreen(s);
       world.spheres.push(s);
     } else {
-      const s = new Sphere(d.center.x, d.center.y, r, 0, 0, 'insulator');
+      const s = new Sphere(c.x, c.y, r, 0, 0, 'insulator');
       s.grounded = false;
+      clampSphereToScreen(s);
       world.spheres.push(s);
     }
     pendingAdd = null;
@@ -334,11 +478,13 @@ let last = performance.now();
 function frame(now) {
   const dtMs = Math.min(32, now - last);
   last = now;
-  if (!pauseCheckbox.checked) physicsStep(world, dtMs / 1000);
+  if (!simulationPaused) physicsStep(world, dtMs / 1000);
   draw();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// Show intro after initial setup
+showIntro();
 
 // Re-center spheres on resize to keep them visible
 window.addEventListener('resize', () => {
@@ -374,39 +520,23 @@ function ensureStepperFor(index) {
   if (!s || s.kind !== 'conductor') return null;
   const el = document.createElement('div');
   el.className = 'stepper';
-  const btnNeg = document.createElement('button');
-  btnNeg.className = 'btn neg';
-  btnNeg.textContent = '−';
   const valEl = document.createElement('div');
   valEl.className = 'val';
-  valEl.textContent = String((s.chargeOffsetElectrons | 0));
-  const btnPos = document.createElement('button');
-  btnPos.className = 'btn pos';
-  btnPos.textContent = '+';
+  valEl.textContent = `Q: ${String((s.chargeOffsetElectrons | 0))} e`;
   const btnGnd = document.createElement('button');
   btnGnd.className = 'btn gnd';
   btnGnd.textContent = 'Ground';
-  el.appendChild(btnNeg);
   el.appendChild(valEl);
-  el.appendChild(btnPos);
   el.appendChild(btnGnd);
   el.style.position = 'absolute';
   el.style.pointerEvents = 'auto';
   stepperContainer.appendChild(el);
-  btnNeg.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    reinitSphereWithOffset(index, (world.spheres[index].chargeOffsetElectrons | 0) - 1);
-  });
-  btnPos.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    reinitSphereWithOffset(index, (world.spheres[index].chargeOffsetElectrons | 0) + 1);
-  });
   btnGnd.addEventListener('click', (ev) => {
     ev.stopPropagation();
     const sph = world.spheres[index];
     sph.grounded = !sph.grounded;
   });
-  const rec = { el, valEl, btnNeg, btnPos, btnGnd };
+  const rec = { el, valEl, btnGnd };
   dynamicSteppers.set(index, rec);
   return rec;
 }
@@ -418,11 +548,11 @@ function updateStepperValues() {
     if (s && s.kind === 'conductor') {
       const step = ensureStepperFor(i);
       if (step) {
-        step.valEl.textContent = String((s.chargeOffsetElectrons | 0));
+        const offset = (s.chargeOffsetElectrons | 0);
+        const sign = offset > 0 ? '+' : '';
+        step.valEl.textContent = `Q: ${sign}${offset} e`;
         step.el.style.display = '';
         const grounded = !!s.grounded;
-        step.btnNeg.disabled = grounded;
-        step.btnPos.disabled = grounded;
         step.btnGnd.classList.toggle('active', grounded);
       }
     } else if (rec) {

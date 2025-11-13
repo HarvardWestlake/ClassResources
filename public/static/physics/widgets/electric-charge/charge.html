@@ -11,31 +11,63 @@
   </head>
   <body>
     <div id="ui">
-      <div class="panel title">Electric Charge</div>
-      <div class="panel hint">Drag to move. Paint +/− to add charge. Touching conductors share charge ∝ radius.</div>
       <div class="panel controls">
-        <label>
-          Pause <input id="pause" type="checkbox" />
-        </label>
-        <span style="width:10px;display:inline-block"></span>
-        <label>
+        <span class="groupLabel">Mouse Mode:</span>
+        <label id="lblModeDrag" class="mode-option" title="Move objects">
           <input type="radio" name="mode" id="modeDrag" checked /> Drag
         </label>
-        <label>
-          <input type="radio" name="mode" id="modePaintPos" /> Paint +
+        <label id="lblModePaintPos" class="mode-option" title="Add positive charge to objects">
+          <input type="radio" name="mode" id="modePaintPos" /> Add Positive Charge
         </label>
-        <label>
-          <input type="radio" name="mode" id="modePaintNeg" /> Paint −
+        <label id="lblModePaintNeg" class="mode-option" title="Add negative charge to objects">
+          <input type="radio" name="mode" id="modePaintNeg" /> Add Negative Charge
         </label>
-        <label>
+        <label id="lblModeDelete" class="mode-option" title="Remove an object">
           <input type="radio" name="mode" id="modeDelete" /> Delete
         </label>
-        <span style="width:10px;display:inline-block"></span>
+      </div>
+      <div class="panel controls controls--actions">
+        <span class="groupLabel">Scene Actions:</span>
         <button id="btnAddConductor">Add Conductor</button>
         <button id="btnAddInsulator">Add Insulator</button>
         <button id="btnClearAll">Clear All</button>
       </div>
-      <div class="panel hint">Colors: Red = positive, Blue = negative.</div>
+    </div>
+    <!-- Intro Modal -->
+    <div id="introModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+      <div class="modal__backdrop"></div>
+      <div class="modal__dialog">
+        <div class="modal__body">
+          <div id="introStep1" class="modal__step">
+            <div id="introTitle" class="modal__title">What you’ll explore</div>
+            <div class="modal__text">
+              This activity is about how electric charge moves on objects:
+              <ul>
+                <li><b>Conduction</b>: when conductors touch, net charge shares in proportion to size.</li>
+                <li><b>Induction</b>: a nearby charged object can pull charges apart on a neutral conductor; grounding lets net charge flow.</li>
+              </ul>
+            </div>
+          </div>
+          <div id="introStep2" class="modal__step" hidden>
+            <div class="modal__title">What the colors mean</div>
+            <div class="modal__text" style="margin-bottom:10px;">
+              On conductors, the ring shows <b>surface charge</b>:
+              <span style="color:#ff6a6a;font-weight:600;">red = positive</span>,
+              <span style="color:#59a6ff;font-weight:600;">blue = negative</span>.
+              If everything is neutral, the ring appears white.
+            </div>
+            <div class="modal__graphic">
+              <canvas id="introCanvas" width="220" height="220" aria-hidden="true"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="modal__buttons">
+          <button id="introBack" class="btn-secondary" hidden>Back</button>
+          <div class="spacer"></div>
+          <button id="introNext" class="btn-primary">Next</button>
+          <button id="introFinish" class="btn-primary" hidden>Start</button>
+        </div>
+      </div>
     </div>
     <div id="steppers">
       <div id="stepper0" class="stepper">
