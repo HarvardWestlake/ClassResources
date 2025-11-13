@@ -18,7 +18,6 @@
     .cluster { display:flex; gap:8px; align-items:center; }
     .row { display:flex; flex-wrap:wrap; gap:0.75rem; }
     .col-6 { flex:1 1 320px; max-width:100%; }
-    .btn-primary { /* alias to shared .btn */ }
     .btn-small, .btn.btn-small, .btn-small.btn { padding:0.35rem 0.7rem; font-size:0.9rem; }
     .btn-ghost { background:transparent; color:#E60000; border:1px solid transparent; }
     .btn-ghost:hover { text-decoration:underline; transform:none; box-shadow:none; }
@@ -137,29 +136,29 @@
         <div class="col-6">
           <div class="field" id="field-implicit">
             <label for="implicit-input">Implicit Cost (forgone income)</label>
-            <input class="input" id="implicit-input" inputmode="decimal" placeholder="Enter amount" disabled>
-            <div class="tip hidden" id="tip-implicit">Tip: hourly wage × 1 hour.</div>
-            <button class="btn btn-small btn-ghost" data-tip="tip-implicit" type="button">Show tip</button>
+            <input class="input" id="implicit-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter amount" disabled>
+            <div class="tip hidden" id="tip-implicit"><strong>Definition:</strong> The opportunity cost of using resources you already own. In this case, it's the income you give up by spending time opening packs instead of working.<br><br><strong>Tip:</strong> hourly wage × 1 hour.</div>
+            <button class="btn btn-small btn-ghost" data-tip="tip-implicit" type="button">Show definition</button>
           </div>
           <div class="field" id="field-explicit">
             <label for="explicit-input">Explicit Cost (packs bought)</label>
-            <input class="input" id="explicit-input" inputmode="decimal" placeholder="Enter amount" disabled>
-            <div class="tip hidden" id="tip-explicit">Tip: number of packs × pack price.</div>
-            <button class="btn btn-small btn-ghost" data-tip="tip-explicit" type="button">Show tip</button>
+            <input class="input" id="explicit-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter amount" disabled>
+            <div class="tip hidden" id="tip-explicit"><strong>Definition:</strong> The direct, out-of-pocket expenses you pay. In this case, it's the money spent buying the packs.<br><br><strong>Tip:</strong> number of packs × pack price.</div>
+            <button class="btn btn-small btn-ghost" data-tip="tip-explicit" type="button">Show definition</button>
           </div>
         </div>
         <div class="col-6">
           <div class="field" id="field-accounting">
             <label for="accounting-input">Accounting Profit</label>
-            <input class="input" id="accounting-input" inputmode="decimal" placeholder="Enter amount" disabled>
-            <div class="tip hidden" id="tip-accounting">Tip: total card value − explicit cost.</div>
-            <button class="btn btn-small btn-ghost" data-tip="tip-accounting" type="button">Show tip</button>
+            <input class="input" id="accounting-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter amount" disabled>
+            <div class="tip hidden" id="tip-accounting"><strong>Definition:</strong> Total revenue minus explicit costs only. This measures profit without considering opportunity costs.<br><br><strong>Tip:</strong> total card value − explicit cost.</div>
+            <button class="btn btn-small btn-ghost" data-tip="tip-accounting" type="button">Show definition</button>
           </div>
           <div class="field" id="field-economic">
             <label for="economic-input">Total Profit (Economic Profit)</label>
-            <input class="input" id="economic-input" inputmode="decimal" placeholder="Enter amount" disabled>
-            <div class="tip hidden" id="tip-economic">Tip: accounting profit − implicit cost.</div>
-            <button class="btn btn-small btn-ghost" data-tip="tip-economic" type="button">Show tip</button>
+            <input class="input" id="economic-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter amount" disabled>
+            <div class="tip hidden" id="tip-economic"><strong>Definition:</strong> Total revenue minus both explicit and implicit costs. This is the true measure of profit that accounts for all opportunity costs.<br><br><strong>Tip:</strong> accounting profit − implicit cost.</div>
+            <button class="btn btn-small btn-ghost" data-tip="tip-economic" type="button">Show definition</button>
           </div>
         </div>
       </div>
@@ -191,7 +190,7 @@
   <script>
     const JOBS = [
       { name: "McDonald’s Crew Member", wage: 16.00 },
-      { name: "Target Team Member", wage: 17.00 },
+      { name: "Neurosurgeon", wage: 347.00 },
       { name: "Starbucks Barista", wage: 17.00 },
       { name: "Grocery Store Clerk", wage: 16.00 },
       { name: "Retail Cashier", wage: 15.50 },
@@ -259,6 +258,40 @@
     const toggleSetStatsBtn = document.getElementById("toggle-set-stats");
     const setStatsContent = document.getElementById("set-stats-content");
 
+    // Prevent browser extensions from interfering with calculation inputs
+    // This must run immediately after inputs are defined, before extensions attach listeners
+    function protectInputFromExtensions(input) {
+      if (!input) return;
+      
+      // Stop event propagation for focus events (capture phase to run before extensions)
+      input.addEventListener('focus', (e) => {
+        e.stopImmediatePropagation();
+      }, true);
+      
+      input.addEventListener('focusin', (e) => {
+        e.stopImmediatePropagation();
+      }, true);
+      
+      // Stop event propagation for input events
+      input.addEventListener('input', (e) => {
+        e.stopImmediatePropagation();
+      }, true);
+      
+      // Prevent extensions from accessing control property
+      try {
+        Object.defineProperty(input, 'control', {
+          get: function() { return undefined; },
+          configurable: false,
+          enumerable: false
+        });
+      } catch (e) {
+        // Ignore if property can't be defined (may already exist)
+      }
+    }
+
+    // Apply protection immediately to all calculation inputs
+    [implicitInput, explicitInput, accountingInput, economicInput].forEach(protectInputFromExtensions);
+
     function pickRandomJob() {
       const i = Math.floor(Math.random() * JOBS.length);
       currentJob = JOBS[i];
@@ -279,14 +312,6 @@
       const el = document.getElementById('opportunity-explain');
       if (!el) return;
       el.textContent = 'Opening packs uses time you could spend at your job. That tradeoff is part of your implicit cost.';
-    }
-
-    function updateOpportunityText(){
-      const el = document.getElementById('opportunity-explain');
-      if (!el || !currentJob) return;
-      const hours = HOURS_SPENT;
-      const forgone = round2(currentJob.wage * hours);
-      el.innerHTML = 'By choosing to open packs for ' + hours + ' hour' + (hours!==1?'s':'') + ', you give up earning ' + fmt(forgone) + ' at your job. That forgone income is your <strong>implicit cost</strong>: ' + fmt(currentJob.wage) + ' × ' + hours + ' hour' + (hours!==1?'s':'') + ' = ' + fmt(forgone) + '.';
     }
 
     // Cookie helpers for per-user stats
@@ -399,7 +424,6 @@
       setSelect.disabled = true;
       resetBtn.disabled = true;
       resetTopBtn.disabled = true;
-      resetTopBtn.disabled = true;
 
       if (!selectedSetData) {
         try {
@@ -438,7 +462,10 @@
         openBtn.disabled = true;
         resetBtn.disabled = false;
         resetTopBtn.disabled = false;
-        [implicitInput, explicitInput, accountingInput, economicInput].forEach(i => i.disabled = false);
+        [implicitInput, explicitInput, accountingInput, economicInput].forEach(i => {
+          i.disabled = false;
+          protectInputFromExtensions(i);
+        });
         submitBtn.disabled = false;
         revealBtn.disabled = false;
         openAllBtn.disabled = true;
@@ -460,7 +487,7 @@
 
     submitBtn.addEventListener('click', () => {
       const info = SETS[selectedSetId];
-      if (!info) return;
+      if (!info || !currentJob) return;
 
       const correct = {
         implicit: round2(currentJob.wage * HOURS_SPENT),
@@ -510,21 +537,11 @@
       if (msgEl) msgEl.textContent = '';
     }
 
-  function computeCorrect() {
-    const info = SETS[selectedSetId];
-    if (!info) return null;
-    const implicit = round2(currentJob.wage * HOURS_SPENT);
-    const explicit = round2(PACKS_TO_OPEN * (info.packPrice ?? DEFAULT_PACK_PRICE));
-    const accounting = round2(revenueTotal - explicit);
-    const economic = round2(accounting - implicit);
-    return { implicit, explicit, accounting, economic };
-  }
-
   const LOSS_STORAGE_KEY = 'pack_profit_loss_stats_v1';
   function loadLossStats() {
     try {
       const s = JSON.parse(localStorage.getItem(LOSS_STORAGE_KEY) || '{}');
-      return { total: s.total | 0, losses: s.losses | 0 };
+      return { total: s.total || 0, losses: s.losses || 0 };
     } catch (e) {
       return { total: 0, losses: 0 };
     }
@@ -540,7 +557,7 @@
     // Reveal correct answers (for students who need help)
     document.getElementById('reveal-btn').addEventListener('click', () => {
       const info = SETS[selectedSetId];
-      if (!info) return;
+      if (!info || !currentJob) return;
       const implicit = round2(currentJob.wage * HOURS_SPENT);
       const explicit = round2(PACKS_TO_OPEN * (info.packPrice ?? DEFAULT_PACK_PRICE));
       const accounting = round2(revenueTotal - explicit);
@@ -660,7 +677,7 @@
 
     function computeCorrect() {
       const info = SETS[selectedSetId];
-      if (!info) return null;
+      if (!info || !currentJob) return null;
       const implicit = round2(currentJob.wage * HOURS_SPENT);
       const explicit = round2(PACKS_TO_OPEN * (info.packPrice ?? DEFAULT_PACK_PRICE));
       const accounting = round2(revenueTotal - explicit);
@@ -892,7 +909,10 @@
       openAllBtn.disabled = true;
       resetBtn.disabled = false;
       resetTopBtn.disabled = false;
-      [implicitInput, explicitInput, accountingInput, economicInput].forEach(i => i.disabled = false);
+      [implicitInput, explicitInput, accountingInput, economicInput].forEach(i => {
+        i.disabled = false;
+        protectInputFromExtensions(i);
+      });
       submitBtn.disabled = false;
       revealBtn.disabled = false;
 
