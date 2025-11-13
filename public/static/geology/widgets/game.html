@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mineral Identification Game</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #0b1220;
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #38bdf8;
+      --success: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #1f2937;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, var(--bg), #0b1220);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 16px;
+    }
+
+    header {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .title .badge {
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 999px;
+    }
+
+    .scoreboard {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .tool-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    button, select, input[type="text"] {
+      background: #0e1726;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    button { cursor: pointer; }
+    button.primary { background: #0b2740; border-color: #123252; }
+    button.primary:hover { background: #0d2e4a; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .log {
+      max-height: 420px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .log-item {
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 14px;
+      line-height: 1.35;
+      display: flex;
+      align-items: start;
+      gap: 8px;
+    }
+    .log-item.hardness { border-left: 3px solid #60a5fa; }
+    .log-item.magnetism { border-left: 3px solid #f472b6; }
+    .log-item.acid { border-left: 3px solid #22c55e; }
+    .log-item.note { border-left: 3px solid #a78bfa; }
+    .log-time { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .grow { flex: 1; }
+
+    .feedback { font-size: 14px; }
+    .feedback.good { color: var(--success); }
+    .feedback.bad { color: var(--danger); }
+    .feedback.info { color: var(--muted); }
+
+    .footer {
+      max-width: 1100px;
+      margin: 8px auto 24px;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 0 16px;
+    }
+
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+    }
+    /* Specimen viewer */
+    .specimen {
+      position: relative;
+      height: 160px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: #0b1220;
+    }
+    .specimen-color {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+    }
+    .specimen-luster {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 12px;
+      background: radial-gradient(120px 60px at 20% 20%, rgba(255,255,255,0.35), rgba(255,255,255,0.05) 60%, transparent 70%),
+                  radial-gradient(180px 90px at 80% 70%, rgba(255,255,255,0.15), transparent 70%);
+      mix-blend-mode: screen;
+    }
+    .specimen-cleavage {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 12px;
+      opacity: 0.75;
+    }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal[hidden] { display: none; }
+    .modal-content {
+      max-width: 720px;
+      width: calc(100% - 32px);
+      max-height: 70vh;
+      overflow: auto;
+    }
+    .hardness-table {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .hardness-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .hardness-table th, .hardness-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      font-size: 14px;
+    }
+    .hardness-table tr:nth-child(odd) td { background: #0b1220; }
+    .hardness-table tr:nth-child(even) td { background: #0e1726; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <div style="font-size:18px">Mineral Identification Game</div>
+      <span class="badge">Beta</span>
+    </div>
+    <div class="scoreboard">
+      <div class="chip">Score: <span id="score">0</span></div>
+      <div class="chip">Round: <span id="round">1</span></div>
+      <div class="chip">Remaining: <span id="remaining">0</span></div>
+      <div class="chip">Attempts: <span id="attemptsHeader">5</span></div>
+      <button id="resetGame" class="primary">Reset Game</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="panel">
+      <h3 class="section-title">Specimen</h3>
+      <div id="specimen" class="specimen" aria-label="Specimen color and features">
+        <div id="specimenColor" class="specimen-color"></div>
+        <div id="specimenLuster" class="specimen-luster" hidden></div>
+        <div id="specimenCleavage" class="specimen-cleavage" hidden></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="inspectLuster">Inspect luster</button>
+        <button id="inspectCleavage">Inspect cleavage</button>
+        <button id="showHardnessChart">Hardness chart</button>
+      </div>
+      <div id="attemptsInfo" class="feedback info" style="margin-top:8px; min-height:22px;">Attempts left: 5</div>
+    </div>
+    <div class="panel">
+      <h3 class="section-title">Tests</h3>
+      <div class="controls">
+        <div>
+          <div style="margin-bottom:6px; font-weight:600">Hardness (scratch test)</div>
+          <div class="tool-row">
+            <button data-tool="fingernail">Fingernail (≈2.5)</button>
+            <button data-tool="copper">Copper coin (≈3.0)</button>
+            <button data-tool="glass">Glass plate (≈5.5)</button>
+            <button data-tool="steel">Steel nail (≈6.5)</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="grow">
+            <div style="margin-bottom:6px; font-weight:600">Magnetism</div>
+            <button id="testMagnetism">Test magnetism</button>
+          </div>
+          <div class="grow">
+            <div style="margin-bottom:6px; font-weight:600">Acid Reactivity</div>
+            <button id="testAcid">Apply acid (HCl)</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="margin-bottom:6px; font-weight:600">Notes</div>
+          <div class="row">
+            <input id="noteInput" type="text" placeholder="Add your observation..." class="grow" />
+            <button id="addNote">Add note</button>
+            <button id="clearLog" title="Clear observations">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 class="section-title">Observations</h3>
+      <div id="log" class="log" aria-live="polite" aria-atomic="false"></div>
+
+      <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)">
+        <div style="margin-bottom:6px; font-weight:600">Make a Guess</div>
+        <div class="row">
+          <select id="guessSelect" class="grow"></select>
+          <button id="submitGuess" class="primary">Submit Guess</button>
+          <button id="giveUp" title="Reveal answer and move on">Give up</button>
+          <button id="nextMineral" disabled>Next mineral</button>
+        </div>
+        <div id="feedback" class="feedback info" style="margin-top:8px; min-height: 22px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hardnessModal" class="modal" hidden>
+    <div class="modal-content panel">
+      <div class="row" style="margin-bottom:8px">
+        <div style="font-weight:600">Hardness Chart</div>
+        <button id="closeHardness" style="margin-left:auto">Close</button>
+      </div>
+      <div class="hardness-table">
+        <table aria-label="Mineral hardness table">
+          <thead>
+            <tr>
+              <th>Mineral</th>
+              <th>Hardness (Mohs)</th>
+            </tr>
+          </thead>
+          <tbody id="hardnessTbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:10px; font-size:13px; color: var(--muted)">
+        Reference tools: Fingernail ≈2.5, Copper ≈3.0, Glass ≈5.5, Steel ≈6.5
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Tip: For hardness, try tools from soft to hard. If the mineral scratches glass (≈5.5), it is likely >5.5 on the Mohs scale. Calcite fizzes strongly in acid; dolomite fizzes weakly when powdered. Magnetite is strongly magnetic.
+  </div>
+
+  <script>
+    (function() {
+      "use strict";
+
+      /**
+       * Simple mineral dataset with properties relevant to this game.
+       * hardness: approximate Mohs hardness (single representative value)
+       * magnetism: 'none' | 'weak' | 'strong'
+       * acid: 'none' | 'weak' | 'strong' (weak → powder fizzes)
+       */
+      const MINERALS = [
+        { id: "pyrite", name: "Pyrite", hardness: 6.0, luster: "metallic", cleavagePlanes: 0, color: "#caa11a", colorName: "brassy yellow", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "magnetite", name: "Magnetite", hardness: 6.0, luster: "submetallic", cleavagePlanes: 0, color: "#222629", colorName: "black", lamellae: false, magnetism: "strong", acid: "none" },
+        { id: "hematite", name: "Hematite", hardness: 6.0, luster: "metallic", cleavagePlanes: 0, color: "#6b3b2a", colorName: "reddish-brown", lamellae: false, magnetism: "weak", acid: "none" },
+        { id: "galena", name: "Galena", hardness: 2.5, luster: "metallic", cleavagePlanes: 3, color: "#6f7c8a", colorName: "lead gray", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "graphite", name: "Graphite", hardness: 1.5, luster: "submetallic", cleavagePlanes: 1, color: "#54595f", colorName: "steel gray", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "malachite", name: "Malachite", hardness: 3.5, luster: "earthy", cleavagePlanes: 1, color: "#189a62", colorName: "green", lamellae: false, magnetism: "none", acid: "strong" },
+        { id: "plagioclase", name: "Plagioclase Feldspar", hardness: 6.0, luster: "vitreous", cleavagePlanes: 2, color: "#cfd4da", colorName: "white/gray", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "kfeldspar", name: "Potassium Feldspar", hardness: 6.0, luster: "vitreous", cleavagePlanes: 2, color: "#f3a398", colorName: "pink/orange", lamellae: true, magnetism: "none", acid: "none" },
+        { id: "quartz", name: "Quartz", hardness: 7.0, luster: "vitreous", cleavagePlanes: 0, color: "#e9eef2", colorName: "colorless/white", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "olivine", name: "Olivine", hardness: 7.0, luster: "vitreous", cleavagePlanes: 0, color: "#6a8e29", colorName: "olive green", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "halite", name: "Halite", hardness: 2.5, luster: "vitreous", cleavagePlanes: 3, color: "#eef4fb", colorName: "colorless", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "calcite", name: "Calcite", hardness: 3.0, luster: "vitreous", cleavagePlanes: 3, color: "#f3f6f8", colorName: "colorless/white", lamellae: false, magnetism: "none", acid: "strong" },
+        { id: "gypsum", name: "Gypsum", hardness: 2.0, luster: "pearly", cleavagePlanes: 1, color: "#f1f5f9", colorName: "white", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "kernite", name: "Kernite", hardness: 3.0, luster: "pearly", cleavagePlanes: 1, color: "#e7ecef", colorName: "white", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "fluorite", name: "Fluorite", hardness: 4.0, luster: "vitreous", cleavagePlanes: 4, color: "#8273c7", colorName: "purple", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "muscovite", name: "Muscovite Mica", hardness: 2.5, luster: "pearly", cleavagePlanes: 1, color: "#e2e2da", colorName: "silvery", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "biotite", name: "Biotite Mica", hardness: 2.5, luster: "pearly", cleavagePlanes: 1, color: "#2b2a28", colorName: "black/brown", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "sulfur", name: "Sulfur", hardness: 2.0, luster: "resinous", cleavagePlanes: 2, color: "#ffee33", colorName: "yellow", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "talc", name: "Talc", hardness: 1.0, luster: "pearly", cleavagePlanes: 1, color: "#dfe7e1", colorName: "white/green", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "clay", name: "Clay", hardness: 2.0, luster: "earthy", cleavagePlanes: 0, color: "#a07b5b", colorName: "brown", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "azurite", name: "Azurite", hardness: 3.5, luster: "vitreous", cleavagePlanes: 2, color: "#2e63c5", colorName: "blue", lamellae: false, magnetism: "none", acid: "strong" },
+        { id: "augite", name: "Augite", hardness: 6.0, luster: "vitreous", cleavagePlanes: 2, color: "#1d2328", colorName: "dark green/black", lamellae: false, magnetism: "none", acid: "none" },
+        { id: "hornblende", name: "Hornblende", hardness: 6.0, luster: "vitreous", cleavagePlanes: 2, color: "#141a1f", colorName: "dark green/black", lamellae: false, magnetism: "none", acid: "none" }
+      ];
+
+      const HARDNESS_TOOLS = {
+        fingernail: { name: "Fingernail", hardness: 2.5 },
+        copper: { name: "Copper coin", hardness: 3.0 },
+        glass: { name: "Glass plate", hardness: 5.5 },
+        steel: { name: "Steel nail", hardness: 6.5 }
+      };
+
+      const MAX_WRONG_GUESSES = 5;
+      const GUESS_POINTS = [10, 6, 4, 2, 1]; // by attempt index (0-based)
+
+      // State
+      let totalScore = 0;
+      let roundIndex = 0; // 0-based
+      let remainingOrder = [];
+      let currentMineral = null;
+      let testsUsedCount = 0;
+      let wrongGuessCount = 0;
+      let roundActive = true;
+      let lusterRevealed = false;
+      let cleavageRevealed = false;
+
+      // DOM elements
+      const scoreEl = document.getElementById("score");
+      const roundEl = document.getElementById("round");
+      const remainingEl = document.getElementById("remaining");
+      const logEl = document.getElementById("log");
+      const feedbackEl = document.getElementById("feedback");
+      const guessSelect = document.getElementById("guessSelect");
+      const submitGuessBtn = document.getElementById("submitGuess");
+      const nextMineralBtn = document.getElementById("nextMineral");
+      const giveUpBtn = document.getElementById("giveUp");
+      const resetGameBtn = document.getElementById("resetGame");
+      const noteInput = document.getElementById("noteInput");
+      const addNoteBtn = document.getElementById("addNote");
+      const clearLogBtn = document.getElementById("clearLog");
+      const specimenColorEl = document.getElementById("specimenColor");
+      const specimenLusterEl = document.getElementById("specimenLuster");
+      const specimenCleavageEl = document.getElementById("specimenCleavage");
+      const inspectLusterBtn = document.getElementById("inspectLuster");
+      const inspectCleavageBtn = document.getElementById("inspectCleavage");
+      const attemptsHeaderEl = document.getElementById("attemptsHeader");
+      const attemptsInfoEl = document.getElementById("attemptsInfo");
+      const hardnessModal = document.getElementById("hardnessModal");
+      const showHardnessChartBtn = document.getElementById("showHardnessChart");
+      const closeHardnessBtn = document.getElementById("closeHardness");
+      const hardnessTbody = document.getElementById("hardnessTbody");
+
+      // Utility
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      }
+
+      function formatTime(date) {
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+
+      function setControlsEnabled(enabled) {
+        document.querySelectorAll("button[data-tool]").forEach(b => b.disabled = !enabled);
+        document.getElementById("testMagnetism").disabled = !enabled;
+        document.getElementById("testAcid").disabled = !enabled;
+        addNoteBtn.disabled = !enabled;
+        submitGuessBtn.disabled = !enabled;
+        guessSelect.disabled = !enabled;
+        giveUpBtn.disabled = !enabled;
+      }
+
+      function addLogItem(text, kind) {
+        const item = document.createElement("div");
+        item.className = `log-item ${kind}`;
+        const label = document.createElement("div");
+        label.textContent = text;
+        const time = document.createElement("div");
+        time.className = "log-time";
+        time.textContent = formatTime(new Date());
+        item.appendChild(label);
+        item.appendChild(time);
+        logEl.appendChild(item);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function clearLog() {
+        logEl.innerHTML = "";
+      }
+
+      function updateScoreboard() {
+        scoreEl.textContent = String(totalScore);
+        roundEl.textContent = String(roundIndex + 1);
+        remainingEl.textContent = String(remainingOrder.length - roundIndex - 1);
+        attemptsHeaderEl.textContent = String(Math.max(0, MAX_WRONG_GUESSES - wrongGuessCount));
+      }
+
+      function populateGuessOptions() {
+        guessSelect.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Select a mineral";
+        guessSelect.appendChild(placeholder);
+        MINERALS
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m.id;
+            opt.textContent = m.name;
+            guessSelect.appendChild(opt);
+          });
+      }
+
+      function startNewGame() {
+        totalScore = Number(localStorage.getItem("mineral_game_score") || 0);
+        roundIndex = -1;
+        remainingOrder = shuffle(Array.from({ length: MINERALS.length }, (_, i) => i));
+        updateScoreboard();
+        nextRound();
+      }
+
+      function endRound(success, revealed = false) {
+        roundActive = false;
+        setControlsEnabled(false);
+        nextMineralBtn.disabled = false;
+        giveUpBtn.disabled = true;
+        if (success) {
+          const attemptIndex = wrongGuessCount; // 0-based
+          const roundPoints = attemptIndex < GUESS_POINTS.length ? GUESS_POINTS[attemptIndex] : 0;
+          totalScore += roundPoints;
+          localStorage.setItem("mineral_game_score", String(totalScore));
+          feedbackEl.className = "feedback good";
+          feedbackEl.textContent = `Correct! +${roundPoints} points. It was ${currentMineral.name}.`;
+        } else if (revealed) {
+          feedbackEl.className = "feedback bad";
+          feedbackEl.textContent = `Revealed: ${currentMineral.name}. No points awarded.`;
+        }
+        updateScoreboard();
+      }
+
+      function nextRound() {
+        roundIndex += 1;
+        if (roundIndex >= remainingOrder.length) {
+          feedbackEl.className = "feedback good";
+          feedbackEl.textContent = "Game complete! Reset to play again.";
+          setControlsEnabled(false);
+          nextMineralBtn.disabled = true;
+          giveUpBtn.disabled = true;
+          submitGuessBtn.disabled = true;
+          guessSelect.disabled = true;
+          return;
+        }
+
+        const newMineral = MINERALS[remainingOrder[roundIndex]];
+        currentMineral = newMineral;
+        testsUsedCount = 0;
+        wrongGuessCount = 0;
+        roundActive = true;
+        lusterRevealed = false;
+        cleavageRevealed = false;
+
+        clearLog();
+        addLogItem("New mineral received. Begin your tests.", "note");
+        feedbackEl.className = "feedback info";
+        feedbackEl.textContent = "Use the tests and make a guess.";
+        setControlsEnabled(true);
+        nextMineralBtn.disabled = true;
+        populateGuessOptions();
+        guessSelect.value = "";
+        updateScoreboard();
+        updateSpecimenView();
+        updateAttemptsInfo();
+      }
+
+      // Tests
+      function testHardness(toolKey) {
+        if (!roundActive) return;
+        const tool = HARDNESS_TOOLS[toolKey];
+        testsUsedCount += 1;
+        const scratchesTool = currentMineral.hardness >= tool.hardness;
+        const result = scratchesTool ? "scratches" : "does not scratch";
+        addLogItem(`Hardness: Mineral ${result} the ${tool.name} (tool ≈ ${tool.hardness}).`, "hardness");
+      }
+
+      function testMagnetism() {
+        if (!roundActive) return;
+        testsUsedCount += 1;
+        let text = "Magnetism: ";
+        if (currentMineral.magnetism === "strong") text += "Strongly magnetic.";
+        else if (currentMineral.magnetism === "weak") text += "Weakly magnetic (inconsistent).";
+        else text += "No noticeable magnetism.";
+        addLogItem(text, "magnetism");
+      }
+
+      function testAcid() {
+        if (!roundActive) return;
+        testsUsedCount += 1;
+        let text = "Acid: ";
+        if (currentMineral.acid === "strong") text += "Strong fizz in cold dilute HCl.";
+        else if (currentMineral.acid === "weak") text += "Weak fizz on powdered sample.";
+        else text += "No reaction.";
+        addLogItem(text, "acid");
+      }
+
+      // Visual inspections
+      function inspectLuster() {
+        if (!roundActive) return;
+        lusterRevealed = true;
+        specimenLusterEl.hidden = false;
+        addLogItem(`Luster: ${currentMineral.luster}.`, "note");
+      }
+      function inspectCleavage() {
+        if (!roundActive) return;
+        cleavageRevealed = true;
+        specimenCleavageEl.hidden = false;
+        addLogItem(`Cleavage: ${currentMineral.cleavagePlanes} plane(s).`, "note");
+      }
+
+      function updateSpecimenView() {
+        if (!currentMineral) return;
+        specimenColorEl.style.background = currentMineral.color;
+        specimenLusterEl.hidden = !lusterRevealed;
+        specimenCleavageEl.hidden = !cleavageRevealed;
+        specimenCleavageEl.style.backgroundImage = cleavageBackgroundFor(currentMineral.cleavagePlanes);
+        specimenLusterEl.style.opacity = lusterOpacityFor(currentMineral.luster);
+      }
+
+      function cleavageBackgroundFor(planes) {
+        const line = (angle) => `repeating-linear-gradient(${angle}deg, rgba(255,255,255,0.35) 0 2px, transparent 2px 12px)`;
+        if (!planes || planes <= 0) return "none";
+        if (planes === 1) return line(0);
+        if (planes === 2) return `${line(0)}, ${line(90)}`;
+        if (planes === 3) return `${line(0)}, ${line(90)}, ${line(45)}`;
+        return `${line(0)}, ${line(90)}, ${line(45)}, ${line(135)}`; // 4 or more
+      }
+
+      function lusterOpacityFor(luster) {
+        switch (luster) {
+          case "metallic": return "1";
+          case "submetallic": return "0.8";
+          case "vitreous": return "0.6";
+          case "pearly": return "0.5";
+          case "resinous": return "0.5";
+          case "earthy": return "0.3";
+          default: return "0.6";
+        }
+      }
+
+      function updateAttemptsInfo() {
+        const left = Math.max(0, MAX_WRONG_GUESSES - wrongGuessCount);
+        attemptsInfoEl.textContent = `Attempts left: ${left}`;
+      }
+
+      function openHardnessModal() {
+        hardnessModal.hidden = false;
+      }
+      function closeHardnessModal() {
+        hardnessModal.hidden = true;
+      }
+
+      function renderHardnessChart() {
+        const sorted = MINERALS.slice().sort((a, b) => a.hardness - b.hardness);
+        hardnessTbody.innerHTML = "";
+        sorted.forEach(m => {
+          const tr = document.createElement("tr");
+          const tdName = document.createElement("td");
+          const tdHard = document.createElement("td");
+          tdName.textContent = m.name;
+          tdHard.textContent = String(m.hardness);
+          tr.appendChild(tdName);
+          tr.appendChild(tdHard);
+          hardnessTbody.appendChild(tr);
+        });
+      }
+
+      function lamellaeText(v) { return v ? "present" : "absent"; }
+
+      function partialFeedback(guess, target) {
+        const correct = [];
+        const wrong = [];
+        if (Math.round(guess.hardness * 10) === Math.round(target.hardness * 10)) correct.push(`hardness correct at ${target.hardness}`); else wrong.push("hardness");
+        if (guess.luster === target.luster) correct.push(`luster correct (${target.luster})`); else wrong.push("luster");
+        if (guess.cleavagePlanes === target.cleavagePlanes) correct.push(`${target.cleavagePlanes} cleavage plane(s) correct`); else wrong.push("cleavage planes");
+        if (guess.colorName === target.colorName) correct.push("color correct"); else wrong.push("color");
+        if (guess.lamellae === target.lamellae) correct.push(`lamellae ${lamellaeText(target.lamellae)} (correct)`); else wrong.push("lamellae");
+        let msg = "";
+        if (correct.length) msg += correct.join(", ");
+        if (wrong.length) msg += (correct.length ? ", but " : "") + wrong.join(" and ") + " were incorrect.";
+        if (!msg) msg = "No matching properties.";
+        return msg;
+      }
+
+      // Guessing
+      function submitGuess() {
+        if (!roundActive) return;
+        const choice = guessSelect.value;
+        if (!choice) {
+          feedbackEl.className = "feedback info";
+          feedbackEl.textContent = "Select a mineral before submitting.";
+          return;
+        }
+        if (choice === currentMineral.id) {
+          addLogItem(`Guess: Correct — ${MINERALS.find(m => m.id === choice).name}.`, "note");
+          endRound(true);
+        } else {
+          const guessed = MINERALS.find(m => m.id === choice);
+          wrongGuessCount += 1;
+          const attemptsLeft = Math.max(0, MAX_WRONG_GUESSES - wrongGuessCount);
+          const details = partialFeedback(guessed, currentMineral);
+          feedbackEl.className = "feedback bad";
+          feedbackEl.textContent = `Incorrect. Attempts left: ${attemptsLeft}. ${details}`;
+          addLogItem("Guess: Incorrect.", "note");
+          updateScoreboard();
+          updateAttemptsInfo();
+          if (wrongGuessCount >= MAX_WRONG_GUESSES) {
+            addLogItem("Out of guesses. Revealing the answer...", "note");
+            endRound(false, true);
+          }
+        }
+      }
+
+      function giveUp() {
+        if (!roundActive) return;
+        addLogItem("Gave up. Revealing the answer...", "note");
+        endRound(false, true);
+      }
+
+      // Wire up UI
+      document.querySelectorAll("button[data-tool]").forEach(btn => {
+        btn.addEventListener("click", () => testHardness(btn.getAttribute("data-tool")));
+      });
+      document.getElementById("testMagnetism").addEventListener("click", testMagnetism);
+      document.getElementById("testAcid").addEventListener("click", testAcid);
+      submitGuessBtn.addEventListener("click", submitGuess);
+      nextMineralBtn.addEventListener("click", nextRound);
+      giveUpBtn.addEventListener("click", giveUp);
+      resetGameBtn.addEventListener("click", () => {
+        totalScore = 0;
+        localStorage.setItem("mineral_game_score", "0");
+        startNewGame();
+      });
+      inspectLusterBtn.addEventListener("click", () => { inspectLuster(); updateSpecimenView(); });
+      inspectCleavageBtn.addEventListener("click", () => { inspectCleavage(); updateSpecimenView(); });
+      showHardnessChartBtn.addEventListener("click", () => { renderHardnessChart(); openHardnessModal(); });
+      closeHardnessBtn.addEventListener("click", closeHardnessModal);
+      hardnessModal.addEventListener("click", (e) => { if (e.target === hardnessModal) closeHardnessModal(); });
+      addNoteBtn.addEventListener("click", () => {
+        const value = noteInput.value.trim();
+        if (!value) return;
+        addLogItem(value, "note");
+        noteInput.value = "";
+      });
+      noteInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addNoteBtn.click();
+        }
+      });
+      clearLogBtn.addEventListener("click", () => clearLog());
+
+      // Initialize
+      populateGuessOptions();
+      renderHardnessChart();
+      closeHardnessModal();
+      startNewGame();
+    })();
+  </script>
+</body>
+</html>
