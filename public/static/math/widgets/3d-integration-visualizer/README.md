@@ -1,3 +1,15 @@
+# Feedback
+
+Dawson 
+Very cool, nice visualization
+A little confusing on what to do/ whats the point, especially if the user isnt fluent in integration
+Some buttons are confusing in what they do
+
+Sydney
+I’m in Calc C, so this is somewhat familiar but definitely not super clear
+The visuals feel a bit crowded and are slightly glitchy, but some of my confusion might be because I’m unfamiliar with the material
+I played around witht the display elements, and the Riemann elements are definitely making the visuals harder to follow, because it is very crowded
+
 # 3D Integration Visualizer — Rendering and Interaction README
 
 This document records every critical issue found, the fixes applied, and how to verify and troubleshoot the 3D Integration Visualizer (`public/static/math/widgets/3d-integration-visualizer/`).
