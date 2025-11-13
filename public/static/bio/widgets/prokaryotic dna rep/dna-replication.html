@@ -528,8 +528,14 @@
 
         /* (Buttons are always clickable; order enforced by attemptStep + notice) */
 
+        // Global busy-state helper to prevent overlapping animations
+        function isBusy() {
+          return running || primaseActive || pol3Active || pol3LagActive || pol1Active || ligaseActive;
+        }
+
         // Wrapper to enforce order; wrong clicks show notice, do nothing
         function attemptStep(stepId, run) {
+          if (isBusy()) return;
           const expected = getExpectedStepId();
           if (expected && stepId !== expected) {
             showOrderNotice('That is not the correct next step.');
