@@ -510,6 +510,193 @@
         </div>
       </section>
 
+      <!-- Tutorial Section -->
+      <section class="card" style="margin-bottom: 20px">
+        <h3>How to Use This Widget — Step-by-Step Guide</h3>
+        <div style="margin-top: 16px">
+          <div class="section-title">1. Selecting a Function</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            Use the <strong>Function</strong> dropdown to choose which
+            trigonometric substitution pattern you want to explore. Available
+            options include:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>
+              Square root functions: <code>sqrt(a² - x²)</code>,
+              <code>sqrt(a² + x²)</code>, <code>sqrt(x² - a²)</code>
+            </li>
+            <li>
+              Inverse square root functions: <code>1/sqrt(a² - x²)</code>,
+              <code>1/sqrt(a² + x²)</code>, <code>1/sqrt(x² - a²)</code>
+            </li>
+            <li>
+              Rational functions: <code>1/(a² - x²)</code>,
+              <code>1/(a² + x²)</code>, <code>1/(x² - a²)</code>
+            </li>
+          </ul>
+
+          <div class="section-title">2. Adjusting the Parameter 'a'</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            The <strong>a</strong> input controls the shape of the function.
+            When you change 'a', the function curve updates automatically. The
+            bounds (L and R) remain unchanged unless they become invalid for the
+            new function domain.
+          </p>
+
+          <div class="section-title">3. Setting Integration Bounds</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            Enter values for <strong>Left bound L</strong> and
+            <strong>Right bound R</strong>
+            to define your integration interval. You can:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>Type values directly into the input fields</li>
+            <li>
+              Drag the circular handles on the graph to adjust bounds visually
+            </li>
+            <li>The shaded area shows the region being integrated</li>
+            <li>The approximate area value appears below the graph</li>
+          </ul>
+
+          <div class="section-title">4. Show Trig Substitution Checkbox</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            When checked, displays a panel below the graph showing:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>
+              <strong>Mapping:</strong> The substitution formulas (x = ..., dx =
+              ..., y = ...)
+            </li>
+            <li>
+              <strong>θ-bounds and integrand:</strong> The transformed integral
+              in terms of θ
+            </li>
+          </ul>
+          <p style="margin: 8px 0 16px 0; line-height: 1.6">
+            This helps you see how the integral transforms from x-space to
+            θ-space.
+          </p>
+
+          <div class="section-title">5. Show Geometry Checkbox</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            When enabled, overlays reference geometry on the graph to visualize
+            the trigonometric substitution:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>
+              <strong>For sin substitutions:</strong> Shows a reference circle
+              and right triangle with angle θ labeled
+            </li>
+            <li>
+              <strong>For tan substitutions:</strong> Shows a reference right
+              triangle demonstrating the relationship
+            </li>
+            <li>
+              <strong>For sec substitutions:</strong> Shows a reference right
+              triangle for the secant substitution
+            </li>
+          </ul>
+          <p style="margin: 8px 0 16px 0; line-height: 1.6">
+            The geometry helps you understand how to back-substitute after
+            integrating in terms of θ. <strong>Note:</strong> Geometry only
+            appears when bounds are set (not in indefinite integral mode).
+          </p>
+
+          <div class="section-title">6. Indefinite Integral Checkbox</div>
+          <p style="margin: 8px 0; line-height: 1.6">When checked:</p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>Hides the bounds input fields (L and R)</li>
+            <li>Removes the shaded area from the graph</li>
+            <li>Shows only the function curve</li>
+            <li>
+              Updates the trig substitution panel to show the indefinite
+              integral form
+            </li>
+            <li>Disables geometry overlay (since it requires bounds)</li>
+          </ul>
+          <p style="margin: 8px 0 16px 0; line-height: 1.6">
+            Use this mode when you want to explore the general form of the
+            integral without specific bounds.
+          </p>
+
+          <div class="section-title">7. Collapse Button</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            The <strong>Collapse</strong> button in the top-right corner of the
+            widget allows you to:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>Hide/show the entire widget content</li>
+            <li>Save screen space when you're not actively using the widget</li>
+            <li>
+              Your preference is saved and will persist when you reload the page
+            </li>
+          </ul>
+          <p style="margin: 8px 0 16px 0; line-height: 1.6">
+            Click "Collapse" to hide, or "Expand" to show the widget again.
+          </p>
+
+          <div class="section-title">8. Copy Shareable Link Button</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            Click <strong>Copy shareable link</strong> to copy a URL that
+            includes all your current settings:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>Selected function type</li>
+            <li>Parameter 'a' value</li>
+            <li>Integration bounds (L and R)</li>
+            <li>
+              Checkbox states (Show trig substitution, Show geometry, Indefinite
+              integral)
+            </li>
+          </ul>
+          <p style="margin: 8px 0 16px 0; line-height: 1.6">
+            Share this link with others or bookmark it to return to the same
+            configuration.
+          </p>
+
+          <div class="section-title">9. Interacting with the Graph</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            The graph is interactive:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>
+              <strong>Drag the circular handles</strong> on the x-axis to adjust
+              integration bounds
+            </li>
+            <li>
+              <strong>Vertical dashed lines</strong> show your current bounds
+            </li>
+            <li>
+              <strong>Shaded area</strong> represents the region being
+              integrated
+            </li>
+            <li>
+              <strong>Grid lines</strong> help you read approximate values
+            </li>
+            <li><strong>Axis labels</strong> show the scale</li>
+          </ul>
+
+          <div class="section-title">10. Reading the Output</div>
+          <p style="margin: 8px 0; line-height: 1.6">
+            Below the graph, you'll see:
+          </p>
+          <ul style="margin: 8px 0 16px 20px; line-height: 1.8">
+            <li>
+              <strong>Area estimate:</strong> The approximate numerical value of
+              the definite integral
+            </li>
+            <li>
+              <strong>Trig Substitution panel:</strong> (if enabled) Shows the
+              mathematical transformation
+            </li>
+            <li>
+              <strong>Metrics box:</strong> Displays the integration interval
+              and calculated area
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <!-- Trig Substitution Explorer (interactive) -->
       <section class="card collapsible" id="tsw">
         <div class="card-header">
