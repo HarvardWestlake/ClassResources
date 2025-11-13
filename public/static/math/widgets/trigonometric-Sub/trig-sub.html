@@ -1307,15 +1307,15 @@
 
         function renderGeomOverlay(cfg, a, range) {
           if (!state.showGeom) return;
-          if (
-            state.funcId === "sqrt_minus" ||
-            state.funcId === "inv_sqrt_minus"
-          ) {
-            const { xToPx, yToPx } = range._scales;
+          const { xToPx, yToPx } = range._scales;
+
+          if (state.funcId === "sqrt_minus") {
+            // Draw the reference circle for sqrt(a^2 - x^2)
+            // This is a circle of radius a centered at origin
             const parts = [];
             const n = 240;
             for (let i = 0; i <= n; i++) {
-              const theta = (i / n) * Math.PI;
+              const theta = (i / n) * 2 * Math.PI;
               const x = a * Math.cos(theta);
               const y = a * Math.sin(theta);
               const cmd = i === 0 ? "M" : "L";
@@ -1324,7 +1324,161 @@
             const path = make("path");
             path.setAttribute("d", parts.join(" "));
             path.setAttribute("class", "tsw-overlay");
+            path.setAttribute("stroke-width", "2");
             svg.appendChild(path);
+
+            // Draw reference triangle if bounds are set
+            if (!state.indef && state.L !== state.R) {
+              const xVal = (state.L + state.R) / 2; // Use midpoint for triangle
+              if (Math.abs(xVal) < a) {
+                const yVal = cfg.f(xVal, a);
+                const theta = Math.asin(clamp(xVal / a, -1, 1));
+
+                // Draw triangle: origin to (x, y) to (x, 0)
+                const triPath = make("path");
+                const originX = xToPx(0);
+                const originY = yToPx(0);
+                const xPx = xToPx(xVal);
+                const yPx = yToPx(yVal);
+                const xPx0 = xToPx(xVal);
+                const yPx0 = yToPx(0);
+                triPath.setAttribute(
+                  "d",
+                  `M ${originX} ${originY} L ${xPx} ${yPx} L ${xPx0} ${yPx0} Z`
+                );
+                triPath.setAttribute("class", "tsw-overlay");
+                triPath.setAttribute("fill", "rgba(179, 27, 27, 0.1)");
+                triPath.setAttribute("stroke-width", "1.5");
+                svg.appendChild(triPath);
+
+                // Label theta angle
+                const arcRadius = Math.min(a * 0.3, 30);
+                const arcPath = make("path");
+                const arcStartX = originX + arcRadius;
+                const arcStartY = originY;
+                const arcEndX = originX + arcRadius * Math.cos(theta);
+                const arcEndY = originY - arcRadius * Math.sin(theta);
+                const largeArc = theta > Math.PI ? 1 : 0;
+                arcPath.setAttribute(
+                  "d",
+                  `M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 ${largeArc} 0 ${arcEndX} ${arcEndY}`
+                );
+                arcPath.setAttribute("class", "tsw-overlay");
+                arcPath.setAttribute("stroke-width", "1.5");
+                arcPath.setAttribute("fill", "none");
+                svg.appendChild(arcPath);
+
+                // Label theta
+                const thetaLabel = make("text");
+                thetaLabel.setAttribute("x", String(originX + arcRadius * 0.6));
+                thetaLabel.setAttribute("y", String(originY - arcRadius * 0.4));
+                thetaLabel.setAttribute("font-size", "12");
+                thetaLabel.setAttribute("fill", "#b31b1b");
+                thetaLabel.setAttribute("font-weight", "600");
+                thetaLabel.textContent = "θ";
+                svg.appendChild(thetaLabel);
+              }
+            }
+          } else if (state.funcId === "sqrt_plus") {
+            // Draw reference triangle for sqrt(a^2 + x^2)
+            if (!state.indef && state.L !== state.R) {
+              const xVal = (state.L + state.R) / 2;
+              const yVal = cfg.f(xVal, a);
+              const theta = Math.atan(xVal / a);
+
+              // Draw triangle: origin to (x, 0) to (x, y)
+              const triPath = make("path");
+              const originX = xToPx(0);
+              const originY = yToPx(0);
+              const xPx0 = xToPx(xVal);
+              const yPx0 = yToPx(0);
+              const xPx = xToPx(xVal);
+              const yPx = yToPx(yVal);
+              triPath.setAttribute(
+                "d",
+                `M ${originX} ${originY} L ${xPx0} ${yPx0} L ${xPx} ${yPx} Z`
+              );
+              triPath.setAttribute("class", "tsw-overlay");
+              triPath.setAttribute("fill", "rgba(179, 27, 27, 0.1)");
+              triPath.setAttribute("stroke-width", "1.5");
+              svg.appendChild(triPath);
+
+              // Label theta
+              const arcRadius = Math.min(a * 0.3, 30);
+              const arcPath = make("path");
+              const arcStartX = originX + arcRadius;
+              const arcStartY = originY;
+              const arcEndX = originX + arcRadius * Math.cos(theta);
+              const arcEndY = originY - arcRadius * Math.sin(theta);
+              arcPath.setAttribute(
+                "d",
+                `M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 0 0 ${arcEndX} ${arcEndY}`
+              );
+              arcPath.setAttribute("class", "tsw-overlay");
+              arcPath.setAttribute("stroke-width", "1.5");
+              arcPath.setAttribute("fill", "none");
+              svg.appendChild(arcPath);
+
+              const thetaLabel = make("text");
+              thetaLabel.setAttribute("x", String(originX + arcRadius * 0.6));
+              thetaLabel.setAttribute("y", String(originY - arcRadius * 0.3));
+              thetaLabel.setAttribute("font-size", "12");
+              thetaLabel.setAttribute("fill", "var(--accent)");
+              thetaLabel.setAttribute("font-weight", "600");
+              thetaLabel.textContent = "θ";
+              svg.appendChild(thetaLabel);
+            }
+          } else if (state.funcId === "sqrt_x2_minus") {
+            // Draw reference triangle for sqrt(x^2 - a^2)
+            if (!state.indef && state.L !== state.R) {
+              const xVal = Math.max(Math.abs(state.L), Math.abs(state.R));
+              if (xVal > a) {
+                const yVal = cfg.f(xVal, a);
+                const theta = Math.acos(clamp(a / xVal, -1, 1));
+
+                // Draw triangle: origin to (x, 0) to (x, y)
+                const triPath = make("path");
+                const originX = xToPx(0);
+                const originY = yToPx(0);
+                const xPx0 = xToPx(xVal);
+                const yPx0 = yToPx(0);
+                const xPx = xToPx(xVal);
+                const yPx = yToPx(yVal);
+                triPath.setAttribute(
+                  "d",
+                  `M ${originX} ${originY} L ${xPx0} ${yPx0} L ${xPx} ${yPx} Z`
+                );
+                triPath.setAttribute("class", "tsw-overlay");
+                triPath.setAttribute("fill", "rgba(179, 27, 27, 0.1)");
+                triPath.setAttribute("stroke-width", "1.5");
+                svg.appendChild(triPath);
+
+                // Label theta
+                const arcRadius = Math.min(a * 0.3, 30);
+                const arcPath = make("path");
+                const arcStartX = originX + arcRadius;
+                const arcStartY = originY;
+                const arcEndX = originX + arcRadius * Math.cos(theta);
+                const arcEndY = originY - arcRadius * Math.sin(theta);
+                arcPath.setAttribute(
+                  "d",
+                  `M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 0 0 ${arcEndX} ${arcEndY}`
+                );
+                arcPath.setAttribute("class", "tsw-overlay");
+                arcPath.setAttribute("stroke-width", "1.5");
+                arcPath.setAttribute("fill", "none");
+                svg.appendChild(arcPath);
+
+                const thetaLabel = make("text");
+                thetaLabel.setAttribute("x", String(originX + arcRadius * 0.6));
+                thetaLabel.setAttribute("y", String(originY - arcRadius * 0.3));
+                thetaLabel.setAttribute("font-size", "12");
+                thetaLabel.setAttribute("fill", "#b31b1b");
+                thetaLabel.setAttribute("font-weight", "600");
+                thetaLabel.textContent = "θ";
+                svg.appendChild(thetaLabel);
+              }
+            }
           }
         }
 
@@ -1495,10 +1649,9 @@
           const v = parseFloat(aInput.value);
           if (!Number.isFinite(v) || v <= 0) return;
           state.a = v;
-          const dom = configs[state.funcId].domain(state.a);
-          state.L = clamp(state.L, dom[0], dom[1]);
-          state.R = clamp(state.R, dom[0], dom[1]);
+          // Keep bounds the same - only adjust if they're invalid (L >= R)
           if (state.L >= state.R) {
+            const dom = configs[state.funcId].domain(state.a);
             state.L = dom[0];
             state.R = dom[1];
           }
