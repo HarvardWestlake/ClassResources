@@ -66,31 +66,65 @@
   let nextId = 1;
   // Toast helper
   let toastTimer = null;
+  // Centered alert modal for errors / unsuccessful adds
+  let alertOverlay = null;
+  let alertMsg = null;
+  let alertOkBtn = null;
+  function ensureAlertOverlay() {
+    if (alertOverlay) return alertOverlay;
+    // Overlay
+    alertOverlay = document.createElement("div");
+    alertOverlay.id = "alertOverlay";
+    Object.assign(alertOverlay.style, {
+      position: "fixed",
+      inset: "0",
+      display: "none",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(17,24,39,0.45)",
+      zIndex: 9998
+    });
+    // Card (reuse ohm-card styling)
+    const card = document.createElement("div");
+    card.className = "ohm-card";
+    const title = document.createElement("div");
+    title.className = "ohm-title";
+    title.textContent = "Notice";
+    const body = document.createElement("div");
+    body.className = "ohm-body";
+    alertMsg = document.createElement("div");
+    alertMsg.className = "label";
+    alertMsg.style.fontWeight = "500";
+    const actions = document.createElement("div");
+    actions.className = "ohm-actions";
+    alertOkBtn = document.createElement("button");
+    alertOkBtn.type = "button";
+    alertOkBtn.className = "btn";
+    alertOkBtn.textContent = "OK";
+    actions.appendChild(alertOkBtn);
+    body.appendChild(alertMsg);
+    card.appendChild(title);
+    card.appendChild(body);
+    card.appendChild(actions);
+    alertOverlay.appendChild(card);
+    document.body.appendChild(alertOverlay);
+    // Events
+    alertOkBtn.addEventListener("click", () => { alertOverlay.style.display = "none"; });
+    alertOverlay.addEventListener("click", (e) => {
+      if (e.target === alertOverlay) alertOverlay.style.display = "none";
+    });
+    document.addEventListener("keydown", (e) => {
+      if (alertOverlay && alertOverlay.style.display === "flex" && e.key === "Escape") {
+        e.preventDefault();
+        alertOverlay.style.display = "none";
+      }
+    });
+    return alertOverlay;
+  }
   function showToast(message) {
-    let t = document.getElementById("toast");
-    if (!t) {
-      t = document.createElement("div");
-      t.id = "toast";
-      Object.assign(t.style, {
-        position: "fixed",
-        bottom: "20px",
-        right: "20px",
-        background: "#111",
-        color: "#fff",
-        padding: "10px 12px",
-        borderRadius: "8px",
-        boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
-        zIndex: 9999,
-        fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-        fontSize: "14px",
-        opacity: "0.95"
-      });
-      document.body.appendChild(t);
-    }
-    t.textContent = message;
-    t.style.display = "block";
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.style.display = "none"; }, 2200);
+    ensureAlertOverlay();
+    alertMsg.textContent = message;
+    alertOverlay.style.display = "flex";
   }
   // Simple HTML context menu overlay
   let ctxMenu = null;
@@ -453,6 +487,20 @@
   }
   function addBranchToParallel(comp, parallelNode) {
     parallelNode.children.push(comp);
+  }
+  function wrapTopSeriesSegmentAsParallel(lo, hi, newBranchComp) {
+    const count = hi - lo + 1;
+    if (count <= 0) return;
+    const segment = resistors.slice(lo, hi + 1);
+    let branchA = null;
+    if (segment.length === 1) {
+      branchA = segment[0];
+    } else {
+      branchA = { kind: "series", children: segment };
+    }
+    const parallelNode = { kind: "parallel", children: [branchA, newBranchComp] };
+    // Replace the segment with the new parallel node
+    resistors.splice(lo, count, parallelNode);
   }
 
   // Localized parallel group renderers on top/bottom and left/right edges
@@ -1265,7 +1313,7 @@
         resistors.push(comp);
         update();
       } else {
-        showToast("To add in parallel, select components within the same parallel group.");
+        showToast("Select components within the same series row or the same parallel group to add in parallel.");
       }
       return;
     }
@@ -1318,12 +1366,35 @@
         update();
         return;
       }
-      // Multiple top-level items selected: require selecting within a single parallel group
-      showToast("To add in parallel, select components within the same parallel group.");
+      // Multiple top-level items selected: allow wrapping a contiguous series segment
+      const paths = sel.map(findPathToComponent).filter(Boolean);
+      if (paths.length !== sel.length) {
+        showToast("Couldn't resolve selection.");
+        return;
+      }
+      // All must be top-level comps (no parallel ancestor)
+      if (!paths.every(p => p.parallelNode === null)) {
+        showToast("Select components within the same series row or the same parallel group to add in parallel.");
+        return;
+      }
+      const topIdx = paths.map(p => p.topIndex).sort((a,b)=>a-b);
+      const lo = topIdx[0];
+      const hi = topIdx[topIdx.length - 1];
+      // Check contiguity and that all items in [lo..hi] are selected and are comps
+      const selectedTopIndexSet = new Set(topIdx);
+      for (let k = lo; k <= hi; k++) {
+        const node = resistors[k];
+        if (!node || node.kind !== "comp" || !selectedTopIndexSet.has(k)) {
+          showToast("Select a contiguous set of resistors in one series row.");
+          return;
+        }
+      }
+      wrapTopSeriesSegmentAsParallel(lo, hi, comp);
+      update();
       return;
     }
     // Fallback
-    showToast("To add in parallel, select components within the same parallel group.");
+    showToast("Select components within the same series row or the same parallel group to add in parallel.");
   }
   if (elAddResistor) {
     elAddResistor.addEventListener("click", () => handleAdd("resistor"));
