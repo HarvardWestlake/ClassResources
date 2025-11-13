@@ -13,7 +13,7 @@
     <main id="replication-demo" class="page">
       <div class="container container--narrow">
         <h1 class="h1">Prokaryotic DNA Replication</h1>
-        <p class="lead">Try to click the enzymes in the correct order, and learn the prokaryotic DNA replication process!</p>
+        <p class="lead">Try to click the enzymes in the correct order, and learn the prokaryotic DNA replication process! (Refer to glossary below for enzyme explanations.)</p>
         <div class="panel stage">
           <svg id="replication-svg" viewBox="0 0 1200 600" role="img" aria-label="DNA double helix visualization">
             <desc>Static depiction of a double helix along the x-axis (no replication bubble)</desc>
@@ -21,13 +21,13 @@
           </svg>
         </div>
         <div class="panel controls" aria-label="Replication controls">
-          <button id="helicase-start" type="button" class="primary">Helicase + Topoisomerase (Unwinds DNA helix)</button>
-          <button id="primase-start" type="button" class="primary" aria-label="Lay down RNA primers (Primase)">Primase (Lays down RNA primers)</button>
+          <button id="helicase-start" type="button" class="primary">Helicase + Topoisomerase</button>
+          <button id="primase-start" type="button" class="primary" aria-label="Lay down RNA primers (Primase)">Primase</button>
           <span id="helicase-status" aria-hidden="true"></span>
           <span id="primase-status" aria-hidden="true"></span>
-          <button id="pol3-start" type="button" class="primary">DNA Pol III (Synthesizes DNA)</button>
-          <button id="pol1-start" type="button" class="primary" aria-label="Replace RNA primers with DNA (DNA Pol I)">DNA Pol I (Replaces RNA primers with DNA)</button>
-          <button id="ligase-start" type="button" class="primary">DNA Ligase (Seals nicks)</button>
+          <button id="pol3-start" type="button" class="primary">DNA Polymerase III</button>
+          <button id="pol1-start" type="button" class="primary" aria-label="Replace RNA primers with DNA (DNA Pol I)">DNA Polymerase I</button>
+          <button id="ligase-start" type="button" class="primary">DNA Ligase</button>
           <span id="order-notice" role="alert" aria-live="polite" class="alert warning" style="display:none"></span>
           <button id="helicase-reset" type="button" class="outline" style="display:none">Reset</button>
         </div>
@@ -533,15 +533,51 @@
           return running || primaseActive || pol3Active || pol3LagActive || pol1Active || ligaseActive;
         }
 
+        // Lock/unlock all control buttons (including Reset during animations)
+        const savedDisabledStates = new Map();
+        const stepButtonIds = ['helicase-start', 'primase-start', 'pol3-start', 'pol1-start', 'ligase-start', 'helicase-reset'];
+        function lockStepButtons() {
+          savedDisabledStates.clear();
+          stepButtonIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+              savedDisabledStates.set(id, el.disabled);
+              el.disabled = true;
+            }
+          });
+        }
+        function unlockStepButtons() {
+          stepButtonIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.disabled = savedDisabledStates.has(id) ? !!savedDisabledStates.get(id) : false;
+            }
+          });
+          savedDisabledStates.clear();
+        }
+        function maybeUnlockWhenIdle() {
+          if (!isBusy()) unlockStepButtons();
+        }
+
         // Wrapper to enforce order; wrong clicks show notice, do nothing
         function attemptStep(stepId, run) {
           if (isBusy()) return;
+          lockStepButtons();
           const expected = getExpectedStepId();
           if (expected && stepId !== expected) {
             showOrderNotice('That is not the correct next step.');
+            unlockStepButtons();
             return;
           }
+          // Disable the correct step immediately and persist that disabled state through unlocks
+          const stepEl = document.getElementById(stepId);
+          if (stepEl) {
+            savedDisabledStates.set(stepId, true);
+            stepEl.disabled = true;
+          }
           run();
+          // If no animation actually began, unlock on next tick; otherwise wait for completion hooks.
+          setTimeout(maybeUnlockWhenIdle, 0);
         }
 
         function friendlyName(stepId) {
@@ -638,7 +674,6 @@
             const startBtn = document.getElementById('helicase-start');
             if (resetBtn && startBtn) {
               resetBtn.style.display = '';
-              startBtn.disabled = true;
             }
             // Now reveal and enable Primase
             if (primaseBtn) {
@@ -650,6 +685,7 @@
             addCompletionJunctions(helicaseX);
             helicaseCompleted = true;
             updatePol3CTA();
+            maybeUnlockWhenIdle();
             return;
           }
 
@@ -683,6 +719,7 @@
         primaseBtn?.addEventListener('click', () => {
           attemptStep('primase-start', () => {
             if (leadingPrimerPlaced && laggingPrimersPlaced) return;
+            primaseActive = true;
             // Build primer placement positions (leading first, then lagging)
             const xLeftEdge = startX; // leftmost edge of the unwound region
             const yTop = centerY - forkOffsetLeft(xLeftEdge, helicaseX);
@@ -724,8 +761,9 @@
               primase.style.display = 'none';
               laggingPrimersPlaced = true;
               primaseCompleted = true;
-              if (primaseBtn) primaseBtn.disabled = true;
+              primaseActive = false;
               updatePol3CTA();
+              maybeUnlockWhenIdle();
               return;
             }
             // Place the first primer immediately at its target position
@@ -737,9 +775,10 @@
                 primase.style.display = 'none';
                 laggingPrimersPlaced = true;
                 primaseCompleted = true;
+                primaseActive = false;
                 // no status text
-                if (primaseBtn) primaseBtn.disabled = true;
                 updatePol3CTA();
+                maybeUnlockWhenIdle();
                 return;
               }
               const target = positions[idx];
@@ -1060,8 +1099,8 @@
 
           pol3Active = false;
           pol3Completed = true;
-          if (pol3Btn) pol3Btn.disabled = true;
           updatePol1CTA();
+          maybeUnlockWhenIdle();
         }
 
         function startPol3() {
@@ -1155,8 +1194,8 @@
               pol1Completed = true;
               if (pol1Enzyme && pol1Enzyme.parentNode) pol1Enzyme.parentNode.removeChild(pol1Enzyme);
               pol1Enzyme = null;
-              if (pol1Btn) pol1Btn.disabled = true;
               updateLigaseCTA();
+              maybeUnlockWhenIdle();
               return;
             }
 
@@ -1352,7 +1391,7 @@
               if (ligaseEnzyme && ligaseEnzyme.parentNode) ligaseEnzyme.parentNode.removeChild(ligaseEnzyme);
               ligaseEnzyme = null;
               const ligBtn = document.getElementById('ligase-start');
-              if (ligBtn) ligBtn.disabled = true;
+              maybeUnlockWhenIdle();
               return;
             }
             const n = seq[i++];
@@ -1465,6 +1504,7 @@
               if (pol3LagEnzyme && pol3LagEnzyme.parentNode) pol3LagEnzyme.parentNode.removeChild(pol3LagEnzyme);
               pol3LagEnzyme = null;
               updatePol1CTA();
+              maybeUnlockWhenIdle();
               return;
             }
 
@@ -1592,6 +1632,8 @@
           if (ligBtn) { ligBtn.disabled = false; ligBtn.style.display = ''; }
           // Clear order notice
           if (orderNotice) orderNotice.style.display = 'none';
+          // Ensure step buttons are unlocked after a reset
+          unlockStepButtons();
         });
       })();
     </script>
