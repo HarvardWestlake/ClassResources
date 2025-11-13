@@ -14,9 +14,20 @@
     const showColumns = $('showColumns');
     const showRegion = $('showRegion');
     const showWedge = $('showWedge');
+    const declutterView = $('declutterView');
     const jacobianText = $('jacobianText');
     const integralEstimate = $('integralEstimate');
     const equationError = document.getElementById('equationError');
+    // Onboarding / Help
+    const helpButton = $('helpButton');
+    const onboardingOverlay = $('onboardingOverlay');
+    const onboardingClose = $('onboardingClose');
+    const onboardingDontShow = $('onboardingDontShow');
+    // Density and examples
+    const densitySlider = $('densitySlider');
+    const densityLabel = $('densityLabel');
+    const exSphereVoxels = $('exSphereVoxels');
+    const exCylinderVoxels = $('exCylinderVoxels');
 
     // Bounds
     const xMin = $('xMin'), xMax = $('xMax'), yMin = $('yMin'), yMax = $('yMax');
@@ -30,8 +41,10 @@
     let contentRoot, surfaceGroup, columnsGroup, regionGroup, wedgeGroup, axesHelper, gridHelper, gridHelperNeg;
     // Auto-rotation around Z axis for demonstration
     let autoRotateZ = true;
-    let autoRotateSpeed = 0.5; // radians per second
+    let autoRotateSpeed = 0.25; // radians per second (slower by default)
     let _lastFrameTime = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    // Density level: 0 Off, 1 Light, 2 Medium, 3 Heavy
+    let densityLevel = 1;
 
     function getHostSize() {
         const rect = canvasHost.getBoundingClientRect();
@@ -45,6 +58,51 @@
         return { w, h };
     }
 
+    function updateDeclutter() {
+        const on = !!(declutterView && declutterView.checked);
+        if (axesHelper) axesHelper.visible = !on;
+        if (gridHelper) gridHelper.visible = !on;
+        if (gridHelperNeg) gridHelperNeg.visible = !on;
+    }
+
+    function setDensityLevel(level) {
+        densityLevel = Math.max(0, Math.min(3, level|0));
+        if (densityLabel) {
+            densityLabel.textContent = densityLevel === 0 ? 'Off'
+                : densityLevel === 1 ? 'Light'
+                : densityLevel === 2 ? 'Medium' : 'Heavy';
+        }
+        const nxVal = densityLevel === 0 ? parseInt(nx.value) || 8
+            : densityLevel === 1 ? 8
+            : densityLevel === 2 ? 16 : 24;
+        const nyVal = densityLevel === 0 ? parseInt(ny.value) || 8
+            : densityLevel === 1 ? 8
+            : densityLevel === 2 ? 16 : 24;
+        const nzVal = densityLevel === 0 ? parseInt(nz.value) || 6
+            : densityLevel === 1 ? 6
+            : densityLevel === 2 ? 10 : 14;
+        if (nx) nx.value = String(nxVal);
+        if (ny) ny.value = String(nyVal);
+        if (nz) nz.value = String(nzVal);
+        if (showColumns) showColumns.checked = densityLevel > 0 ? (showColumns.checked || true) : false;
+        render();
+    }
+
+    function showOnboardingIfNeeded() {
+        try {
+            const dismissed = localStorage.getItem('integrator_onboarding_dismissed') === '1';
+            if (!dismissed && onboardingOverlay) {
+                onboardingOverlay.hidden = false;
+                onboardingOverlay.style.display = '';
+            }
+        } catch (e) {
+            if (onboardingOverlay) {
+                onboardingOverlay.hidden = false;
+                onboardingOverlay.style.display = '';
+            }
+        }
+    }
+
     function setupThree() {
         const { w, h } = getHostSize();
         const ratio = w / h;
@@ -54,7 +112,7 @@
         } else if (THREE && THREE.OutputColorSpace) {
             renderer.outputColorSpace = THREE.SRGBColorSpace;
         }
-        renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1), 2));
+        renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.5));
         renderer.setSize(w, h);
         canvasHost.innerHTML = '';
         canvasHost.appendChild(renderer.domElement);
@@ -133,8 +191,6 @@
                 startX = lastX = evt.clientX;
                 startY = lastY = evt.clientY;
                 try { el.setPointerCapture(evt.pointerId); } catch(e) {}
-                // blue marker for drag start
-                showClickDot(evt, '#2d6cdf', 5);
                 pauseAutoRotate(2500);
             });
             el.addEventListener('pointermove', (evt) => {
@@ -158,8 +214,6 @@
                         return;
                     }
                     console.log('canvas drag move', { dx, dy, x: e.clientX, y: e.clientY });
-                    // light blue trail dot during rotate/pan drag
-                    showClickDot(e, '#4cc3ff', 4);
                     // Drive camera orbit if available; otherwise rotate the content as fallback
                     try {
                         const elementHeight = Math.max(1, el.clientHeight || el.height || 1);
@@ -396,6 +450,10 @@
         geom.computeVertexNormals();
 
         const mat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide });
+        // Reduce z-fighting with grid/edges
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = 1;
+        mat.polygonOffsetUnits = 1;
         const mesh = new THREE.Mesh(geom, mat);
         // Add a crisp edge outline to make the surface visible on dark backgrounds
         const edges = new THREE.EdgesGeometry(geom);
@@ -409,6 +467,9 @@
     function addRegionRectangle(x0, x1, y0, y1) {
         const geom = new THREE.PlaneGeometry(Math.abs(x1 - x0), Math.abs(y1 - y0));
         const mat = new THREE.MeshBasicMaterial({ color: 0x8bd450, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = 1;
+        mat.polygonOffsetUnits = 1;
         const mesh = new THREE.Mesh(geom, mat);
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.set((x0 + x1) / 2, 0.001, (y0 + y1) / 2);
@@ -426,8 +487,13 @@
         const dy = (y1 - y0) / nyp;
         const material = new THREE.MeshStandardMaterial({ color: 0xff7a59, transparent: true, opacity: 0.6 });
         let estimate = 0;
+        const maxCols = 1500;
+        const total = nxp * nyp;
+        const stride = total > maxCols ? Math.ceil(total / maxCols) : 1;
+        let idx = 0;
         for (let i = 0; i < nxp; i++) {
             for (let j = 0; j < nyp; j++) {
+                if (stride > 1 && ((idx++) % stride) !== 0) { continue; }
                 const xc = x0 + (i + 0.5) * dx;
                 const yc = y0 + (j + 0.5) * dy;
                 const height = evalFunction(expr, xc, yc);
@@ -456,8 +522,12 @@
             const x = r0 * Math.cos(t), y = r0 * Math.sin(t);
             shape.lineTo(x, y);
         }
+        shape.closePath();
         const geom = new THREE.ShapeGeometry(shape);
         const mat = new THREE.MeshBasicMaterial({ color: 0x8bd450, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = 1;
+        mat.polygonOffsetUnits = 1;
         const mesh = new THREE.Mesh(geom, mat);
         mesh.rotation.x = -Math.PI / 2;
         regionGroup.add(mesh);
@@ -472,8 +542,13 @@
         const dt = (t1 - t0) / nt;
         let estimate = 0;
         const mat = new THREE.MeshStandardMaterial({ color: 0xff7a59, transparent: true, opacity: 0.6 });
+        const maxCols = 1500;
+        const total = nr * nt;
+        const stride = total > maxCols ? Math.ceil(total / maxCols) : 1;
+        let idx = 0;
         for (let i = 0; i < nr; i++) {
             for (let j = 0; j < nt; j++) {
+                if (stride > 1 && ((idx++) % stride) !== 0) { continue; }
                 const rc = r0 + (i + 0.5) * dr;
                 const tc = t0 + (j + 0.5) * dt;
                 const x = rc * Math.cos(tc);
@@ -499,26 +574,44 @@
 
     // Triple integrals presets (volumes) and dV wedges
     function addVolumePreset(preset) {
+        // Render a stock volume shape using bounds consistent with the ACTIVE method.
+        // This prevents shapes from morphing when switching methods.
         const group = new THREE.Group();
-        let mesh;
+        const method = methodSelect.value;
+        const num = (el, d) => {
+            const v = parseFloat(el?.value);
+            return Number.isFinite(v) ? v : d;
+        };
+        const mat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+        let mesh = null;
+
         if (preset === 'sphere') {
-            const geom = new THREE.SphereGeometry(2, 48, 32);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+            // Prefer the radius control that matches the active method.
+            const R =
+                method === 'triple_spherical' ? num(rhoMax, 2) :
+                method === 'triple_cylindrical' ? num(rcMax, 2) :
+                method === 'double_polar' ? num(rMax, 2) :
+                Math.min(Math.abs(num(xMax, 2)), Math.abs(num(yMax, 2)));
+            const geom = new THREE.SphereGeometry(Math.max(0.1, R), 48, 32);
             mesh = new THREE.Mesh(geom, mat);
-        } else if (preset === 'cone') {
-            const geom = new THREE.ConeGeometry(1.5, 3, 48);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+        } else if (preset === 'cone' || preset === 'cylinder') {
+            // Use cylindrical-style bounds when available; fall back gracefully.
+            const R = num(rcMax, num(rMax, num(rhoMax, 1.5)));
+            const y0 = num(zMin, 0), y1 = num(zMax, 3);
+            const H = Math.max(0.1, y1 - y0);
+            const geom = (preset === 'cone')
+                ? new THREE.ConeGeometry(Math.max(0.1, R), H, 48)
+                : new THREE.CylinderGeometry(Math.max(0.1, R), Math.max(0.1, R), H, 48);
             mesh = new THREE.Mesh(geom, mat);
-            mesh.position.y = 1.5 / 2;
-        } else if (preset === 'cylinder') {
-            const geom = new THREE.CylinderGeometry(1.5, 1.5, 3, 48);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
-            mesh = new THREE.Mesh(geom, mat);
+            // Always render centered about world origin
+            mesh.position.y = 0;
         } else if (preset === 'paraboloid') {
             const expr = math.parse('0.5*(x^2 + y^2)').compile();
-            const surf = buildSurfaceFromFunction(expr, -2.5, 2.5, -2.5, 2.5, 64, 64, 0x4cc3ff, 0.22);
-            mesh = surf;
+            const x0 = num(xMin, -2.5), x1 = num(xMax, 2.5);
+            const y0 = num(yMin, -2.5), y1 = num(yMax, 2.5);
+            mesh = buildSurfaceFromFunction(expr, x0, x1, y0, y1, 64, 64, 0x4cc3ff, 0.22);
         }
+
         if (mesh) group.add(mesh);
         surfaceGroup.add(group);
     }
@@ -534,6 +627,9 @@
 
         const geom = new THREE.BoxGeometry(dr, dz, rc * dt);
         const mat = new THREE.MeshStandardMaterial({ color: 0xff3b7f, transparent: true, opacity: 0.6 });
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = 1;
+        mat.polygonOffsetUnits = 1;
         const box = new THREE.Mesh(geom, mat);
         const x = rc * Math.cos(tc);
         const y = rc * Math.sin(tc);
@@ -556,6 +652,9 @@
         const tangential2 = rhoc * Math.sin(phic) * dtheta;
         const geom = new THREE.BoxGeometry(radial, tangential1, tangential2);
         const mat = new THREE.MeshStandardMaterial({ color: 0xff3b7f, transparent: true, opacity: 0.6 });
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = 1;
+        mat.polygonOffsetUnits = 1;
         const x = rhoc * Math.sin(phic) * Math.cos(thetac);
         const y = rhoc * Math.sin(phic) * Math.sin(thetac);
         const z = rhoc * Math.cos(phic);
@@ -565,7 +664,7 @@
     }
 
     // Triple integral bricks/voxels for numeric estimate and visualization
-    function addVoxelsCylindrical(r0, r1, t0, t1, z0, z1, nr, nt, nz) {
+    function addVoxelsCylindrical(r0, r1, t0, t1, z0, z1, nr, nt, nz, include) {
         const dr = (r1 - r0) / nr;
         const dt = (t1 - t0) / nt;
         const dz = (z1 - z0) / nz;
@@ -586,6 +685,7 @@
                 for (let k = 0; k < nz; k++, idx++) {
                     if (stride > 1 && (idx % stride) !== 0) continue;
                     const yc = z0 + (k + 0.5) * dz; // world y
+                    if (include && !include(x, yc, z)) continue;
                     const geom = new THREE.BoxGeometry(boxR, dz * 0.98, tangential);
                     const box = new THREE.Mesh(geom, mat);
                     box.position.set(x, yc, z);
@@ -594,7 +694,10 @@
                 }
                 // Sum full contribution (not downsampled)
                 for (let k = 0; k < nz; k++) {
-                    volume += rc * dr * dt * dz;
+                    const yc = z0 + (k + 0.5) * dz;
+                    if (!include || include(x, yc, z)) {
+                        volume += rc * dr * dt * dz;
+                    }
                 }
             }
         }
@@ -674,7 +777,17 @@
             const surf = buildSurfaceFromFunction(compiled, x0, x1, y0, y1, 64, 64);
             surfaceGroup.add(surf);
         }
-        if (showRegion.checked) addRegionRectangle(x0, x1, y0, y1);
+        // For radial presets, show a disk region so the "cylinder/sphere/cone" intent is clear in Cartesian mode
+        const preset = presetSelect.value;
+        if (showRegion.checked) {
+            if (preset === 'cylinder' || preset === 'sphere' || preset === 'cone') {
+                const R = parseFloat(rMax.value) || parseFloat(rcMax.value) || parseFloat(rhoMax.value) ||
+                          Math.min(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2;
+                addRegionPolar(0, R, 0, 2 * Math.PI);
+            } else {
+                addRegionRectangle(x0, x1, y0, y1);
+            }
+        }
         let estimate = 0;
         if (showColumns.checked) {
             estimate = addColumnsCartesian(compiled, x0, x1, y0, y1, nxp, nyp);
@@ -740,7 +853,28 @@
             const nr = Math.max(2, parseInt(nx.value));
             const nt = Math.max(2, parseInt(ny.value));
             const nzp = Math.max(1, parseInt(nz.value));
-            estimate = addVoxelsCylindrical(r0, r1, t0, t1, z0, z1, nr, nt, nzp);
+            const preset = presetSelect.value;
+            let include = null;
+            if (preset === 'sphere') {
+                const R = parseFloat(rcMax.value);
+                include = (x, y, z) => (x * x + y * y + z * z) <= (R * R + 1e-9);
+            } else if (preset === 'cone') {
+                const R = parseFloat(rcMax.value);
+                const y0 = parseFloat(zMin.value), y1 = parseFloat(zMax.value);
+                const H = Math.max(1e-6, y1 - y0);
+                // radius decreases linearly from base (y0) to apex (y1)
+                include = (x, y, z) => {
+                    if (y < y0 - 1e-9 || y > y1 + 1e-9) return false;
+                    const rAllowed = Math.max(0, R * (y1 - y) / H);
+                    return Math.hypot(x, z) <= rAllowed + 1e-9;
+                };
+            } else if (preset === 'paraboloid') {
+                const a = 0.5;
+                const y0 = 0;
+                const y1 = parseFloat(zMax.value);
+                include = (x, y, z) => y >= y0 - 1e-9 && y <= y1 + 1e-9 && y <= a * (x * x + z * z) + 1e-9;
+            } // cylinder preset doesn't need clipping; domain already matches
+            estimate = addVoxelsCylindrical(r0, r1, t0, t1, z0, z1, nr, nt, nzp, include);
         }
         if (showWedge.checked) addDVWedgeCylindrical(r0, r1, t0, t1, z0, z1);
         integralEstimate.textContent = estimate > 0 ? `Approx ∭ dV ≈ ${estimate.toFixed(3)}` : 'Volume visualization';
@@ -756,10 +890,10 @@
         const preset = presetSelect.value;
         if (showSurface.checked && preset !== 'none') addVolumePreset(preset);
         if (showRegion.checked) {
-            // For cylinder preset, show true projection ring radius R; otherwise approximate sector ring
+            // For sphere/cylinder/cone presets, show projected disk with radius R; otherwise approximate
             const preset = presetSelect.value;
-            if (preset === 'cylinder') {
-                const R = parseFloat(rcMax.value);
+            if (preset === 'cylinder' || preset === 'sphere' || preset === 'cone') {
+                const R = parseFloat(rcMax.value) || parseFloat(rhoMax.value);
                 addRegionPolar(0, R, th0, th1);
             } else {
                 addRegionPolar(0, rh1 * Math.sin((ph0 + ph1) / 2), th0, th1);
@@ -771,14 +905,36 @@
             const nphi = Math.max(2, parseInt(ny.value));
             const nth = Math.max(2, parseInt(nz.value));
             const preset = presetSelect.value;
-            // Mask to clip spherical voxels to cylinder when cylinder preset is active
-            const include = (preset === 'cylinder')
-                ? ((x, y, z) => {
+            // Masks to clip spherical voxels to preset shapes
+            let include = null;
+            if (preset === 'cylinder') {
+                include = (x, y, z) => {
                     const R = parseFloat(rcMax.value);
                     const z0 = parseFloat(zMin.value), z1 = parseFloat(zMax.value);
                     return (x * x + z * z) <= (R * R + 1e-9) && y >= (z0 - 1e-9) && y <= (z1 + 1e-9);
-                })
-                : null;
+                };
+            } else if (preset === 'sphere') {
+                include = (x, y, z) => {
+                    const R = parseFloat(rhoMax.value) || parseFloat(rcMax.value);
+                    return (x * x + y * y + z * z) <= (R * R + 1e-9);
+                };
+            } else if (preset === 'cone') {
+                include = (x, y, z) => {
+                    const R = parseFloat(rcMax.value);
+                    const y0 = parseFloat(zMin.value), y1 = parseFloat(zMax.value);
+                    const H = Math.max(1e-6, y1 - y0);
+                    if (y < y0 - 1e-9 || y > y1 + 1e-9) return false;
+                    const rAllowed = Math.max(0, R * (y1 - y) / H);
+                    return Math.hypot(x, z) <= rAllowed + 1e-9;
+                };
+            } else if (preset === 'paraboloid') {
+                include = (x, y, z) => {
+                    const a = 0.5;
+                    const y0 = 0;
+                    const y1 = parseFloat(zMax.value);
+                    return y >= y0 - 1e-9 && y <= y1 + 1e-9 && y <= a * (x * x + z * z) + 1e-9;
+                };
+            }
             estimate = addVoxelsSpherical(rh0, rh1, ph0, ph1, th0, th1, nr, nphi, nth, include);
         }
         if (showWedge.checked) addDVWedgeSpherical(rh0, rh1, ph0, ph1, th0, th1);
@@ -800,7 +956,7 @@
         if (preset === 'cone') {
             xMin.value = -2; xMax.value = 2; yMin.value = -2; yMax.value = 2;
             rMin.value = 0; rMax.value = 2; thetaMin.value = 0; thetaMax.value = 360;
-            rcMin.value = 0; rcMax.value = 2; thetacMin.value = 0; thetacMax.value = 360; zMin.value = 0; zMax.value = 3;
+            rcMin.value = 0; rcMax.value = 2; thetacMin.value = 0; thetacMax.value = 360; zMin.value = -1.5; zMax.value = 1.5;
             rhoMin.value = 0; rhoMax.value = 3; phiMin.value = 0; phiMax.value = 90; thetasMin.value = 0; thetasMax.value = 360;
             equationInput.value = 'sqrt(x^2 + y^2)';
         } else if (preset === 'sphere') {
@@ -814,7 +970,8 @@
             rMin.value = 0; rMax.value = 2; thetaMin.value = 0; thetaMax.value = 360;
             rcMin.value = 0; rcMax.value = 2; thetacMin.value = 0; thetacMax.value = 360; zMin.value = -2; zMax.value = 2;
             rhoMin.value = 0; rhoMax.value = 3; phiMin.value = 0; phiMax.value = 180; thetasMin.value = 0; thetasMax.value = 360;
-            equationInput.value = 'sqrt(max(0, 2^2 - x^2 - y^2))';
+            // For double integrals, represent a cylinder as a constant-height surface over a disk base
+            equationInput.value = '2';
         } else if (preset === 'paraboloid') {
             xMin.value = -3; xMax.value = 3; yMin.value = -3; yMax.value = 3;
             rMin.value = 0; rMax.value = 3; thetaMin.value = 0; thetaMax.value = 360;
@@ -836,15 +993,74 @@
         setupThree();
         updatePanelsVisibility();
         applyPresetBounds();
+        // Beginner-first defaults
+        if (showSurface) showSurface.checked = true;
+        if (showRegion) showRegion.checked = true;
+        if (showWedge) showWedge.checked = true;
+        if (showColumns) showColumns.checked = false;
+        if (densitySlider) {
+            densitySlider.value = String(densityLevel);
+        }
         render();
+        updateDeclutter();
+        showOnboardingIfNeeded();
 
         // Events
-        methodSelect.addEventListener('change', () => { updatePanelsVisibility(); render(); });
+        methodSelect.addEventListener('change', () => { updatePanelsVisibility(); applyPresetBounds(); render(); });
         presetSelect.addEventListener('change', () => { applyPresetBounds(); render(); });
         [equationInput, xMin, xMax, yMin, yMax, rMin, rMax, thetaMin, thetaMax, nx, ny, nz,
          rcMin, rcMax, thetacMin, thetacMax, zMin, zMax, rhoMin, rhoMax, phiMin, phiMax, thetasMin, thetasMax]
             .forEach(el => el.addEventListener('change', render));
         [showSurface, showColumns, showRegion, showWedge].forEach(el => el.addEventListener('change', render));
+        if (declutterView) declutterView.addEventListener('change', () => { updateDeclutter(); render(); });
+        if (densitySlider) {
+            densitySlider.addEventListener('input', () => setDensityLevel(parseInt(densitySlider.value)));
+            densitySlider.addEventListener('change', () => setDensityLevel(parseInt(densitySlider.value)));
+        }
+        if (helpButton && onboardingOverlay) {
+            helpButton.addEventListener('click', () => {
+                onboardingOverlay.hidden = false;
+                onboardingOverlay.style.display = '';
+            });
+        }
+        if (onboardingClose) {
+            onboardingClose.addEventListener('click', () => {
+                if (!onboardingOverlay) return;
+                onboardingOverlay.hidden = true;
+                onboardingOverlay.style.display = 'none';
+                try {
+                    if (onboardingDontShow && onboardingDontShow.checked) {
+                        localStorage.setItem('integrator_onboarding_dismissed', '1');
+                    }
+                } catch (e) {}
+            });
+        }
+        if (exSphereVoxels) {
+            exSphereVoxels.addEventListener('click', () => {
+                methodSelect.value = 'triple_spherical';
+                updatePanelsVisibility();
+                presetSelect.value = 'sphere';
+                applyPresetBounds();
+                if (showSurface) showSurface.checked = true;
+                if (showRegion) showRegion.checked = true;
+                if (showWedge) showWedge.checked = true;
+                if (showColumns) showColumns.checked = true;
+                setDensityLevel(2);
+            });
+        }
+        if (exCylinderVoxels) {
+            exCylinderVoxels.addEventListener('click', () => {
+                methodSelect.value = 'triple_cylindrical';
+                updatePanelsVisibility();
+                presetSelect.value = 'cylinder';
+                applyPresetBounds();
+                if (showSurface) showSurface.checked = true;
+                if (showRegion) showRegion.checked = true;
+                if (showWedge) showWedge.checked = true;
+                if (showColumns) showColumns.checked = true;
+                setDensityLevel(2);
+            });
+        }
         renderBtn.addEventListener('click', render);
         resetCameraBtn.addEventListener('click', () => {
             camera.position.set(8, 8, 8);

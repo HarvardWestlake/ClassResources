@@ -40,7 +40,8 @@
             </div>
 
             <section class="panel">
-                <label for="methodSelect">Method</label>
+                <div class="panel-title">Step 1: Method</div>
+                <label for="methodSelect">Select integration method</label>
                 <select id="methodSelect">
                     <option value="double_cartesian">∬ over R (Cartesian)</option>
                     <option value="double_polar">∬ over R (Polar)</option>
@@ -50,6 +51,7 @@
             </section>
 
             <section class="panel">
+                <div class="panel-title">Step 2: Preset (optional)</div>
                 <label for="presetSelect">Stock shapes</label>
                 <select id="presetSelect">
                     <option value="none">None</option>
@@ -176,26 +178,46 @@
                 <div class="grid-3">
                     <div>
                         <label for="nx">N x/r/ρ</label>
-                        <input id="nx" type="number" value="12" min="2" step="1">
+                        <input id="nx" type="number" value="8" min="2" step="1" title="Number of partitions along x (Cartesian), r (Polar/Cylindrical), or ρ (Spherical)">
                     </div>
                     <div>
                         <label for="ny">N y/θ/φ</label>
-                        <input id="ny" type="number" value="12" min="2" step="1">
+                        <input id="ny" type="number" value="8" min="2" step="1" title="Number of partitions along y (Cartesian), θ (Polar/Cylindrical/Spherical), or φ (Spherical)">
                     </div>
                     <div>
                         <label for="nz">N z</label>
-                        <input id="nz" type="number" value="8" min="1" step="1">
+                        <input id="nz" type="number" value="6" min="1" step="1" title="Number of partitions along z (Triple integrals)">
                     </div>
                 </div>
             </section>
 
             <section class="panel">
-                <div class="panel-title">Display</div>
+                <div class="panel-title">Step 3: Display & Density</div>
                 <div class="checks">
-                    <label><input id="showSurface" type="checkbox" checked> Surface/Volume</label>
-                    <label><input id="showColumns" type="checkbox" checked> Riemann elements</label>
-                    <label><input id="showRegion" type="checkbox" checked> Region projection</label>
-                    <label><input id="showWedge" type="checkbox" checked> Highlight dA / dV</label>
+                    <label title="Show the surface (double integrals) or volume mesh (triple)"><input id="showSurface" type="checkbox" checked> Surface/Volume</label>
+                    <label title="Show the Riemann columns/voxels that approximate the integral"><input id="showColumns" type="checkbox"> Riemann elements</label>
+                    <label title="Show the base region (projection onto the plane)"><input id="showRegion" type="checkbox" checked> Base region (projection)</label>
+                    <label title="Show one representative differential element dA/dV as a wedge/box"><input id="showWedge" type="checkbox" checked> Representative dA / dV</label>
+                    <label title="Hide grid and axes for a cleaner view"><input id="declutterView" type="checkbox"> Declutter view</label>
+                </div>
+                <div class="density">
+                    <label for="densitySlider">Riemann density</label>
+                    <input id="densitySlider" type="range" min="0" max="3" step="1" value="1" list="densityTicks" title="Adjusts the number of Riemann elements">
+                    <datalist id="densityTicks">
+                        <option value="0" label="Off"></option>
+                        <option value="1" label="Light"></option>
+                        <option value="2" label="Medium"></option>
+                        <option value="3" label="Heavy"></option>
+                    </datalist>
+                    <small id="densityLabel">Light</small>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title">Examples</div>
+                <div class="actions">
+                    <button id="exSphereVoxels" class="btn" title="Show a sphere with voxels">Sphere (voxels)</button>
+                    <button id="exCylinderVoxels" class="btn" title="Show a cylinder with voxels">Cylinder (voxels)</button>
                 </div>
             </section>
 
@@ -207,6 +229,9 @@
             <section class="panel info">
                 <div id="jacobianText">dA = dx dy</div>
                 <div id="integralEstimate">Approx ∬ f dA = …</div>
+                <div id="captionText" class="caption">
+                    You are viewing an approximation of an integral. “Riemann elements” show the summed pieces; the wedge is a single dA/dV sample; the region shows the base.
+                </div>
             </section>
         </aside>
 
@@ -217,6 +242,24 @@
                 <span class="chip chip-columns">Riemann elements</span>
                 <span class="chip chip-region">Region</span>
                 <span class="chip chip-wedge">dA/dV</span>
+            </div>
+            <button id="helpButton" class="help-button" aria-label="Show help" title="Show quick start">?</button>
+            <div id="onboardingOverlay" class="onboarding" hidden>
+                <div class="onboarding-card">
+                    <div class="onboarding-header">
+                        <h2>Start here</h2>
+                    </div>
+                    <ol class="onboarding-steps">
+                        <li><strong>Step 1:</strong> Choose a method (double/triple; Cartesian/Polar/Cylindrical/Spherical).</li>
+                        <li><strong>Step 2:</strong> Set a preset shape or enter bounds. For double integrals, enter z = f(x, y).</li>
+                        <li><strong>Step 3:</strong> Use Display & Density to turn on the surface/volume, region, a single dA/dV, and optionally Riemann elements.</li>
+                    </ol>
+                    <div class="onboarding-actions">
+                        <label class="onboarding-checkbox"><input id="onboardingDontShow" type="checkbox"> Don’t show again</label>
+                        <div class="spacer"></div>
+                        <button id="onboardingClose" class="btn">Got it</button>
+                    </div>
+                </div>
             </div>
         </main>
     </div>

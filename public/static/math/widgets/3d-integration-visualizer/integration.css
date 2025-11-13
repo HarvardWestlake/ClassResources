@@ -64,8 +64,8 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 .info { font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
 
 .viewport { position: relative; min-height: 100vh; }
-#canvas3d { position: absolute; inset: 0; }
-.legend { position: absolute; right: 16px; top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+#canvas3d { position: absolute; inset: 0; min-width: 300px; min-height: 300px; }
+.legend { position: absolute; right: 16px; top: 16px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: 12px; background: #ffffff; border: 1px solid var(--hw-border); color: #000; }
 .chip-surface { border-color: rgba(45,108,223,.4); }
 .chip-columns { border-color: rgba(194,74,46,.4); }
@@ -74,6 +74,66 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 
 /* Canvas helpers */
 .watermark { position: absolute; left: 16px; bottom: 16px; font-size: 12px; color: rgba(0,0,0,0.5); }
+
+/* Inline caption */
+.caption { font-size: 12px; color: var(--muted); line-height: 1.35; }
+
+/* Density section */
+.density { margin-top: 10px; }
+.density input[type="range"] { width: 100%; }
+.density small { display: block; margin-top: 4px; color: var(--muted); }
+
+/* Help / Onboarding */
+.help-button {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 12;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--hw-border);
+    background: rgba(255,255,255,0.95);
+    color: #000;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.onboarding {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0,0,0,0.35);
+    z-index: 11;
+}
+.onboarding[hidden] { display: none !important; }
+.onboarding-card {
+    width: min(560px, 92vw);
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid var(--hw-border);
+    padding: 16px 16px 12px;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+}
+.onboarding-header h2 {
+    margin: 0 0 8px;
+    font-size: 18px;
+}
+.onboarding-steps {
+    margin: 0 0 12px;
+    padding-left: 18px;
+    color: #111;
+    line-height: 1.45;
+    font-size: 14px;
+}
+.onboarding-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.onboarding-checkbox { color: var(--muted); font-size: 12px; }
+.onboarding-actions .spacer { flex: 1 1 auto; }
 
 /* Light theme overrides */
 html.theme-light {

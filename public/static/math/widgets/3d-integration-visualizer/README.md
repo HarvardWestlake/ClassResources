@@ -10,6 +10,34 @@ I’m in Calc C, so this is somewhat familiar but definitely not super clear
 The visuals feel a bit crowded and are slightly glitchy, but some of my confusion might be because I’m unfamiliar with the material
 I played around witht the display elements, and the Riemann elements are definitely making the visuals harder to follow, because it is very crowded
 
+## Quick Start
+
+1) Step 1: Method  
+   Choose the integration method (double Cartesian/Polar or triple Cylindrical/Spherical).
+
+2) Step 2: Preset and Bounds  
+   - Optional: pick a stock shape (Sphere, Cylinder, Cone, Paraboloid).  
+   - For double integrals, enter z = f(x, y) and set x/y or r/θ bounds.
+
+3) Step 3: Display & Density  
+   - Surface/Volume: show the surface (double) or the volume mesh (triple).  
+   - Base region (projection): show the base region on the plane.  
+   - Representative dA/dV: show a single differential element.  
+   - Riemann elements: columns/voxels that approximate the integral.  
+   - Riemann density: Off/Light/Medium/Heavy adjusts partition counts.
+
+Tips:
+- Use the Declutter view toggle to hide grid and axes if the scene feels crowded.
+- Try Examples → “Sphere (voxels)” or “Cylinder (voxels)” to see ready-to-go setups.
+
+## Glossary (Plain Language)
+
+- dA, dV: A tiny piece of area (dA) or volume (dV). The viewer shows one as a “wedge/box.”
+- Riemann elements: Many small pieces we add together to approximate the integral.
+- Jacobian: A scale factor that appears when changing coordinates (e.g., r in polar, ρ² sinφ in spherical).
+- Base region (projection): The shadow of your 3D shape on the base plane used for integration.
+
+
 # 3D Integration Visualizer — Rendering and Interaction README
 
 This document records every critical issue found, the fixes applied, and how to verify and troubleshoot the 3D Integration Visualizer (`public/static/math/widgets/3d-integration-visualizer/`).
