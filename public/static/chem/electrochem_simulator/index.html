@@ -205,7 +205,9 @@
       gap: 24px;
       justify-content: space-between;
       align-items: stretch;
-      pointer-events: none;
+      pointer-events: auto;
+      position: relative;
+      z-index: 30;
     }
 
     .cell-info,
@@ -216,7 +218,7 @@
       background: rgba(15, 23, 42, 0.82);
       color: #e2e8f0;
       box-shadow: 0 16px 36px rgba(15, 23, 42, 0.24);
-      pointer-events: none;
+      pointer-events: auto;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -459,10 +461,10 @@
     .widget-hero {
       position: relative;
       background: var(--hw-surface);
-      border-radius: var(--hw-radius-lg);
-      padding: clamp(1.75rem, 4vw, 2.5rem);
+      border-radius: var(--hw-radius);
+      padding: clamp(1rem, 3vw, 1.6rem);
       box-shadow: var(--hw-shadow-md);
-      border: 1px solid rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.55);
       overflow: hidden;
     }
 
@@ -503,60 +505,33 @@
     }
 
     .h2 {
-      font-size: clamp(2.2rem, 1.7rem + 1.6vw, 2.95rem);
-      line-height: 1.05;
-      font-weight: 900;
-      letter-spacing: 0.01em;
+      font-size: clamp(1.85rem, 1.45rem + 1vw, 2.35rem);
+      line-height: 1.08;
+      font-weight: 800;
+      letter-spacing: 0.005em;
       color: var(--hw-black);
     }
 
     .widget-hero .lead {
-      max-width: 60ch;
+      max-width: 52ch;
       color: var(--hw-neutral-700);
     }
 
     .eyebrow {
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      font-size: 0.8rem;
+      font-size: 0.72rem;
       color: var(--hw-neutral-600);
       font-weight: 700;
     }
 
     .lead {
-      font-size: clamp(1.05rem, 1rem + 0.6vw, 1.4rem);
-      font-weight: 300;
+      font-size: clamp(0.98rem, 0.94rem + 0.45vw, 1.2rem);
+      font-weight: 400;
     }
 
     .widget-hero__meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.6rem;
-      margin-top: 1.25rem;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-size: 0.78rem;
-      padding: 0.35rem 0.7rem;
-      border-radius: 999px;
-    }
-
-    .badge--accent {
-      background: rgba(240, 179, 35, 0.18);
-      color: var(--hw-black);
-      border: 1px solid rgba(240, 179, 35, 0.45);
-    }
-
-    .badge--neutral {
-      background: rgba(200, 16, 46, 0.12);
-      color: var(--hw-red);
-      border: 1px solid rgba(200, 16, 46, 0.35);
+      display: none;
     }
 
     .panel {
@@ -678,6 +653,9 @@
       font-size: 0.8rem;
       font-weight: 700;
       color: var(--hw-neutral-600);
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
     }
 
     .cell-config {
@@ -690,6 +668,168 @@
       font-size: 1.1rem;
       font-weight: 700;
       color: var(--hw-neutral-900);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .info-icon {
+      --tip-bg: rgba(17, 24, 39, 0.96);
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.25rem;
+      height: 1.25rem;
+      border-radius: 999px;
+      background: rgba(200, 16, 46, 0.12);
+      color: rgba(200, 16, 46, 0.88);
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1;
+      cursor: help;
+      transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+    }
+
+    .info-icon:hover,
+    .info-icon:focus-visible {
+      background: rgba(200, 16, 46, 0.18);
+      color: rgba(200, 16, 46, 1);
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .info-icon::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      top: calc(100% + 0.65rem);
+      left: 50%;
+      transform: translate(-50%, -4px);
+      background: var(--tip-bg);
+      color: #f8fafc;
+      padding: 0.6rem 0.8rem;
+      border-radius: 0.65rem;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.25);
+      font-size: 0.78rem;
+      font-weight: 500;
+      max-width: 220px;
+      width: max-content;
+      line-height: 1.35;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 9999;
+      text-align: left;
+      white-space: normal;
+    }
+
+    .info-icon::before {
+      content: '';
+      position: absolute;
+      top: calc(100% + 0.3rem);
+      left: 50%;
+      transform: translate(-50%, -4px) rotate(45deg);
+      width: 10px;
+      height: 10px;
+      background: var(--tip-bg);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 9998;
+    }
+
+    .info-icon:hover::after,
+    .info-icon:focus-visible::after,
+    .info-icon:hover::before,
+    .info-icon:focus-visible::before {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .info-target {
+      position: relative;
+      cursor: help;
+      pointer-events: auto;
+    }
+
+    .info-target:focus-visible {
+      outline: 2px solid rgba(200, 16, 46, 0.32);
+      outline-offset: 3px;
+    }
+
+    .info-target:hover,
+    .info-target:focus-visible,
+    .info-target:focus-within {
+      z-index: 1000;
+    }
+
+    .info-target:hover .info-icon,
+    .info-target:focus-visible .info-icon,
+    .info-target:focus-within .info-icon {
+      background: rgba(200, 16, 46, 0.18);
+      color: rgba(200, 16, 46, 1);
+      transform: translateY(-1px);
+    }
+
+    .info-target:hover .info-icon::after,
+    .info-target:focus-visible .info-icon::after,
+    .info-target:focus-within .info-icon::after,
+    .info-target:hover .info-icon::before,
+    .info-target:focus-visible .info-icon::before,
+    .info-target:focus-within .info-icon::before {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .action-with-info,
+    .metric-with-info,
+    .info-line,
+    .cell-info__header,
+    .summary-card__header,
+    #control-panel .label-with-info {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .action-with-info {
+      flex-wrap: nowrap;
+    }
+
+    .metric-with-info,
+    .info-line,
+    .summary-card__header,
+    .cell-info__header {
+      justify-content: center;
+    }
+
+    .info-line {
+      text-align: center;
+    }
+
+    .info-line > span:first-of-type,
+    .metric-with-info > span:first-of-type {
+      flex: 1;
+    }
+
+    #control-panel .label-with-info {
+      justify-content: flex-start;
+    }
+
+    #info-overlay .info-icon {
+      pointer-events: auto;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     #control-panel label {
@@ -796,6 +936,8 @@
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: clamp(1rem, 3vw, 1.5rem);
       align-items: stretch;
+      position: relative;
+      z-index: 30;
     }
 
     .cell-info,
@@ -813,7 +955,7 @@
       display: grid;
       gap: 0.75rem;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
     }
 
     .cell-info::after,
@@ -989,26 +1131,95 @@
               lab experience.
             </p>
           </div>
-          <div class="widget-hero__meta">
-            <span class="badge badge--accent">Interactive Lab</span>
-            <span class="badge badge--neutral">STEM</span>
-          </div>
         </section>
         <div id="app-layout" class="widget-layout">
           <aside id="sidebar">
             <div id="control-panel">
-              <div class="panel-title">Cell Configuration</div>
-              <div class="cell-config">
-                <h4>Left Cell</h4>
-                <label for="left-electrode-select">Electrode Couple</label>
-                <select id="left-electrode-select"></select>
-                <small>Select the metal | ion pair.</small>
+              <div class="panel-title info-target">
+                Cell Configuration
+                <span
+                  class="info-icon"
+                  tabindex="0"
+                  role="button"
+                  aria-label="What is the cell configuration panel?"
+                  data-tooltip="Set up the two half-cells here—picking different electrodes changes the overall reaction and voltage."
+                >
+                  i
+                </span>
               </div>
               <div class="cell-config">
-                <h4>Right Cell</h4>
-                <label for="right-electrode-select">Electrode Couple</label>
-                <select id="right-electrode-select"></select>
-                <small>Pair it with a second half-reaction.</small>
+                <h4 class="info-target">
+                  Left Cell
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="More information about the left cell selection"
+                    aria-describedby="left-electrode-help"
+                    data-tooltip="Choose an electrode pair to define the anode half-cell."
+                  >
+                    i
+                  </span>
+                </h4>
+                <label
+                  for="left-electrode-select"
+                  class="label-with-info info-target"
+                >
+                  Electrode Couple
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What is an electrode couple?"
+                    data-tooltip="A metal electrode paired with its aqueous ion; together they define one half-reaction and its standard potential."
+                  >
+                    i
+                  </span>
+                </label>
+                <select
+                  id="left-electrode-select"
+                  aria-describedby="left-electrode-help"
+                ></select>
+                <small id="left-electrode-help" class="sr-only"
+                  >Select the metal | ion pair.</small
+                >
+              </div>
+              <div class="cell-config">
+                <h4 class="info-target">
+                  Right Cell
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="More information about the right cell selection"
+                    aria-describedby="right-electrode-help"
+                    data-tooltip="Pick a complementary electrode pair to define the cathode half-cell."
+                  >
+                    i
+                  </span>
+                </h4>
+                <label
+                  for="right-electrode-select"
+                  class="label-with-info info-target"
+                >
+                  Electrode Couple
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What is an electrode couple?"
+                    data-tooltip="A metal electrode paired with its aqueous ion; together they define one half-reaction and its standard potential."
+                  >
+                    i
+                  </span>
+                </label>
+                <select
+                  id="right-electrode-select"
+                  aria-describedby="right-electrode-help"
+                ></select>
+                <small id="right-electrode-help" class="sr-only"
+                  >Pair it with a second half-reaction.</small
+                >
               </div>
               <button id="swap-cells" class="btn btn--ghost btn--sm">Swap Cells</button>
             </div>
@@ -1017,38 +1228,148 @@
             <div id="header-bar">
               <div id="title-text">Electrochemistry</div>
               <div class="header-actions">
-                <button id="mode-toggle" class="btn btn--caps">Switch to Electrolytic</button>
-                <button id="salt-bridge-button" class="btn btn--outline btn--caps">
-                  Add Salt Bridge
-                </button>
+                <div class="action-with-info info-target">
+                  <button id="mode-toggle" class="btn btn--caps">Switch to Electrolytic</button>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What does switching between galvanic and electrolytic do?"
+                    data-tooltip="Toggle between galvanic cells (spontaneous) and electrolytic cells (non-spontaneous, driven by external power)."
+                  >
+                    i
+                  </span>
+                </div>
+                <div class="action-with-info info-target">
+                  <button id="salt-bridge-button" class="btn btn--outline btn--caps">
+                    Add Salt Bridge
+                  </button>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="Why add a salt bridge?"
+                    data-tooltip="A salt bridge supplies ions that keep both half-cells electrically neutral so electrons can continue flowing."
+                  >
+                    i
+                  </span>
+                </div>
               </div>
             </div>
             <div id="canvas-wrapper">
-              <div id="canvas-container"></div>
+              <div id="canvas-container"></div>uhh 
             </div>
+            <div id="instruction-text">Click and drag to rotate</div>
             <div id="info-overlay">
               <div class="cell-info" id="left-info">
-                <h3 id="left-role">Anode (-)</h3>
+                <div class="cell-info__header info-target">
+                  <h3 id="left-role">Anode (-)</h3>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="How does the left side's role work?"
+                    data-tooltip="This tag flips between anode and cathode so you can see whether the left half-cell is where oxidation (electrons leave) or reduction (electrons arrive) is happening."
+                  >
+                    i
+                  </span>
+                </div>
                 <div class="electrode-name" id="left-name"></div>
                 <div class="potential" id="left-potential"></div>
                 <div class="half-reaction" id="left-half-reaction"></div>
               </div>
               <div class="summary-card" id="cell-summary">
-                <h3>Cell Summary</h3>
-                <div class="metric" id="cell-potential"></div>
-                <div class="flow-line" id="electron-flow-text"></div>
-                <div class="flow-line" id="cation-flow-text"></div>
-                <div class="flow-line" id="anion-flow-text"></div>
-                <div class="flow-line" id="status-text"></div>
+                <div class="summary-card__header info-target">
+                  <h3>Cell Summary</h3>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What does the cell summary show?"
+                    data-tooltip="Quick reference for voltage, particle movement, and operating status based on your chosen electrodes and mode."
+                  >
+                    i
+                  </span>
+                </div>
+                <div class="metric metric-with-info info-target">
+                  <span id="cell-potential"></span>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What is E°cell?"
+                    data-tooltip="Standard cell potential, E°cell, equals the cathode E° minus the anode E°. Positive values mean a spontaneous galvanic cell."
+                  >
+                    i
+                  </span>
+                </div>
+                <div class="flow-line info-line info-target">
+                  <span id="electron-flow-text"></span>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What does the electron flow line describe?"
+                    data-tooltip="Shows which direction electrons travel through the external circuit between the two electrodes."
+                  >
+                    i
+                  </span>
+                </div>
+                <div class="flow-line info-line info-target">
+                  <span id="cation-flow-text"></span>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What does the cation flow line describe?"
+                    data-tooltip="Explains how positive ions migrate through the salt bridge toward the cathode to balance charge."
+                  >
+                    i
+                  </span>
+                </div>
+                <div class="flow-line info-line info-target">
+                  <span id="anion-flow-text"></span>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What does the anion flow line describe?"
+                    data-tooltip="Explains how negative ions travel through the salt bridge toward the anode to maintain charge neutrality."
+                  >
+                    i
+                  </span>
+                </div>
+                <div class="flow-line info-line info-target">
+                  <span id="status-text"></span>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="What does the status line explain?"
+                    data-tooltip="Summarizes whether the cell runs on its own, needs external power, or lacks a complete circuit."
+                  >
+                    i
+                  </span>
+                </div>
               </div>
               <div class="cell-info" id="right-info">
-                <h3 id="right-role">Cathode (+)</h3>
+                <div class="cell-info__header info-target">
+                  <h3 id="right-role">Cathode (+)</h3>
+                  <span
+                    class="info-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="How does the right side's role work?"
+                    data-tooltip="This tag flips between anode and cathode so you can see whether the right half-cell is where oxidation happens or where electrons are being reduced."
+                  >
+                    i
+                  </span>
+                </div>
                 <div class="electrode-name" id="right-name"></div>
                 <div class="potential" id="right-potential"></div>
                 <div class="half-reaction" id="right-half-reaction"></div>
               </div>
             </div>
-            <div id="instruction-text">Click and drag to rotate</div>
           </div>
         </div>
       </div>
@@ -1973,6 +2294,11 @@
       let electronArrow = null;
       let cationArrow = null;
       let anionArrow = null;
+      const SALT_BRIDGE_ARROW_DIMENSIONS = {
+        shaftRadius: 0.055,
+        headRadius: 0.12,
+        headHeight: 0.38
+      };
       const ARROW_UP = new THREE.Vector3(0, 1, 0);
       const arrowDirection = new THREE.Vector3();
       const arrowQuaternion = new THREE.Quaternion();
@@ -1983,7 +2309,12 @@
       const saltBridgeStartVec = new THREE.Vector3();
       const saltBridgeTargetVec = new THREE.Vector3();
 
-      function createArrowMesh(colorHex = 0xffffff) {
+      function createArrowMesh(colorHex = 0xffffff, dimensions = {}) {
+        const {
+          shaftRadius = 0.08,
+          headRadius = 0.18,
+          headHeight = 0.45
+        } = dimensions;
         const group = new THREE.Group();
         const material = new THREE.MeshStandardMaterial({
           color: colorHex,
@@ -1992,14 +2323,18 @@
           emissive: new THREE.Color(colorHex).multiplyScalar(0.35),
           emissiveIntensity: 0.8
         });
-        const shaftGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1, 16);
+        const shaftGeometry = new THREE.CylinderGeometry(
+          shaftRadius,
+          shaftRadius,
+          1,
+          16
+        );
         const shaft = new THREE.Mesh(shaftGeometry, material);
         shaft.position.y = 0.5;
         shaft.castShadow = true;
         shaft.receiveShadow = true;
 
-        const headHeight = 0.45;
-        const headGeometry = new THREE.ConeGeometry(0.18, headHeight, 20);
+        const headGeometry = new THREE.ConeGeometry(headRadius, headHeight, 20);
         const head = new THREE.Mesh(headGeometry, material);
         head.castShadow = true;
         head.receiveShadow = true;
@@ -2010,16 +2345,18 @@
           shaft,
           head,
           headHeight,
-          material
+          material,
+          shaftRadius,
+          headRadius
         };
         group.renderOrder = 6;
         group.visible = false;
         return group;
       }
 
-      function ensureArrowMesh(current, colorHex) {
+      function ensureArrowMesh(current, colorHex, dimensions) {
         if (!current) {
-          current = createArrowMesh(colorHex);
+          current = createArrowMesh(colorHex, dimensions);
           scene.add(current);
         }
         return current;
@@ -2098,8 +2435,16 @@
         }
 
         electronArrow = ensureArrowMesh(electronArrow, 0xffd25a);
-        cationArrow = ensureArrowMesh(cationArrow, 0xff7b5a);
-        anionArrow = ensureArrowMesh(anionArrow, 0x6cd0ff);
+        cationArrow = ensureArrowMesh(
+          cationArrow,
+          0xff7b5a,
+          SALT_BRIDGE_ARROW_DIMENSIONS
+        );
+        anionArrow = ensureArrowMesh(
+          anionArrow,
+          0x6cd0ff,
+          SALT_BRIDGE_ARROW_DIMENSIONS
+        );
 
         const anodeMesh = anodeSide === 'left' ? leftElectrode : rightElectrode;
         const cathodeMesh = cathodeSide === 'left' ? leftElectrode : rightElectrode;
@@ -2112,14 +2457,15 @@
         getElectrodeConnectionPoint(anodeMesh, anodeConnectionVec);
         getElectrodeConnectionPoint(cathodeMesh, cathodeConnectionVec);
 
+        const electronArrowHeight = EXTERNAL_CIRCUIT_HEIGHT + 0.75;
         electronStartVec.set(
           anodeConnectionVec.x,
-          EXTERNAL_CIRCUIT_HEIGHT + 0.25,
+          electronArrowHeight,
           EXTERNAL_CIRCUIT_DEPTH - 0.06
         );
         electronEndVec.set(
           cathodeConnectionVec.x,
-          EXTERNAL_CIRCUIT_HEIGHT + 0.25,
+          electronArrowHeight,
           EXTERNAL_CIRCUIT_DEPTH - 0.06
         );
         positionArrowMesh(electronArrow, electronStartVec, electronEndVec);
@@ -2237,12 +2583,16 @@
         }
         const leftRole = cellState.anodeSide === 'left' ? 'anode' : 'cathode';
         const rightRole = cellState.anodeSide === 'right' ? 'anode' : 'cathode';
+        const anodeChargeLabel = cellMode === 'galvanic' ? 'Anode (-)' : 'Anode (+)';
+        const cathodeChargeLabel = cellMode === 'galvanic' ? 'Cathode (+)' : 'Cathode (-)';
 
         if (leftRoleEl) {
-          leftRoleEl.textContent = leftRole === 'anode' ? 'Anode (-)' : 'Cathode (+)';
+          leftRoleEl.textContent =
+            leftRole === 'anode' ? anodeChargeLabel : cathodeChargeLabel;
         }
         if (rightRoleEl) {
-          rightRoleEl.textContent = rightRole === 'anode' ? 'Anode (-)' : 'Cathode (+)';
+          rightRoleEl.textContent =
+            rightRole === 'anode' ? anodeChargeLabel : cathodeChargeLabel;
         }
         if (leftNameEl) {
           leftNameEl.innerHTML = `${leftSpecies.name} | ${formatIonStateHtml(leftSpecies)}`;
@@ -2269,14 +2619,20 @@
           cellPotentialEl.textContent = `E\u00b0cell = ${formatSignedPotential(cellState.cellPotential)}`;
         }
         if (electronFlowTextEl) {
+          const flowDirection =
+            cellState.anodeSide === 'left'
+              ? 'Left &rarr; Right'
+              : 'Right &rarr; Left';
           if (!hasSaltBridge) {
             electronFlowTextEl.innerHTML = 'e<sup>-</sup> flow: incomplete circuit (connect the salt bridge)';
           } else if (cellState.isBalanced) {
             electronFlowTextEl.innerHTML = 'e<sup>-</sup> flow: no net direction at standard conditions';
           } else if (!cellState.hasDrive && cellMode === 'galvanic') {
-            electronFlowTextEl.innerHTML = 'e<sup>-</sup> flow: not spontaneous (requires external power)';
+            electronFlowTextEl.innerHTML = 'e<sup>-</sup> flow: no flow — E\u00b0cell negative (cell inactive)';
+          } else if (!cellState.hasDrive && cellMode === 'electrolytic') {
+            electronFlowTextEl.innerHTML = `e<sup>-</sup> flow: forced ${flowDirection} (external power)`;
           } else {
-            electronFlowTextEl.innerHTML = `e<sup>-</sup> flow: ${cellState.anodeSide === 'left' ? 'Left &rarr; Right' : 'Right &rarr; Left'}`;
+            electronFlowTextEl.innerHTML = `e<sup>-</sup> flow: ${flowDirection}`;
           }
         }
         const cathodeLabel = describeSide(cellState.cathodeSide, 'Cathode');
@@ -2303,13 +2659,19 @@
           const modeLabel = cellMode === 'galvanic'
             ? 'Galvanic mode'
             : 'Electrolytic view (sign convention fixed to galvanic)';
-          const baseStatus = `${modeLabel}: anode (-), cathode (+)`;
+          const anodeCharge = cellMode === 'galvanic' ? '-' : '+';
+          const cathodeCharge = cellMode === 'galvanic' ? '+' : '-';
+          const baseStatus = `${modeLabel}: anode (${anodeCharge}), cathode (${cathodeCharge})`;
           if (!hasSaltBridge) {
             statusTextEl.textContent = `${baseStatus} - salt bridge not connected`;
           } else if (cellState.isBalanced) {
             statusTextEl.textContent = `${baseStatus} - no spontaneous drive at standard conditions`;
           } else if (!cellState.hasDrive) {
-            statusTextEl.textContent = `${baseStatus} - non-spontaneous pairing (requires external power)`;
+            if (cellMode === 'galvanic') {
+              statusTextEl.textContent = `${baseStatus} - cell will not run (E\u00b0cell negative)`;
+            } else {
+              statusTextEl.textContent = `${baseStatus} - driven by external power (E\u00b0cell negative)`;
+            }
           } else {
             statusTextEl.textContent = baseStatus;
           }
@@ -2330,18 +2692,10 @@
         cellState.right.species = rightSpecies;
         cellState.right.concentration = rightConcentration;
 
-        let anodeSide = 'left';
-        let cathodeSide = 'right';
-        if (leftSpecies.reductionPotential > rightSpecies.reductionPotential) {
-          anodeSide = 'right';
-          cathodeSide = 'left';
-        } else if (leftSpecies.reductionPotential < rightSpecies.reductionPotential) {
-          anodeSide = 'left';
-          cathodeSide = 'right';
-        }
-
-        const anodeSpecies = anodeSide === 'left' ? leftSpecies : rightSpecies;
-        const cathodeSpecies = cathodeSide === 'left' ? leftSpecies : rightSpecies;
+        const anodeSide = 'left';
+        const cathodeSide = 'right';
+        const anodeSpecies = leftSpecies;
+        const cathodeSpecies = rightSpecies;
         const cellPotential = cathodeSpecies.reductionPotential - anodeSpecies.reductionPotential;
 
         cellState.anodeSide = anodeSide;
@@ -2352,8 +2706,8 @@
         cellState.isBalanced = Math.abs(cellPotential) < CELL_POTENTIAL_TOLERANCE;
         cellState.hasDrive = cellPotential > CELL_POTENTIAL_TOLERANCE;
 
-        const leftRole = anodeSide === 'left' ? 'anode' : 'cathode';
-        const rightRole = anodeSide === 'right' ? 'anode' : 'cathode';
+        const leftRole = 'anode';
+        const rightRole = 'cathode';
 
         applySpeciesToSide('left', leftSpecies, leftRole);
         applySpeciesToSide('right', rightSpecies, rightRole);
