@@ -56,11 +56,76 @@
       #field-economic .input { width: 100%; }
     }
     @media (max-width: 768px){ .col-6 { flex:1 1 100%; } }
+    
+    /* Pokeball cursor */
+    * { cursor: none !important; }
+    body { cursor: none !important; }
+    
+    #pokeball-cursor {
+      position: fixed;
+      width: 24px;
+      height: 24px;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      transition: transform 0.05s ease-out;
+    }
+    
+    #pokeball-cursor::before {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(to bottom, #E60000 0%, #E60000 45%, #000 45%, #000 55%, #fff 55%, #fff 100%);
+      border: 2px solid #000;
+      box-shadow: 0 0 0 1px #fff, 0 0 0 3px #000;
+    }
+    
+    #pokeball-cursor::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1.5px solid #000;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 1px #fff;
+    }
+    
+    /* Trail particles */
+    .trail-particle {
+      position: fixed;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9998;
+      background: radial-gradient(circle, #00ffff 0%, #00b3b3 100%);
+      box-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
+      opacity: 0.8;
+      animation: trailFade 0.6s ease-out forwards;
+    }
+    
+    @keyframes trailFade {
+      0% {
+        opacity: 0.7;
+        transform: scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.3);
+      }
+    }
   </style>
   <meta name="color-scheme" content="light">
   <meta name="description" content="Open 10 Pokémon packs, total revenue, and calculate implicit/explicit costs and profits.">
-</head>
+  </head>
 <body>
+  <div id="pokeball-cursor"></div>
   <div class="container">
     <h1>Profit Calculation Practice</h1>
     <p class="lead">Practice real-world economic thinking with chance and tradeoffs. Open 10 Pokémon packs, total the card values (revenue), and then calculate implicit cost (forgone wage), explicit cost (pack spending), accounting profit, and total (economic) profit. This mirrors decisions people make when chasing collectibles or investing: comparing expected value to price and remembering opportunity cost. You’ll reinforce AP Econ vocabulary and the actual calculations while experiencing risk and reward firsthand. We also track a global loss rate across all players and how many full runs are globally completed.</p>
@@ -958,6 +1023,82 @@
       // Always show rows for all sets even before Firestore responds
       renderSetStats(null);
       applySetStatsCollapsedUI();
+    })();
+
+    // Pokeball cursor and trail effect
+    (function() {
+      const cursor = document.getElementById('pokeball-cursor');
+      let mouseX = 0, mouseY = 0;
+      let cursorX = 0, cursorY = 0;
+      let lastTrailTime = 0;
+      const trailInterval = 8; // milliseconds between trail particles (more frequent = more particles)
+      
+      // Create trail particle
+      function createTrail(x, y) {
+        const particle = document.createElement('div');
+        particle.className = 'trail-particle';
+        particle.style.left = x + 'px';
+        particle.style.top = y + 'px';
+        document.body.appendChild(particle);
+        
+        // Remove after animation
+        setTimeout(() => {
+          if (particle.parentNode) {
+            particle.parentNode.removeChild(particle);
+          }
+        }, 600);
+      }
+      
+      // Update cursor position
+      function updateCursor() {
+        const dx = mouseX - cursorX;
+        const dy = mouseY - cursorY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Use adaptive smoothing: more responsive for fast movements, smoother for slow
+        const smoothing = distance > 50 ? 0.8 : 0.5; // Faster response for quick movements
+        cursorX += dx * smoothing;
+        cursorY += dy * smoothing;
+        cursor.style.left = cursorX + 'px';
+        cursor.style.top = cursorY + 'px';
+        
+        // Create trail particles at cursor position
+        const now = Date.now();
+        if (now - lastTrailTime >= trailInterval) {
+          createTrail(cursorX, cursorY);
+          lastTrailTime = now;
+        }
+        
+        requestAnimationFrame(updateCursor);
+      }
+      
+      // Track mouse movement
+      document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      });
+      
+      // Hide cursor when mouse leaves window
+      document.addEventListener('mouseout', (e) => {
+        if (!e.relatedTarget && !e.toElement) {
+          cursor.style.opacity = '0';
+        }
+      });
+      
+      document.addEventListener('mouseover', () => {
+        cursor.style.opacity = '1';
+      });
+      
+      // Initialize cursor position
+      cursor.style.left = '50%';
+      cursor.style.top = '50%';
+      cursorX = window.innerWidth / 2;
+      cursorY = window.innerHeight / 2;
+      mouseX = cursorX;
+      mouseY = cursorY;
+      
+      // Start cursor animation
+      updateCursor();
     })();
   </script>
 </body>
