@@ -4,27 +4,44 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mineral Identification Game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f172a;
-      --panel: #111827;
-      --panel-2: #0b1220;
-      --muted: #94a3b8;
-      --text: #e2e8f0;
-      --accent: #38bdf8;
-      --success: #22c55e;
-      --warn: #f59e0b;
-      --danger: #ef4444;
-      --border: #1f2937;
+      /* Harvard‑Westlake brand tokens (subset) */
+      --hw-black: #231f20;
+      --hw-red: #c8102e;      /* Pantone 186C approx */
+      --hw-gold: #f0b323;     /* Pantone 124C approx */
+      --hw-gray-900: #1f2937;
+      --hw-gray-800: #374151;
+      --hw-gray-700: #4b5563;
+      --hw-gray-600: #6b7280;
+      --hw-gray-500: #9ca3af;
+      --hw-gray-400: #cbd5e1;
+      --hw-gray-300: #e5e7eb;
+      --hw-gray-200: #edf0f3;
+      --hw-gray-100: #f4f6f8;
+
+      --bg: #f2f0ec;
+      --panel: #ffffff;
+      --panel-2: #ffffff;
+      --muted: var(--hw-gray-600);
+      --text: #000000;
+      --accent: var(--hw-red);
+      --success: #198754;
+      --warn: var(--hw-gold);
+      --danger: #b42318;
+      --border: var(--hw-gray-300);
     }
 
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
       margin: 0;
-      background: linear-gradient(180deg, var(--bg), #0b1220);
+      background: var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      font-family: "Source Sans Pro", Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", sans-serif;
     }
 
     .container {
@@ -77,9 +94,9 @@
     }
 
     .panel {
-      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 0;
       padding: 14px;
     }
 
@@ -100,16 +117,16 @@
     .tool-row { display: flex; flex-wrap: wrap; gap: 8px; }
 
     button, select, input[type="text"] {
-      background: #0e1726;
-      color: var(--text);
+      background: #ffffff;
+      color: #000000;
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 0;
       padding: 10px 12px;
       font-size: 14px;
     }
     button { cursor: pointer; }
-    button.primary { background: #0b2740; border-color: #123252; }
-    button.primary:hover { background: #0d2e4a; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    button.primary:hover { filter: brightness(0.95); }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .log {
@@ -120,9 +137,9 @@
       gap: 8px;
     }
     .log-item {
-      background: #0b1220;
+      background: #f8f9fa;
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 0;
       padding: 10px;
       font-size: 14px;
       line-height: 1.35;
@@ -130,10 +147,10 @@
       align-items: start;
       gap: 8px;
     }
-    .log-item.hardness { border-left: 3px solid #60a5fa; }
-    .log-item.magnetism { border-left: 3px solid #f472b6; }
-    .log-item.acid { border-left: 3px solid #22c55e; }
-    .log-item.note { border-left: 3px solid #a78bfa; }
+    .log-item.hardness { border-left: 3px solid var(--accent); }
+    .log-item.magnetism { border-left: 3px solid var(--hw-black); }
+    .log-item.acid { border-left: 3px solid var(--warn); }
+    .log-item.note { border-left: 3px solid var(--hw-gray-600); }
     .log-time { color: var(--muted); font-size: 12px; margin-left: auto; }
 
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -162,7 +179,7 @@
       border-radius: 12px;
       border: 1px solid var(--border);
       overflow: hidden;
-      background: #0b1220;
+      background: var(--hw-gray-900);
     }
     .specimen-color {
       position: absolute;
@@ -218,8 +235,8 @@
       text-align: left;
       font-size: 14px;
     }
-    .hardness-table tr:nth-child(odd) td { background: #0b1220; }
-    .hardness-table tr:nth-child(even) td { background: #0e1726; }
+    .hardness-table tr:nth-child(odd) td { background: #ffffff; }
+    .hardness-table tr:nth-child(even) td { background: #fcfcfc; }
   </style>
 </head>
 <body>
