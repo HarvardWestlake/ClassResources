@@ -2189,19 +2189,36 @@ console.log('[DEBUG] Final subject:', structure.subject);
         }
 
         // 2. Check object match
-        if (latinStruct.object) {
-            const latinObjectDef = normalizeWord(latinStruct.object.definition || '');
-            const englishObject = normalizeWord(englishStruct.object || '');
-           
-            if (!englishObject) {
-                errors.push('missing object');
-            } else if (!wordsMatch(latinObjectDef, englishObject)) {
-                return {
-                    isCorrect: false,
-                    reason: `wrong object (expected "${latinStruct.object.definition}" but found "${englishStruct.object}")`
-                };
-            }
+      // 2. Check object match
+console.log('[OBJECT CHECK] Latin object:', latinStruct.object);
+console.log('[OBJECT CHECK] English object:', englishStruct.object);
+
+if (latinStruct.object) {
+    const latinObjectDef = normalizeWord(latinStruct.object.definition || '');
+    const englishObject = normalizeWord(englishStruct.object || '');
+    
+    console.log('[OBJECT CHECK] Normalized - Latin:', latinObjectDef, 'English:', englishObject);
+   
+    if (!englishObject) {
+        console.log('[OBJECT CHECK] ✗ Missing English object');
+        errors.push('missing object');
+    } else {
+        const matches = wordsMatch(latinObjectDef, englishObject);
+        console.log('[OBJECT CHECK] wordsMatch result:', matches);
+        
+        if (!matches) {
+            console.log('[OBJECT CHECK] ✗ Object mismatch detected');
+            return {
+                isCorrect: false,
+                reason: `wrong object (expected "${latinStruct.object.definition}" but found "${englishStruct.object}")`
+            };
+        } else {
+            console.log('[OBJECT CHECK] ✓ Object matches');
         }
+    }
+} else {
+    console.log('[OBJECT CHECK] No Latin object found in structure');
+}
 
         // 3. Check verb match (use infinitive verb if it's an indirect statement)
         const latinVerbToCheck = latinStruct.infinitiveVerb || latinStruct.verb;
@@ -2829,22 +2846,16 @@ console.log('[DEBUG] Final subject:', structure.subject);
             return;
         }
 
-        // Finite verb forms (present/future)
-        if (/nt$/.test(w) || /t$/.test(w) || /(o|m)$/.test(w)) {
-            // Make sure it's not a participle we missed
-            if (!/(tus|sus|ctus|ptus|rsus)$/.test(w)) {
-                t.pos = 'verb';
-                // Check if it's future tense (-bo, -bis, -bit, -bimus, -bitis, -bunt or -am, -es, -et, -emus, -etis, -ent)
-                if (/(bo|bis|bit|bimus|bitis|bunt)$/.test(w) || /(am|es|et|emus|etis|ent)$/.test(w)) {
-                    t.features.tense = 'future';
-                } else {
-                    t.features.tense = 'present';
-                }
-                t.features.voice = 'active';
-                return;
-            }
-        }
 
+     // Finite verb forms (present/future)
+// Only match if it's a likely verb ending, not generic -um
+if (/nt$/.test(w) || /t$/.test(w) || (/o$/.test(w) || (/m$/.test(w) && !/um$/.test(w)))) {
+    if (!/(tus|sus|ctus|ptus|rsus)$/.test(w)) {
+        t.pos = 'verb';
+        // ...
+        return;
+    }
+}
         // Comparative adjectives: -ior (masc/fem), -ius (neut)
         // Must check before regular adjective patterns to avoid misclassification
         if (/(ior|ius|iorem|iores|ioris|iori|ioribus|iorum)$/.test(w)) {
@@ -4241,96 +4252,174 @@ for (let i = 0; i < tokens.length; i++) {
         const CORS_PROXY = 'https://corsproxy.io/?';
        
         try {
-            // Option 1: Try Perseus Digital Library API (comprehensive Lewis & Short)
-            try {
-                const perseusURL = `http://www.perseus.tufts.edu/hopper/xmlmorph?lang=lat&lookup=${encodeURIComponent(normalized)}`;
-                const proxiedURL = CORS_PROXY + encodeURIComponent(perseusURL);
-                console.log('[API LOOKUP] Trying Perseus Digital Library:', proxiedURL);
-               
-                const perseusResponse = await fetch(proxiedURL, {
-                    method: 'GET',
-                    signal: AbortSignal.timeout(10000) // 10 second timeout
-                });
-               
-                if (perseusResponse.ok) {
-                    const xmlText = await perseusResponse.text();
-                    console.log('[API LOOKUP] Perseus response received, parsing...');
-                   
-                    // Parse XML response
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-                   
-                    // Get all analyses
-                    const analyses = xmlDoc.getElementsByTagName('analysis');
-                   
-                    if (analyses.length > 0) {
-                        // Get the first analysis
-                        const firstAnalysis = analyses[0];
-                       
-                        // Extract lemma (base form)
-                        const lemmaEl = firstAnalysis.getElementsByTagName('lemma')[0];
-                        const lemma = lemmaEl ? lemmaEl.textContent : normalized;
-                       
-                        // Extract part of speech
-                        const posEl = firstAnalysis.getElementsByTagName('pofs')[0];
-                        let pos = posEl ? posEl.textContent : 'unknown';
-                       
-                        // Normalize POS to our format
-                        const posMap = {
-                            'noun': 'noun',
-                            'verb': 'verb',
-                            'adjective': 'adjective',
-                            'adverb': 'adverb',
-                            'pronoun': 'pronoun',
-                            'preposition': 'preposition',
-                            'conjunction': 'conjunction',
-                            'particle': 'particle',
-                            'numeral': 'numeral',
-                            'participle': 'participle',
-                            'part': 'participle'
-                        };
-                        pos = posMap[pos.toLowerCase()] || determinePosMorphologically(normalized);
-                       
-                        // Extract definition (prefer actual English definitions over Latin lemmas)
-                        let definition = lemma; // fallback to lemma
-                       
-                        // Try to get English definition from <def> element first
-                        const dictEl = firstAnalysis.getElementsByTagName('dict')[0];
-                        const shortDefEl = dictEl ? dictEl.getElementsByTagName('def')[0] : null;
-                        if (shortDefEl && shortDefEl.textContent) {
-                            // Clean up definition (remove numbers, parentheses, etc.)
-                            let shortDef = shortDefEl.textContent.trim();
-                            shortDef = shortDef.replace(/^\d+\.\s*/, ''); // Remove leading numbers
-                            shortDef = shortDef.split(',')[0]; // Take first meaning
-                            shortDef = shortDef.split(';')[0]; // Take first part
-                            if (shortDef.length > 0 && shortDef.length < 100) {
-                                definition = shortDef;
-                            }
-                        }
-                       
-                        // If we still have Latin (lemma), try <hdwd> element
-                        if (definition === lemma) {
-                            const hdwdEl = dictEl ? dictEl.getElementsByTagName('hdwd')[0] : null;
-                            if (hdwdEl && hdwdEl.textContent && hdwdEl.textContent !== lemma) {
-                                definition = hdwdEl.textContent;
-                            }
-                        }
-                       
-                        const result = {
-                            pos: pos,
-                            def: definition,
-                            found: true,
-                            lemma: lemma
-                        };
-                       
-                        cacheWord(normalized, result);
-                        console.log('✓ Found via Perseus:', normalized, '→', result.def, `(${pos})`);
-                        return result;
-                    }
-                }
-            } catch (e) {
-                console.log('Perseus API error:', e.message);
+       // Option 1: Try Perseus Dictionary (NOT just morphology!)
+       try {
+            // STEP 1: Get the lemma (base form) from morphology
+            const morphURL = `http://www.perseus.tufts.edu/hopper/xmlmorph?lang=lat&lookup=${encodeURIComponent(normalized)}`;
+            const morphProxied = CORS_PROXY + encodeURIComponent(morphURL);
+            console.log('[API LOOKUP] Step 1: Getting lemma from morphology...');
+            
+            const morphResponse = await fetch(morphProxied, {
+                method: 'GET',
+                signal: AbortSignal.timeout(10000)
+            });
+            
+            if (!morphResponse.ok) {
+                throw new Error('Morphology lookup failed');
             }
+            
+            const morphXML = await morphResponse.text();
+            const parser = new DOMParser();
+            const morphDoc = parser.parseFromString(morphXML, 'text/xml');
+            
+            // Extract lemma and POS
+            const analyses = morphDoc.getElementsByTagName('analysis');
+            if (analyses.length === 0) {
+                throw new Error('No morphological analysis found');
+            }
+            
+            const firstAnalysis = analyses[0];
+            const lemmaEl = firstAnalysis.getElementsByTagName('lemma')[0];
+            const lemma = lemmaEl ? lemmaEl.textContent.trim() : normalized;
+            
+            const posEl = firstAnalysis.getElementsByTagName('pos')[0];
+            let pos = posEl ? posEl.textContent.toLowerCase() : 'unknown';
+            
+            // Normalize POS
+            const posMap = {
+                'noun': 'noun',
+                'verb': 'verb',
+                'adjective': 'adjective',
+                'adverb': 'adverb',
+                'pronoun': 'pronoun',
+                'preposition': 'preposition',
+                'conjunction': 'conjunction',
+                'particle': 'particle',
+                'numeral': 'numeral',
+                'participle': 'participle'
+            };
+            pos = posMap[pos] || 'unknown';
+            
+            console.log('[API LOOKUP] Found lemma:', lemma, 'POS:', pos);
+            
+            // STEP 2: Look up the DICTIONARY entry for the lemma
+            const dictURL = `http://www.perseus.tufts.edu/hopper/text?doc=Perseus:text:1999.04.0059:entry=${encodeURIComponent(lemma)}`;
+            const dictProxied = CORS_PROXY + encodeURIComponent(dictURL);
+            console.log('[API LOOKUP] Step 2: Getting definition from dictionary...');
+            
+            const dictResponse = await fetch(dictProxied, {
+                method: 'GET',
+                signal: AbortSignal.timeout(10000)
+            });
+            
+            if (!dictResponse.ok) {
+                throw new Error('Dictionary lookup failed');
+            }
+            
+            const dictHTML = await dictResponse.text();
+const dictDoc = parser.parseFromString(dictHTML, 'text/html');
+
+console.log('[API LOOKUP] Dictionary HTML received, parsing...');
+
+// === DEBUG LOGGING - START ===
+console.log('[DEBUG] Perseus Response Length:', dictHTML.length, 'characters');
+console.log('[DEBUG] First 1000 characters:', dictHTML.substring(0, 1000));
+
+// Check what elements Perseus is returning
+const allText = dictDoc.body ? dictDoc.body.innerText : '';
+console.log('[DEBUG] Body text (first 500 chars):', allText.substring(0, 500));
+
+// Test our selectors
+const testSelectors = [
+    '.lex_sense',
+    '.lex_sense1',
+    'span[lang="en"]',
+    '.foreign',
+    'div.text_container',
+    'div#text_content',
+    'div.entry',
+    'div.lex_entry'
+];
+
+testSelectors.forEach(selector => {
+    const elements = dictDoc.querySelectorAll(selector);
+    console.log(`[DEBUG] Selector "${selector}": found ${elements.length} elements`);
+    if (elements.length > 0) {
+        console.log(`[DEBUG] First match text:`, elements[0].textContent.substring(0, 100));
+    }
+});
+// === DEBUG LOGGING - END ===
+            
+// Extract definition from HTML
+let definition = null;
+
+// Look for .lex_sense elements (these contain the definitions)
+const lexSenseElements = dictDoc.querySelectorAll('.lex_sense, .lex_sense1');
+
+console.log('[API LOOKUP] Found', lexSenseElements.length, 'definition elements');
+
+if (lexSenseElements.length > 0) {
+    // Get the first definition
+    const firstDef = lexSenseElements[0].textContent.trim();
+    console.log('[API LOOKUP] Raw first definition:', firstDef.substring(0, 200));
+    
+    // Clean it up:
+    // Remove Roman numerals at start (I., II., etc)
+    let cleaned = firstDef.replace(/^[IVX]+\.\s*/, '');
+    
+    // Remove letter markers (A., B., C.)
+    cleaned = cleaned.replace(/^[A-Z]\.\s*/, '');
+    
+    // Remove editorial markers
+    cleaned = cleaned.replace(/^(Transf\.|Lit\.|Fig\.|Meton\.|Poet\.|In gen\.|Esp\.|Absol\.)\s*/gi, '');
+    
+    // Take only up to first semicolon, colon, or citation
+    cleaned = cleaned.split(/[;:]/)[0].trim();
+    
+    // Remove any citations (text with author abbreviations like "Lucr, 1, 353")
+    cleaned = cleaned.replace(/\b[A-Z][a-z]{2,}\b.*\d.*/g, '').trim();
+    
+    // Take first clause (before comma if multiple)
+    // But keep compound phrases like "food for man and beast"
+    const firstClause = cleaned.split(',')[0].trim();
+    
+    if (firstClause.length > 2 && firstClause.length < 150) {
+        definition = firstClause;
+        console.log('[API LOOKUP] ✓ Extracted definition:', definition);
+    }
+}
+
+// If still no definition, try extracting from any English text
+if (!definition || definition === lemma) {
+    console.log('[API LOOKUP] ⚠️ Could not extract clean definition, trying fallback...');
+    
+    // Just take the first few words after Roman numeral
+    const allText = dictDoc.querySelector('.lex_sense, .lex_sense1')?.textContent || '';
+    const withoutRoman = allText.replace(/^[IVX]+\.\s*/, '');
+    const firstWords = withoutRoman.split(/[\s]+/).slice(0, 8).join(' ');
+    
+    if (firstWords && firstWords.length > 2) {
+        definition = firstWords.split(',')[0].split(';')[0].trim();
+        console.log('[API LOOKUP] ✓ Fallback definition:', definition);
+    } else {
+        definition = 'unknown';
+    }
+}
+            
+            const result = {
+                pos: pos,
+                def: definition,
+                found: definition !== 'unknown',
+                lemma: lemma
+            };
+            
+            cacheWord(normalized, result);
+            console.log('[API LOOKUP] Final result:', result);
+            return result;
+            
+        } catch (e) {
+            console.log('[API LOOKUP] Perseus error:', e.message);
+        }
            
             // Option 2: Try Latinitium API (fallback)
             try {
@@ -4472,35 +4561,35 @@ try {
     // Morphological analysis fallback
     // This identifies the likely part of speech but doesn't provide real definitions
     function analyzeMorphologically(word) {
-        let pos = 'unknown';
-        let def = 'unknown'; // Keep definition as "unknown" since morphology can't give meanings
-       
-        // Verb patterns (just identify POS, not definition)
-        if (/^(sum|es|est|sumus|estis|sunt)$/i.test(word)) {
-            pos = 'verb';
-        } else if (/re$/i.test(word)) {
-            pos = 'verb';
-        } else if (/(o|or|m)$/i.test(word) && word.length > 2) {
-            pos = 'verb';
-        } else if (/t$/i.test(word) && !/nt$/i.test(word) && word.length > 2) {
-            pos = 'verb';
-        } else if (/nt$/i.test(word)) {
-            pos = 'verb';
-        }
-        // Noun patterns
-        else if (/(us|i|o|um|os|orum|is)$/i.test(word)) {
-            pos = 'noun';
-        } else if (/(a|ae|am|arum|as)$/i.test(word)) {
-            pos = 'noun';
-        } else if (/(em|es|e|ibus)$/i.test(word)) {
-            pos = 'noun';
-        }
-        // Adjective patterns
-        else if (/(issimus|issima|issimum|ior|ius)$/i.test(word)) {
-            pos = 'adjective';
-        }
-       
-        return { pos, def, found: false };
+        const w = word.toLowerCase();
+    
+    // Noun endings (2nd declension)
+    if (/(us|um|i|o|orum|is)$/i.test(w)) {
+        return { pos: 'noun', def: 'unknown' };
+    }
+    
+    // Noun endings (1st declension)
+    if (/(a|ae|am|arum)$/i.test(w)) {
+        return { pos: 'noun', def: 'unknown' };
+    }
+    
+    // Noun endings (3rd declension)
+    if (/(em|es|is|e|ibus)$/i.test(w)) {
+        return { pos: 'noun', def: 'unknown' };
+    }
+    
+    // Verb endings
+    if (/(o|as|at|amus|atis|ant|or|aris|atur|amur|antur)$/i.test(w) && !/um$/i.test(w)) {
+        return { pos: 'verb', def: 'unknown' };
+    }
+    
+    // Adjective endings
+    if (/(us|a|um|is|e)$/i.test(w)) {
+        return { pos: 'adjective', def: 'unknown' };
+    }
+    
+    return { pos: 'unknown', def: 'unknown' };
+        
     }
    
     function determinePosMorphologically(word) {
