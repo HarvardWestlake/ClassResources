@@ -326,3 +326,25 @@ svg#replication-svg {
 }
 
 /* (Auth UI removed) */
+
+/* Glossary layout */
+.glossary {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+  text-align: center;
+}
+.glossary dl {
+  margin: 0;
+  padding: 0;
+}
+.glossary dt,
+.glossary dd {
+  margin: 0;
+}
+.glossary dd {
+  margin-left: 0;
+}
+.glossary dt {
+  text-decoration: underline;
+}
