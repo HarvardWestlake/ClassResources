@@ -531,6 +531,12 @@
                 <option value="sqrt_minus">sqrt(a^2 - x^2)</option>
                 <option value="sqrt_plus">sqrt(a^2 + x^2)</option>
                 <option value="sqrt_x2_minus">sqrt(x^2 - a^2)</option>
+                <option value="inv_sqrt_minus">1/sqrt(a^2 - x^2)</option>
+                <option value="inv_sqrt_plus">1/sqrt(a^2 + x^2)</option>
+                <option value="inv_sqrt_x2_minus">1/sqrt(x^2 - a^2)</option>
+                <option value="inv_minus">1/(a^2 - x^2)</option>
+                <option value="inv_plus">1/(a^2 + x^2)</option>
+                <option value="inv_x2_minus">1/(x^2 - a^2)</option>
               </select>
             </div>
             <div>
@@ -1020,6 +1026,108 @@
               thetaOfX: (x, a) => Math.acos(clamp(a / x, -1, 1)),
             },
           },
+          inv_sqrt_minus: {
+            label: "1/sqrt(a^2 - x^2)",
+            f: (x, a) => {
+              const t = a * a - x * x;
+              return t > 0 ? 1 / Math.sqrt(t) : NaN;
+            },
+            domain: (a) => [-a * 0.99, a * 0.99],
+            singular: true,
+            sub: {
+              name: "sin",
+              xTex: "x = a\\,\\sin\\theta",
+              dxTex: "dx = a\\,\\cos\\theta\\,d\\theta",
+              yTex: "y = 1/(a\\,\\cos\\theta)",
+              gTex: (a) => "1",
+              thetaOfX: (x, a) => Math.asin(clamp(x / a, -1, 1)),
+            },
+          },
+          inv_sqrt_plus: {
+            label: "1/sqrt(a^2 + x^2)",
+            f: (x, a) => 1 / Math.sqrt(a * a + x * x),
+            domain: (a) => [-Math.max(4 * a, 4), Math.max(4 * a, 4)],
+            singular: false,
+            sub: {
+              name: "tan",
+              xTex: "x = a\\,\\tan\\theta",
+              dxTex: "dx = a\\,\\sec^2\\theta\\,d\\theta",
+              yTex: "y = 1/(a\\,\\sec\\theta)",
+              gTex: (a) => "1",
+              thetaOfX: (x, a) => Math.atan(x / a),
+            },
+          },
+          inv_sqrt_x2_minus: {
+            label: "1/sqrt(x^2 - a^2)",
+            f: (x, a) => {
+              const t = x * x - a * a;
+              return t > 0 ? 1 / Math.sqrt(t) : NaN;
+            },
+            domain: (a) => {
+              const min = Math.max(a * 1.01, a + 0.1);
+              return [min, Math.max(4 * a, 4)];
+            },
+            singular: true,
+            sub: {
+              name: "sec",
+              xTex: "x = a\\,\\sec\\theta",
+              dxTex: "dx = a\\,\\sec\\theta\\,\\tan\\theta\\,d\\theta",
+              yTex: "y = 1/(a\\,\\tan\\theta)",
+              gTex: (a) => "1",
+              thetaOfX: (x, a) => Math.acos(clamp(a / x, -1, 1)),
+            },
+          },
+          inv_minus: {
+            label: "1/(a^2 - x^2)",
+            f: (x, a) => {
+              const t = a * a - x * x;
+              return Math.abs(t) > 1e-10 ? 1 / t : NaN;
+            },
+            domain: (a) => [-a * 0.99, a * 0.99],
+            singular: true,
+            sub: {
+              name: "sin",
+              xTex: "x = a\\,\\sin\\theta",
+              dxTex: "dx = a\\,\\cos\\theta\\,d\\theta",
+              yTex: "y = 1/(a^2\\,\\cos^2\\theta)",
+              gTex: (a) => "\\sec^2\\theta",
+              thetaOfX: (x, a) => Math.asin(clamp(x / a, -1, 1)),
+            },
+          },
+          inv_plus: {
+            label: "1/(a^2 + x^2)",
+            f: (x, a) => 1 / (a * a + x * x),
+            domain: (a) => [-Math.max(4 * a, 4), Math.max(4 * a, 4)],
+            singular: false,
+            sub: {
+              name: "tan",
+              xTex: "x = a\\,\\tan\\theta",
+              dxTex: "dx = a\\,\\sec^2\\theta\\,d\\theta",
+              yTex: "y = 1/(a^2\\,\\sec^2\\theta)",
+              gTex: (a) => "1",
+              thetaOfX: (x, a) => Math.atan(x / a),
+            },
+          },
+          inv_x2_minus: {
+            label: "1/(x^2 - a^2)",
+            f: (x, a) => {
+              const t = x * x - a * a;
+              return Math.abs(t) > 1e-10 ? 1 / t : NaN;
+            },
+            domain: (a) => {
+              const min = Math.max(a * 1.01, a + 0.1);
+              return [min, Math.max(4 * a, 4)];
+            },
+            singular: true,
+            sub: {
+              name: "sec",
+              xTex: "x = a\\,\\sec\\theta",
+              dxTex: "dx = a\\,\\sec\\theta\\,\\tan\\theta\\,d\\theta",
+              yTex: "y = 1/(a^2\\,\\tan^2\\theta)",
+              gTex: (a) => "\\csc^2\\theta",
+              thetaOfX: (x, a) => Math.acos(clamp(a / x, -1, 1)),
+            },
+          },
         };
 
         const W = 800;
@@ -1309,9 +1417,11 @@
           if (!state.showGeom) return;
           const { xToPx, yToPx } = range._scales;
 
-          if (state.funcId === "sqrt_minus") {
-            // Draw the reference circle for sqrt(a^2 - x^2)
-            // This is a circle of radius a centered at origin
+          const sub = cfg.sub;
+          const subName = sub.name;
+
+          // Draw reference circle for sin substitution (sqrt(a^2 - x^2) pattern)
+          if (subName === "sin" && state.funcId === "sqrt_minus") {
             const parts = [];
             const n = 240;
             for (let i = 0; i <= n; i++) {
@@ -1326,158 +1436,100 @@
             path.setAttribute("class", "tsw-overlay");
             path.setAttribute("stroke-width", "2");
             svg.appendChild(path);
+          }
 
-            // Draw reference triangle if bounds are set
-            if (!state.indef && state.L !== state.R) {
-              const xVal = (state.L + state.R) / 2; // Use midpoint for triangle
-              if (Math.abs(xVal) < a) {
-                const yVal = cfg.f(xVal, a);
-                const theta = Math.asin(clamp(xVal / a, -1, 1));
+          // Draw reference triangles for all functions
+          if (!state.indef && state.L !== state.R) {
+            let xVal, yVal, theta;
+            let drawTriangle = false;
 
-                // Draw triangle: origin to (x, y) to (x, 0)
-                const triPath = make("path");
-                const originX = xToPx(0);
-                const originY = yToPx(0);
-                const xPx = xToPx(xVal);
-                const yPx = yToPx(yVal);
-                const xPx0 = xToPx(xVal);
-                const yPx0 = yToPx(0);
+            if (subName === "sin") {
+              // For sin substitution: x = a sin θ
+              xVal = (state.L + state.R) / 2;
+              if (Math.abs(xVal) < a * 0.99) {
+                yVal = cfg.f(xVal, a);
+                if (Number.isFinite(yVal)) {
+                  theta = Math.asin(clamp(xVal / a, -1, 1));
+                  drawTriangle = true;
+                }
+              }
+            } else if (subName === "tan") {
+              // For tan substitution: x = a tan θ
+              xVal = (state.L + state.R) / 2;
+              yVal = cfg.f(xVal, a);
+              if (Number.isFinite(yVal)) {
+                theta = Math.atan(xVal / a);
+                drawTriangle = true;
+              }
+            } else if (subName === "sec") {
+              // For sec substitution: x = a sec θ
+              xVal = Math.max(Math.abs(state.L), Math.abs(state.R));
+              if (xVal > a * 1.01) {
+                yVal = cfg.f(xVal, a);
+                if (Number.isFinite(yVal)) {
+                  theta = Math.acos(clamp(a / xVal, -1, 1));
+                  drawTriangle = true;
+                }
+              }
+            }
+
+            if (drawTriangle) {
+              const originX = xToPx(0);
+              const originY = yToPx(0);
+              const xPx = xToPx(xVal);
+              const yPx = yToPx(yVal);
+              const xPx0 = xToPx(xVal);
+              const yPx0 = yToPx(0);
+
+              // Draw triangle based on substitution type
+              const triPath = make("path");
+              if (subName === "sin") {
+                // Triangle: origin to (x, y) to (x, 0)
                 triPath.setAttribute(
                   "d",
                   `M ${originX} ${originY} L ${xPx} ${yPx} L ${xPx0} ${yPx0} Z`
                 );
-                triPath.setAttribute("class", "tsw-overlay");
-                triPath.setAttribute("fill", "rgba(179, 27, 27, 0.1)");
-                triPath.setAttribute("stroke-width", "1.5");
-                svg.appendChild(triPath);
-
-                // Label theta angle
-                const arcRadius = Math.min(a * 0.3, 30);
-                const arcPath = make("path");
-                const arcStartX = originX + arcRadius;
-                const arcStartY = originY;
-                const arcEndX = originX + arcRadius * Math.cos(theta);
-                const arcEndY = originY - arcRadius * Math.sin(theta);
-                const largeArc = theta > Math.PI ? 1 : 0;
-                arcPath.setAttribute(
+              } else {
+                // Triangle: origin to (x, 0) to (x, y) for tan and sec
+                triPath.setAttribute(
                   "d",
-                  `M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 ${largeArc} 0 ${arcEndX} ${arcEndY}`
+                  `M ${originX} ${originY} L ${xPx0} ${yPx0} L ${xPx} ${yPx} Z`
                 );
-                arcPath.setAttribute("class", "tsw-overlay");
-                arcPath.setAttribute("stroke-width", "1.5");
-                arcPath.setAttribute("fill", "none");
-                svg.appendChild(arcPath);
-
-                // Label theta
-                const thetaLabel = make("text");
-                thetaLabel.setAttribute("x", String(originX + arcRadius * 0.6));
-                thetaLabel.setAttribute("y", String(originY - arcRadius * 0.4));
-                thetaLabel.setAttribute("font-size", "12");
-                thetaLabel.setAttribute("fill", "#b31b1b");
-                thetaLabel.setAttribute("font-weight", "600");
-                thetaLabel.textContent = "θ";
-                svg.appendChild(thetaLabel);
               }
-            }
-          } else if (state.funcId === "sqrt_plus") {
-            // Draw reference triangle for sqrt(a^2 + x^2)
-            if (!state.indef && state.L !== state.R) {
-              const xVal = (state.L + state.R) / 2;
-              const yVal = cfg.f(xVal, a);
-              const theta = Math.atan(xVal / a);
-
-              // Draw triangle: origin to (x, 0) to (x, y)
-              const triPath = make("path");
-              const originX = xToPx(0);
-              const originY = yToPx(0);
-              const xPx0 = xToPx(xVal);
-              const yPx0 = yToPx(0);
-              const xPx = xToPx(xVal);
-              const yPx = yToPx(yVal);
-              triPath.setAttribute(
-                "d",
-                `M ${originX} ${originY} L ${xPx0} ${yPx0} L ${xPx} ${yPx} Z`
-              );
               triPath.setAttribute("class", "tsw-overlay");
               triPath.setAttribute("fill", "rgba(179, 27, 27, 0.1)");
               triPath.setAttribute("stroke-width", "1.5");
               svg.appendChild(triPath);
 
-              // Label theta
+              // Label theta angle
               const arcRadius = Math.min(a * 0.3, 30);
               const arcPath = make("path");
               const arcStartX = originX + arcRadius;
               const arcStartY = originY;
               const arcEndX = originX + arcRadius * Math.cos(theta);
               const arcEndY = originY - arcRadius * Math.sin(theta);
+              const largeArc = subName === "sin" && theta > Math.PI ? 1 : 0;
               arcPath.setAttribute(
                 "d",
-                `M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 0 0 ${arcEndX} ${arcEndY}`
+                `M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 ${largeArc} 0 ${arcEndX} ${arcEndY}`
               );
               arcPath.setAttribute("class", "tsw-overlay");
               arcPath.setAttribute("stroke-width", "1.5");
               arcPath.setAttribute("fill", "none");
               svg.appendChild(arcPath);
 
+              // Label theta
               const thetaLabel = make("text");
               thetaLabel.setAttribute("x", String(originX + arcRadius * 0.6));
-              thetaLabel.setAttribute("y", String(originY - arcRadius * 0.3));
+              thetaLabel.setAttribute(
+                "y",
+                String(originY - arcRadius * (subName === "sin" ? 0.4 : 0.3))
+              );
               thetaLabel.setAttribute("font-size", "12");
-              thetaLabel.setAttribute("fill", "var(--accent)");
+              thetaLabel.setAttribute("fill", "#b31b1b");
               thetaLabel.setAttribute("font-weight", "600");
               thetaLabel.textContent = "θ";
               svg.appendChild(thetaLabel);
-            }
-          } else if (state.funcId === "sqrt_x2_minus") {
-            // Draw reference triangle for sqrt(x^2 - a^2)
-            if (!state.indef && state.L !== state.R) {
-              const xVal = Math.max(Math.abs(state.L), Math.abs(state.R));
-              if (xVal > a) {
-                const yVal = cfg.f(xVal, a);
-                const theta = Math.acos(clamp(a / xVal, -1, 1));
-
-                // Draw triangle: origin to (x, 0) to (x, y)
-                const triPath = make("path");
-                const originX = xToPx(0);
-                const originY = yToPx(0);
-                const xPx0 = xToPx(xVal);
-                const yPx0 = yToPx(0);
-                const xPx = xToPx(xVal);
-                const yPx = yToPx(yVal);
-                triPath.setAttribute(
-                  "d",
-                  `M ${originX} ${originY} L ${xPx0} ${yPx0} L ${xPx} ${yPx} Z`
-                );
-                triPath.setAttribute("class", "tsw-overlay");
-                triPath.setAttribute("fill", "rgba(179, 27, 27, 0.1)");
-                triPath.setAttribute("stroke-width", "1.5");
-                svg.appendChild(triPath);
-
-                // Label theta
-                const arcRadius = Math.min(a * 0.3, 30);
-                const arcPath = make("path");
-                const arcStartX = originX + arcRadius;
-                const arcStartY = originY;
-                const arcEndX = originX + arcRadius * Math.cos(theta);
-                const arcEndY = originY - arcRadius * Math.sin(theta);
-                arcPath.setAttribute(
-                  "d",
-                  `M ${arcStartX} ${arcStartY} A ${arcRadius} ${arcRadius} 0 0 0 ${arcEndX} ${arcEndY}`
-                );
-                arcPath.setAttribute("class", "tsw-overlay");
-                arcPath.setAttribute("stroke-width", "1.5");
-                arcPath.setAttribute("fill", "none");
-                svg.appendChild(arcPath);
-
-                const thetaLabel = make("text");
-                thetaLabel.setAttribute("x", String(originX + arcRadius * 0.6));
-                thetaLabel.setAttribute("y", String(originY - arcRadius * 0.3));
-                thetaLabel.setAttribute("font-size", "12");
-                thetaLabel.setAttribute("fill", "#b31b1b");
-                thetaLabel.setAttribute("font-weight", "600");
-                thetaLabel.textContent = "θ";
-                svg.appendChild(thetaLabel);
-              }
             }
           }
         }
