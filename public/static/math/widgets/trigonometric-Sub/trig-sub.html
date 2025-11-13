@@ -442,6 +442,120 @@
         border: 1px solid var(--hw-gray-200);
         box-shadow: none;
       }
+
+      /* Interactive Tutorial Styles */
+      .tutorial-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 1000;
+        display: none;
+      }
+      .tutorial-overlay.active {
+        display: block;
+      }
+      .tutorial-highlight {
+        position: relative;
+        z-index: 1001;
+        transition: all 0.3s ease;
+      }
+      .tutorial-highlight.active {
+        box-shadow: 0 0 0 4px rgba(179, 27, 27, 0.3),
+          0 0 20px rgba(179, 27, 27, 0.5);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 4px 8px;
+        margin: -4px -8px;
+      }
+      .tutorial-highlight.active label {
+        padding: 0;
+        margin: 0;
+      }
+      .tutorial-card {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: 600px;
+        width: calc(100% - 48px);
+        background: var(--card);
+        border: 2px solid var(--accent);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        z-index: 1002;
+        display: none;
+      }
+      .tutorial-card.active {
+        display: block;
+        animation: slideUp 0.3s ease;
+      }
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+      .tutorial-card h4 {
+        margin: 0 0 12px 0;
+        font-size: 20px;
+        color: var(--accent);
+      }
+      .tutorial-card .step-content {
+        margin: 0 0 20px 0;
+        line-height: 1.6;
+        color: var(--text);
+      }
+      .tutorial-card .step-content strong {
+        color: var(--accent);
+      }
+      .tutorial-card .step-content ul {
+        margin: 8px 0 0 20px;
+        padding: 0;
+      }
+      .tutorial-card .step-content li {
+        margin: 6px 0;
+      }
+      .tutorial-progress {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+      .tutorial-progress-dot {
+        flex: 1;
+        height: 4px;
+        background: var(--hw-gray-200);
+        border-radius: 2px;
+        transition: background 0.3s ease;
+      }
+      .tutorial-progress-dot.active {
+        background: var(--accent);
+      }
+      .tutorial-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .tutorial-nav-buttons {
+        display: flex;
+        gap: 8px;
+      }
+      .tutorial-step-counter {
+        font-size: 14px;
+        color: var(--hw-gray-600);
+        font-weight: 600;
+      }
+      .tutorial-start-btn {
+        margin: 20px 0;
+      }
     </style>
   </head>
   <body>
@@ -510,8 +624,51 @@
         </div>
       </section>
 
-      <!-- Tutorial Section -->
+      <!-- Interactive Tutorial Section -->
       <section class="card" style="margin-bottom: 20px">
+        <h3>Interactive Tutorial</h3>
+        <p style="margin: 8px 0; line-height: 1.6; color: var(--hw-gray-700)">
+          Learn how to use all the features of this widget with our step-by-step
+          interactive guide. We'll highlight each feature as we go!
+        </p>
+        <button class="btn tutorial-start-btn" id="tutorial-start">
+          Start Interactive Tutorial
+        </button>
+      </section>
+
+      <!-- Tutorial Overlay and Card -->
+      <div class="tutorial-overlay" id="tutorial-overlay"></div>
+      <div class="tutorial-card" id="tutorial-card">
+        <div class="tutorial-progress" id="tutorial-progress"></div>
+        <h4 id="tutorial-title"></h4>
+        <div class="step-content" id="tutorial-content"></div>
+        <div class="tutorial-nav">
+          <div class="tutorial-nav-buttons">
+            <button
+              class="btn secondary"
+              id="tutorial-prev"
+              style="display: none"
+            >
+              ← Previous
+            </button>
+            <button class="btn" id="tutorial-next">Next →</button>
+            <button
+              class="btn secondary"
+              id="tutorial-finish"
+              style="display: none"
+            >
+              Finish
+            </button>
+          </div>
+          <div class="tutorial-step-counter">
+            <span id="tutorial-step-num">1</span> of
+            <span id="tutorial-total">10</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Old Tutorial Section (hidden, kept for reference) -->
+      <section class="card" style="margin-bottom: 20px; display: none">
         <h3>How to Use This Widget — Step-by-Step Guide</h3>
         <div style="margin-top: 16px">
           <div class="section-title">1. Selecting a Function</div>
@@ -1990,6 +2147,175 @@
             setCollapsed(!tswEl.classList.contains("collapsed"));
           });
         }
+      })();
+
+      // Interactive Tutorial
+      (function () {
+        const tutorialSteps = [
+          {
+            title: "1. Selecting a Function",
+            content: `Use the <strong>Function</strong> dropdown to choose which trigonometric substitution pattern you want to explore. Available options include:<ul><li>Square root functions: sqrt(a² - x²), sqrt(a² + x²), sqrt(x² - a²)</li><li>Inverse square root functions: 1/sqrt(a² - x²), 1/sqrt(a² + x²), 1/sqrt(x² - a²)</li><li>Rational functions: 1/(a² - x²), 1/(a² + x²), 1/(x² - a²)</li></ul>`,
+            highlight: "#tsw-function",
+          },
+          {
+            title: "2. Adjusting the Parameter 'a'",
+            content: `The <strong>a</strong> input controls the shape of the function. When you change 'a', the function curve updates automatically. The bounds (L and R) remain unchanged unless they become invalid for the new function domain.`,
+            highlight: "#tsw-a",
+          },
+          {
+            title: "3. Setting Integration Bounds",
+            content: `Enter values for <strong>Left bound L</strong> and <strong>Right bound R</strong> to define your integration interval. You can:<ul><li>Type values directly into the input fields</li><li>Drag the circular handles on the graph to adjust bounds visually</li><li>The shaded area shows the region being integrated</li><li>The approximate area value appears below the graph</li></ul>`,
+            highlight: "#tsw-bounds-row",
+          },
+          {
+            title: "4. Show Trig Substitution Checkbox",
+            content: `When checked, displays a panel below the graph showing:<ul><li><strong>Mapping:</strong> The substitution formulas (x = ..., dx = ..., y = ...)</li><li><strong>θ-bounds and integrand:</strong> The transformed integral in terms of θ</li></ul>This helps you see how the integral transforms from x-space to θ-space.`,
+            highlight: "#tsw-show-sub",
+          },
+          {
+            title: "5. Show Geometry Checkbox",
+            content: `When enabled, overlays reference geometry on the graph to visualize the trigonometric substitution:<ul><li><strong>For sin substitutions:</strong> Shows a reference circle and right triangle with angle θ labeled</li><li><strong>For tan substitutions:</strong> Shows a reference right triangle demonstrating the relationship</li><li><strong>For sec substitutions:</strong> Shows a reference right triangle for the secant substitution</li></ul><strong>Note:</strong> Geometry only appears when bounds are set (not in indefinite integral mode).`,
+            highlight: "#tsw-show-geom",
+          },
+          {
+            title: "6. Indefinite Integral Checkbox",
+            content: `When checked:<ul><li>Hides the bounds input fields (L and R)</li><li>Removes the shaded area from the graph</li><li>Shows only the function curve</li><li>Updates the trig substitution panel to show the indefinite integral form</li><li>Disables geometry overlay (since it requires bounds)</li></ul>Use this mode when you want to explore the general form of the integral without specific bounds.`,
+            highlight: "#tsw-indef",
+          },
+          {
+            title: "7. Collapse Button",
+            content: `The <strong>Collapse</strong> button in the top-right corner of the widget allows you to:<ul><li>Hide/show the entire widget content</li><li>Save screen space when you're not actively using the widget</li><li>Your preference is saved and will persist when you reload the page</li></ul>Click "Collapse" to hide, or "Expand" to show the widget again.`,
+            highlight: "#tsw-toggle",
+          },
+          {
+            title: "8. Copy Shareable Link Button",
+            content: `Click <strong>Copy shareable link</strong> to copy a URL that includes all your current settings:<ul><li>Selected function type</li><li>Parameter 'a' value</li><li>Integration bounds (L and R)</li><li>Checkbox states (Show trig substitution, Show geometry, Indefinite integral)</li></ul>Share this link with others or bookmark it to return to the same configuration.`,
+            highlight: "#tsw-copy",
+          },
+          {
+            title: "9. Interacting with the Graph",
+            content: `The graph is interactive:<ul><li><strong>Drag the circular handles</strong> on the x-axis to adjust integration bounds</li><li><strong>Vertical dashed lines</strong> show your current bounds</li><li><strong>Shaded area</strong> represents the region being integrated</li><li><strong>Grid lines</strong> help you read approximate values</li><li><strong>Axis labels</strong> show the scale</li></ul>`,
+            highlight: "#tsw-svg",
+          },
+          {
+            title: "10. Reading the Output",
+            content: `Below the graph, you'll see:<ul><li><strong>Area estimate:</strong> The approximate numerical value of the definite integral</li><li><strong>Trig Substitution panel:</strong> (if enabled) Shows the mathematical transformation</li><li><strong>Metrics box:</strong> Displays the integration interval and calculated area</li></ul>`,
+            highlight: "#tsw-metrics",
+          },
+        ];
+
+        let currentStep = 0;
+        let highlightedElement = null;
+
+        const overlay = document.getElementById("tutorial-overlay");
+        const card = document.getElementById("tutorial-card");
+        const title = document.getElementById("tutorial-title");
+        const content = document.getElementById("tutorial-content");
+        const progress = document.getElementById("tutorial-progress");
+        const stepNum = document.getElementById("tutorial-step-num");
+        const totalSteps = document.getElementById("tutorial-total");
+        const prevBtn = document.getElementById("tutorial-prev");
+        const nextBtn = document.getElementById("tutorial-next");
+        const finishBtn = document.getElementById("tutorial-finish");
+        const startBtn = document.getElementById("tutorial-start");
+
+        totalSteps.textContent = tutorialSteps.length;
+
+        function updateProgress() {
+          progress.innerHTML = "";
+          for (let i = 0; i < tutorialSteps.length; i++) {
+            const dot = document.createElement("div");
+            dot.className =
+              "tutorial-progress-dot" + (i <= currentStep ? " active" : "");
+            progress.appendChild(dot);
+          }
+        }
+
+        function highlightElement(selector) {
+          // Remove previous highlight
+          if (highlightedElement) {
+            highlightedElement.classList.remove("tutorial-highlight", "active");
+          }
+
+          const element = document.querySelector(selector);
+          if (element) {
+            // For checkboxes, highlight the parent label instead
+            if (element.type === "checkbox") {
+              const label = element.closest("label");
+              if (label) {
+                label.classList.add("tutorial-highlight", "active");
+                highlightedElement = label;
+              } else {
+                element.classList.add("tutorial-highlight", "active");
+                highlightedElement = element;
+              }
+            } else {
+              element.classList.add("tutorial-highlight", "active");
+              highlightedElement = element;
+            }
+
+            // Ensure widget is expanded
+            const tswEl = document.getElementById("tsw");
+            if (tswEl && tswEl.classList.contains("collapsed")) {
+              tswEl.classList.remove("collapsed");
+              const toggle = document.getElementById("tsw-toggle");
+              if (toggle) {
+                toggle.textContent = "Collapse";
+                toggle.setAttribute("aria-expanded", "true");
+              }
+            }
+
+            // Scroll element into view
+            setTimeout(() => {
+              (highlightedElement || element).scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }, 300);
+          }
+        }
+
+        function showStep(stepIndex) {
+          if (stepIndex < 0 || stepIndex >= tutorialSteps.length) return;
+
+          currentStep = stepIndex;
+          const step = tutorialSteps[stepIndex];
+
+          title.textContent = step.title;
+          content.innerHTML = step.content;
+          stepNum.textContent = stepIndex + 1;
+
+          // Update buttons
+          prevBtn.style.display = stepIndex === 0 ? "none" : "inline-flex";
+          nextBtn.style.display =
+            stepIndex === tutorialSteps.length - 1 ? "none" : "inline-flex";
+          finishBtn.style.display =
+            stepIndex === tutorialSteps.length - 1 ? "inline-flex" : "none";
+
+          updateProgress();
+          highlightElement(step.highlight);
+        }
+
+        function startTutorial() {
+          overlay.classList.add("active");
+          card.classList.add("active");
+          showStep(0);
+        }
+
+        function endTutorial() {
+          overlay.classList.remove("active");
+          card.classList.remove("active");
+          if (highlightedElement) {
+            highlightedElement.classList.remove("tutorial-highlight", "active");
+            highlightedElement = null;
+          }
+        }
+
+        startBtn.addEventListener("click", startTutorial);
+        prevBtn.addEventListener("click", () => showStep(currentStep - 1));
+        nextBtn.addEventListener("click", () => showStep(currentStep + 1));
+        finishBtn.addEventListener("click", endTutorial);
+        overlay.addEventListener("click", endTutorial);
       })();
     </script>
 
