@@ -54,8 +54,8 @@ import './styles.css';
         guideClicks: document.getElementById('guideClicks'),
         btnGenerate: document.getElementById('generate'),
         btnPlay: document.getElementById('play'),
-        btnStop: document.getElementById('stop'),
         btnReset: document.getElementById('reset'),
+        practiceHint: document.getElementById('practiceHint'),
         sheet: document.getElementById('sheet'),
         canvasWrap: document.querySelector('.canvas-wrap'),
         startOverlay: document.getElementById('startOverlay'),
@@ -595,11 +595,13 @@ import './styles.css';
         }
 
         isPlaying = true;
+        if (el.practiceHint) el.practiceHint.style.display = 'block';
         loop();
     }
 
     function stopPlayback() {
         isPlaying = false;
+        if (el.practiceHint) el.practiceHint.style.display = 'none';
         if (rafId) cancelAnimationFrame(rafId);
         if (audioCtx) stopAllScheduledMetronome(audioCtx.currentTime);
         if (audioCtx) stopAllScheduledGuides(audioCtx.currentTime);
@@ -892,6 +894,23 @@ import './styles.css';
         ctx.stroke();
     }
 
+    function drawTripletRest(x, y, color) {
+        // Triplet rest: eighth rest shape with a "3" marker above
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y - 12);
+        ctx.quadraticCurveTo(x + 8, y - 10, x + 2, y - 5);
+        ctx.moveTo(x + 2, y - 5);
+        ctx.quadraticCurveTo(x - 2, y + 2, x - 2, y + 8);
+        ctx.stroke();
+        // Draw "3" marker above the rest
+        ctx.fillStyle = color;
+        ctx.font = '600 10px "Source Sans Pro", -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('3', x, y - 20);
+    }
+
     function drawSixteenthRest(x, y, color) {
         drawEighthRest(x, y, color);
         ctx.beginPath();
@@ -1033,11 +1052,19 @@ import './styles.css';
                     drawQuarterRest(l.x, l.row.midLineY, color);
                     if (it.isDotted) drawDot(l.x, l.row.midLineY, color);
                 } else if (it.durTicks >= Math.round(tpb / 2)) {
-                    drawEighthRest(l.x, l.row.midLineY, color);
+                    if (it.isTriplet) {
+                        drawTripletRest(l.x, l.row.midLineY, color);
+                    } else {
+                        drawEighthRest(l.x, l.row.midLineY, color);
+                    }
                     if (it.isDotted) drawDot(l.x, l.row.midLineY, color);
                 } else {
-                    // Triplet or smaller → show as eighth rest
-                    drawEighthRest(l.x, l.row.midLineY, color);
+                    // Triplet or smaller → show as triplet rest if triplet, otherwise eighth rest
+                    if (it.isTriplet) {
+                        drawTripletRest(l.x, l.row.midLineY, color);
+                    } else {
+                        drawEighthRest(l.x, l.row.midLineY, color);
+                    }
                     if (it.isDotted) drawDot(l.x, l.row.midLineY, color);
                 }
             } else {
@@ -1486,7 +1513,6 @@ import './styles.css';
     }
 
     // Events
-    el.btnStop.addEventListener('click', () => { stopPlayback(); });
     el.btnReset.addEventListener('click', () => {
         if (!pattern) return;
         pattern.items.forEach(i => { if (!i.isRest) { i.state = 'pending'; i.hitDeltaMs = null; } });
@@ -1656,6 +1682,12 @@ import './styles.css';
                     if (!tutorialMode) onHitInput();
                 }
                 preventRepeat = true;
+            }
+        } else if (k === 'Escape' || k === 'Esc') {
+            // Exit practice early when ESC is pressed
+            if (isPlaying) {
+                e.preventDefault();
+                stopPlayback();
             }
         }
     });
@@ -1914,6 +1946,21 @@ import './styles.css';
             pctx.quadraticCurveTo(x - 2, y + 2, x - 2, y + 8);
             pctx.stroke();
         }
+        function tripletRest(x, y, color) {
+            // Match main drawTripletRest
+            pctx.strokeStyle = color; pctx.lineWidth = 2;
+            pctx.beginPath();
+            pctx.moveTo(x, y - 12);
+            pctx.quadraticCurveTo(x + 8, y - 10, x + 2, y - 5);
+            pctx.moveTo(x + 2, y - 5);
+            pctx.quadraticCurveTo(x - 2, y + 2, x - 2, y + 8);
+            pctx.stroke();
+            // Draw "3" marker above the rest
+            pctx.fillStyle = color;
+            pctx.font = '600 10px "Source Sans Pro", -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial';
+            pctx.textAlign = 'center';
+            pctx.fillText('3', x, y - 20);
+        }
         function halfRest(staffY, color) {
             const mid = staffY + lineSpacing * 2;
             pctx.fillStyle = color; pctx.fillRect(leftPad + 6, mid - 4, 12, 4);
@@ -1967,6 +2014,7 @@ import './styles.css';
                 if (it.durTicks >= tpb * 4) wholeRest(staffY, color);
                 else if (it.durTicks >= tpb * 2) halfRest(staffY, color);
                 else if (it.durTicks >= tpb) quarterRest(x, midLineY, color);
+                else if (it.isTriplet) tripletRest(x, midLineY, color);
                 else eighthRest(x, midLineY, color);
                 if (it.isDotted) drawDot(x, midLineY, color);
             } else {

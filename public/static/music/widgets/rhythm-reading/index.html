@@ -49,7 +49,6 @@
                     <div><span class="dot" style="background:var(--warn)"></span> Early/Late</div>
                 </div>
                 <div class="actions" style="margin-top:10px;">
-                    <button id="stop" class="btn">Stop</button>
                     <button id="reset" class="btn btn--outline">Reset Score</button>
                 </div>
             </div>
@@ -59,6 +58,7 @@
             <div class="card">
                 <div class="title">Rhythm Reading</div>
                 <div class="subtitle">Practice sight-reading rhythms</div>
+                <div id="practiceHint" class="practice-hint" style="display:none;">Press ESC to end practice</div>
                 <div class="canvas-wrap">
                     <canvas id="sheet"></canvas>
                     <div class="start-overlay" id="startOverlay">

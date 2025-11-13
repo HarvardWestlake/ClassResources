@@ -114,6 +114,14 @@ body {
     margin-bottom: 12px;
 }
 
+.practice-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: -8px;
+    margin-bottom: 12px;
+    font-style: italic;
+}
+
 .row {
     display: grid;
     grid-template-columns: 1fr 80px;
