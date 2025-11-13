@@ -108,9 +108,10 @@ class Scene3D {
   }
 
   init() {
-    // Renderer setup
+    // Renderer setup with perfect square aspect
     const rect = this.container.getBoundingClientRect();
-    this.renderer.setSize(rect.width, rect.height);
+    const size = Math.min(rect.width, rect.height);
+    this.renderer.setSize(size, size);
     // Reduce pixel ratio in performance mode
     const maxPixelRatio = performanceMode ? 1 : 2;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
@@ -350,9 +351,11 @@ class Scene3D {
 
   resize() {
     const rect = this.container.getBoundingClientRect();
-    this.camera.aspect = rect.width / rect.height;
+    // Ensure perfect square aspect ratio
+    const size = Math.min(rect.width, rect.height);
+    this.camera.aspect = 1; // Always 1:1 for perfect circles
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(rect.width, rect.height);
+    this.renderer.setSize(size, size);
   }
 }
 
@@ -711,7 +714,89 @@ function createPillboxDAvectorsSingleSide(radius, height, zPos = 0, numVectors =
   return vectors;
 }
 
-let sphereScene, cylinderScene, planeScene;
+// Create auto-rotating preview scene
+function createPreviewScene() {
+  const container = document.getElementById('previewCanvas');
+  if (!container) return null;
+  
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  
+  const rect = container.getBoundingClientRect();
+  renderer.setSize(rect.width, rect.height);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0xf4f6f8, 1);
+  container.appendChild(renderer.domElement);
+  
+  camera.position.set(0.25, 0.15, 0.2);
+  camera.lookAt(0, 0, 0);
+  
+  // Lights
+  const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+  scene.add(ambient);
+  const directional = new THREE.DirectionalLight(0xffffff, 0.6);
+  directional.position.set(5, 5, 5);
+  scene.add(directional);
+  
+  // Create charged sphere
+  const sphereGeo = new THREE.SphereGeometry(0.05, 32, 24);
+  const sphereMat = new THREE.MeshPhysicalMaterial({
+    color: 0xff6666,
+    transparent: true,
+    opacity: 0.75,
+    roughness: 0.3,
+    metalness: 0.1,
+    clearcoat: 0.3
+  });
+  const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+  scene.add(sphere);
+  
+  // Create Gaussian surface
+  const gaussianGeo = new THREE.SphereGeometry(0.08, 32, 24);
+  const gaussianMat = new THREE.MeshPhysicalMaterial({
+    color: 0x00ffff,
+    transparent: true,
+    opacity: 0.35,
+    roughness: 0.3,
+    metalness: 0.1,
+    clearcoat: 0.3
+  });
+  const gaussian = new THREE.Mesh(gaussianGeo, gaussianMat);
+  scene.add(gaussian);
+  
+  // Add E-field vectors distributed around sphere
+  for (let i = 0; i < 8; i++) {
+    const theta = (i / 8) * Math.PI * 2;
+    for (let j = 0; j < 3; j++) {
+      const phi = (j / 3) * Math.PI;
+      const origin = new THREE.Vector3(
+        0.05 * Math.sin(phi) * Math.cos(theta),
+        0.05 * Math.sin(phi) * Math.sin(theta),
+        0.05 * Math.cos(phi)
+      );
+      const direction = origin.clone().normalize();
+      const arrow = new THREE.ArrowHelper(direction, origin, 0.04, 0xff6b00, 0.008, 0.006);
+      scene.add(arrow);
+    }
+  }
+  
+  // Auto-rotate animation
+  let angle = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    angle += 0.005;
+    camera.position.x = 0.25 * Math.cos(angle);
+    camera.position.z = 0.25 * Math.sin(angle);
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  }
+  animate();
+  
+  return { scene, camera, renderer };
+}
+
+let sphereScene, cylinderScene, planeScene, previewScene;
 
 // Initialize sphere chart with Plotly
 function initSphereChart() {
@@ -1391,8 +1476,33 @@ function updatePlaneChart(sigma_nC, d_cm, twoPlanes) {
 
 // Initialize
 function init() {
+  // Show welcome modal on first visit
+  const hasVisited = sessionStorage.getItem('gaussianSurfacesVisited');
+  if (!hasVisited) {
+    const modal = document.getElementById('welcomeModal');
+    modal.style.display = 'flex';
+    
+    // Render math in modal
+    setTimeout(() => {
+      if (window.renderMathInElement) {
+        renderMathInElement(modal, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '\\(', right: '\\)', display: false}
+          ],
+          throwOnError: false
+        });
+      }
+    }, 100);
+    
+    sessionStorage.setItem('gaussianSurfacesVisited', 'true');
+  }
+  
   // Auto-detect performance mode before creating scenes
   detectPerformanceMode();
+  
+  // Create preview scene
+  previewScene = createPreviewScene();
   
   sphereScene = new Scene3D('sphereCanvas');
   cylinderScene = new Scene3D('cylinderCanvas');

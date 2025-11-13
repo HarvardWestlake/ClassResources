@@ -25,6 +25,20 @@
     <script type="module" src="./gaussian-surfaces.js"></script>
   </head>
   <body>
+    <!-- Welcome Modal -->
+    <div id="welcomeModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 600px; margin: 2rem; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+        <h2 style="margin-top: 0; color: var(--hw-red);">Welcome to Gaussian Surfaces!</h2>
+        <p><strong>Prerequisites:</strong> This tool assumes you've already learned to calculate electric fields using <strong>Coulomb's Law with direct integration</strong>:</p>
+        <div style="background: var(--hw-gray-100); padding: 1rem; border-radius: 6px; margin: 1rem 0;">
+          $$\vec{E} = k \int \frac{dq}{r^2} \hat{r}$$
+        </div>
+        <p>You know this method works but is <em>extremely tedious</em> for continuous charge distributions. <strong>Gauss's Law provides an elegant shortcut when symmetry is present.</strong></p>
+        <p style="margin-bottom: 0;"><strong>Ready to explore?</strong> Use the interactive 3D visualizations below to master all three symmetries!</p>
+        <button onclick="document.getElementById('welcomeModal').style.display='none'" style="margin-top: 1.5rem; padding: 0.75rem 2rem; background: var(--hw-red); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1rem;">Let's Go! →</button>
+      </div>
+    </div>
+
     <header class="hw-topnav">
       <div class="container container--wide hw-topnav__inner">
         <a class="hw-brand" href="https://learnhw.web.app/">Harvard‑Westlake</a>
@@ -39,214 +53,137 @@
       <div class="container styleguide">
         <a href="../../index.html" style="display: inline-block; margin-bottom: 1rem; color: var(--hw-red); text-decoration: none; font-weight: 500;">← Back to Physics Widgets</a>
         <h1 class="h2">Gaussian Surfaces — Electric Field via Gauss's Law</h1>
+        
+        <!-- Preview Visualization -->
+        <div style="text-align: center; margin: 1.5rem 0;">
+          <div id="previewCanvas" style="width: 300px; height: 300px; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);"></div>
+          <p class="muted" style="margin-top: 0.5rem; font-size: 0.9rem;">↑ Auto-rotating preview • Scroll down for interactive controls</p>
+        </div>
 
         <section class="panel">
-          <h2 class="h5 eyebrow">Why Gauss's Law?</h2>
-          <p>
-            You've learned to calculate electric fields using Coulomb's Law and integration. For a point charge \(q\), the field is \(E = \frac{kq}{r^2}\). 
-            But what if we have a <strong>continuous charge distribution</strong>?
-          </p>
-          <div class="formula">
-            $$\vec{E} = k \int \frac{dq}{r^2} \hat{r}$$
-          </div>
-          <p>
-            This integral can be <strong>extremely difficult</strong> for complex geometries. Even for "simple" shapes like uniformly charged spheres or cylinders, 
-            the vector components and limits make integration tedious and error-prone.
-          </p>
-          <p>
-            <strong>Gauss's Law provides an elegant shortcut</strong> when the charge distribution has <strong>symmetry</strong>. 
-            Instead of integrating over every charge element, we use the relationship between electric flux and enclosed charge.
-          </p>
-        </section>
-
-        <section class="panel">
-          <h2 class="h5 eyebrow">Electric Flux: The Key Concept</h2>
-          <p class="muted">Understanding electric flux is essential for applying Gauss's Law.</p>
-          
-          <h3>What is Electric Flux?</h3>
-          <p>
-            Electric flux (Φ) measures "how much electric field passes through a surface." Think of it like water flow through a net—
-            more field perpendicular to the surface means more flux.
-          </p>
-          
-          <div class="formula">
-            $$\Phi_E = \int \vec{E} \cdot d\vec{A}$$
-          </div>
-          
-          <ul class="bullets">
-            <li>\(\vec{E}\) is the electric field vector</li>
-            <li>\(d\vec{A}\) is an infinitesimal area element vector (points outward from surface)</li>
-            <li>The dot product \(\vec{E} \cdot d\vec{A} = E \, dA \cos(\theta)\) means only the perpendicular component contributes</li>
-            <li>Units: N·m²/C or V·m</li>
-          </ul>
-
-          <div class="alert alert--info">
-            <strong>Key Insight:</strong> When the field is parallel to the surface (\(\theta = 90°\)), flux is zero. 
-            When perpendicular (\(\theta = 0°\)), flux is maximized.
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="h5 eyebrow">Gauss's Law</h2>
-          <p class="muted">One of Maxwell's four fundamental equations of electromagnetism.</p>
-          
-          <h3>The Law</h3>
+          <h2 class="h5 eyebrow">Quick Start</h2>
+          <p><strong>Gauss's Law</strong> provides an elegant shortcut for calculating electric fields when charge distributions have <strong>symmetry</strong>. Instead of tedious integration, we use:</p>
           <div class="formula">
             $$\oint \vec{E} \cdot d\vec{A} = \frac{Q_{\text{enclosed}}}{\varepsilon_0}$$
           </div>
-          
-          <p>
-            The total electric flux through any <strong>closed surface</strong> equals the enclosed charge divided by the permittivity of free space 
-            (\(\varepsilon_0 = 8.854 \times 10^{-12}\) C²/(N·m²)).
-          </p>
-
-          <h3>What This Means</h3>
-          <ul class="bullets">
-            <li>The <strong>shape</strong> of the Gaussian surface doesn't matter—only the enclosed charge</li>
-            <li>Field lines "emanate" from positive charges and "terminate" on negative charges</li>
-            <li>External charges contribute <strong>zero net flux</strong> (field lines enter and exit)</li>
-            <li>This is true for <strong>any</strong> closed surface, but useful only with symmetry</li>
-          </ul>
-
-          <div class="alert alert--warning">
-            <strong>Important:</strong> Gauss's Law is always true, but only <em>useful</em> for calculating E-fields when symmetry allows 
-            us to pull E out of the integral.
-          </div>
+          <p><strong>Use the interactive 3D visualizations below</strong> to explore all three symmetries: spherical, cylindrical, and planar.</p>
         </section>
 
-        <section class="panel">
-          <h2 class="h5 eyebrow">The Three Symmetries</h2>
-          <p>Gauss's Law is practical when charge distribution has one of three symmetries:</p>
+        <!-- Collapsible Background Knowledge -->
+        <details class="panel" style="cursor: pointer; border-left: 4px solid var(--hw-gold);">
+          <summary style="font-weight: 700; font-size: var(--step-1); padding: 0.5rem 0; list-style: none; user-select: none;">
+            <span style="display: inline-block; margin-right: 0.5rem;">▶</span>
+            📚 Background: Electric Flux & Gauss's Law
+            <span style="color: var(--hw-gray-600); font-weight: 400; font-size: 0.9rem; margin-left: 0.5rem;">(click to expand)</span>
+          </summary>
           
-          <div class="grid-3">
-            <div class="card">
-              <h3>Spherical Symmetry</h3>
-              <p class="muted">Sphere, charged shell</p>
-              <ul class="list-plain">
-                <li>• Gaussian surface: <strong>Sphere</strong></li>
-                <li>• Field perpendicular to surface everywhere</li>
-                <li>• E constant at radius r</li>
-                <li>• Result: E ∝ 1/r²</li>
-              </ul>
-            </div>
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--hw-border);">
+            <h3>Electric Flux</h3>
+            <p>Flux (Φ) measures "how much field passes through a surface"—like water through a net.</p>
+            <div class="formula">$$\Phi_E = \int \vec{E} \cdot d\vec{A}$$</div>
+            <p><strong>Key:</strong> Only perpendicular component contributes. \(\vec{E} \parallel\) surface → zero flux; \(\vec{E} \perp\) surface → maximum flux.</p>
 
-            <div class="card">
-              <h3>Cylindrical Symmetry</h3>
-              <p class="muted">Infinite line, charged rod</p>
-              <ul class="list-plain">
-                <li>• Gaussian surface: <strong>Cylinder</strong></li>
-                <li>• Field perpendicular to curved surface</li>
-                <li>• E constant at radius r</li>
-                <li>• Result: E ∝ 1/r</li>
-              </ul>
+            <h3 style="margin-top: 1.5rem;">Gauss's Law</h3>
+            <div class="formula">
+              $$\oint \vec{E} \cdot d\vec{A} = \frac{Q_{\text{enclosed}}}{\varepsilon_0}$$
             </div>
-
-            <div class="card">
-              <h3>Planar Symmetry</h3>
-              <p class="muted">Infinite sheet, parallel plates</p>
-              <ul class="list-plain">
-                <li>• Gaussian surface: <strong>Pillbox</strong></li>
-                <li>• Field perpendicular to end caps</li>
-                <li>• E constant near plane</li>
-                <li>• Result: E = constant</li>
-              </ul>
+            <p>Total flux through any <strong>closed surface</strong> equals enclosed charge divided by \(\varepsilon_0 = 8.854 \times 10^{-12}\) C²/(N·m²).</p>
+            
+            <div class="alert alert--info" style="margin-top: 1rem;">
+              <strong>When It's Useful:</strong> Gauss's Law is always true, but only simplifies calculations when <strong>symmetry</strong> allows us to pull E out of the integral.
             </div>
           </div>
-        </section>
+        </details>
 
-        <section class="panel">
-          <h2 class="h5 eyebrow">Step-by-Step: Applying Gauss's Law</h2>
-          <p>Follow these steps to solve any Gauss's Law problem:</p>
+        <style>
+          details[open] > summary > span:first-child { transform: rotate(90deg); display: inline-block; }
+          details > summary::-webkit-details-marker { display: none; }
+        </style>
+
+        <!-- Collapsible: Three Symmetries -->
+        <details class="panel" style="cursor: pointer;">
+          <summary style="font-weight: 700; font-size: var(--step-1); padding: 0.5rem 0; list-style: none; user-select: none;">
+            <span style="display: inline-block; margin-right: 0.5rem;">▶</span>
+            🔄 The Three Symmetries
+            <span style="color: var(--hw-gray-600); font-weight: 400; font-size: 0.9rem; margin-left: 0.5rem;">(click to expand)</span>
+          </summary>
           
-          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
-            <h3>Step 1: Identify Symmetry</h3>
-            <p>Does the charge distribution have spherical, cylindrical, or planar symmetry? If not, Gauss's Law won't help—use integration instead.</p>
-          </div>
-
-          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
-            <h3>Step 2: Choose Gaussian Surface</h3>
-            <p>Select a surface that matches the symmetry and <strong>passes through the point where you want to find \(E\)</strong>. 
-            The surface should be positioned so \(E\) is constant and perpendicular everywhere (or parallel/zero).</p>
-          </div>
-
-          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
-            <h3>Step 3: Calculate Flux</h3>
-            <p>Evaluate \(\oint \vec{E} \cdot d\vec{A}\). With good symmetry, this simplifies to \(E \cdot A\) where \(A\) is the surface area 
-            (since \(E\) is constant and perpendicular).</p>
-          </div>
-
-          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
-            <h3>Step 4: Find Enclosed Charge</h3>
-            <p>Calculate \(Q_{\text{enclosed}}\) inside your Gaussian surface. For uniform distributions, use \(Q = \rho V\) (volume) or \(Q = \lambda L\) (line) or \(Q = \sigma A\) (surface).</p>
-          </div>
-
-          <div class="card" style="margin: 0.75rem 0; padding: 1rem; border-left: 4px solid var(--hw-gold);">
-            <h3>Step 5: Apply Gauss's Law</h3>
-            <p>Set the flux equal to \(Q_{\text{enclosed}}/\varepsilon_0\) and solve for \(E\). Don't forget direction (radial for sphere/cylinder, perpendicular for plane).</p>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="h5 eyebrow">Conductors vs Insulators</h2>
-          <p>The behavior inside charged objects depends on whether they conduct electricity:</p>
-          
-          <div class="grid-2">
-            <div class="card">
-              <h3>Conductors</h3>
-              <p class="muted">Metals, free electrons can move</p>
-              <ul class="bullets">
-                <li><strong>\(E = 0\) inside:</strong> Charges move to surface until equilibrium</li>
-                <li><strong>All charge on surface:</strong> \(Q_{\text{enclosed}} = 0\) for \(r &lt; R\)</li>
-                <li><strong>Discontinuous \(E\):</strong> Sharp jump from 0 to \(E_{\text{surface}}\)</li>
-                <li><strong>In visualizations:</strong> Flat line inside, vertical jump at surface</li>
-              </ul>
-            </div>
-
-            <div class="card">
-              <h3>Insulators</h3>
-              <p class="muted">Plastic, glass, charge fixed in volume</p>
-              <ul class="bullets">
-                <li><strong>\(E \neq 0\) inside:</strong> Field increases linearly from center</li>
-                <li><strong>Charge throughout:</strong> \(Q_{\text{enclosed}}\) increases with \(r^3\) (sphere) or \(r^2\) (cylinder)</li>
-                <li><strong>Continuous \(E\):</strong> Smooth transition at surface</li>
-                <li><strong>In visualizations:</strong> Linear rise inside, smooth curve outside</li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="formula">
-            <strong>Check the "Conductor" checkbox in visualizations below to toggle between these behaviors!</strong>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="h5 eyebrow">Example: Charged Sphere</h2>
-          <p><strong>Problem:</strong> A sphere of radius R carries uniform charge Q. Find E(r) everywhere.</p>
-          
-          <h3>Solution for Conductor (\(r \ge R\) only):</h3>
-          <ol class="bullets">
-            <li><strong>Symmetry:</strong> Spherical → use spherical Gaussian surface</li>
-            <li><strong>Gaussian surface:</strong> Sphere of radius \(r\) centered on charged sphere</li>
-            <li><strong>Flux:</strong> \(E\) perpendicular everywhere, constant at radius \(r\)
-              <div class="formula">$$\Phi = E \cdot 4\pi r^2$$</div>
-            </li>
-            <li><strong>Enclosed charge:</strong> All charge \(Q\) is enclosed (on surface)
-              <div class="formula">$$Q_{\text{enc}} = Q$$</div>
-            </li>
-            <li><strong>Gauss's Law:</strong>
-              <div class="formula">
-                $$E \cdot 4\pi r^2 = \frac{Q}{\varepsilon_0}$$
-                $$E = \frac{Q}{4\pi \varepsilon_0 r^2} = \frac{kQ}{r^2}$$
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--hw-border);">
+            <div class="grid-3">
+              <div class="card">
+                <h3>Spherical</h3>
+                <p class="muted">E ∝ 1/r²</p>
+                <ul class="list-plain">
+                  <li>• Surface: Sphere</li>
+                  <li>• E ⊥ everywhere</li>
+                  <li>• Inverse-square law</li>
+                </ul>
               </div>
-            </li>
-          </ol>
 
-          <div class="alert alert--success">
-            <strong>Result:</strong> Same as point charge! This is why we can treat charged spheres as point charges when outside them.
+              <div class="card">
+                <h3>Cylindrical</h3>
+                <p class="muted">E ∝ 1/r</p>
+                <ul class="list-plain">
+                  <li>• Surface: Cylinder</li>
+                  <li>• E ⊥ to curved surface</li>
+                  <li>• Inverse law</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Planar</h3>
+                <p class="muted">E = constant</p>
+                <ul class="list-plain">
+                  <li>• Surface: Pillbox</li>
+                  <li>• E ⊥ to end caps</li>
+                  <li>• No distance dependence!</li>
+                </ul>
+              </div>
+            </div>
           </div>
+        </details>
 
-          <p style="margin-top: 1rem;"><strong>Try it below:</strong> Set Gaussian radius &gt; Sphere radius and observe \(E = kQ/r^2\) on the graph.</p>
-        </section>
+        <!-- Collapsible: 5-Step Method -->
+        <details class="panel" style="cursor: pointer;">
+          <summary style="font-weight: 700; font-size: var(--step-1); padding: 0.5rem 0; list-style: none; user-select: none;">
+            <span style="display: inline-block; margin-right: 0.5rem;">▶</span>
+            📝 5-Step Method
+            <span style="color: var(--hw-gray-600); font-weight: 400; font-size: 0.9rem; margin-left: 0.5rem;">(click to expand)</span>
+          </summary>
+          
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--hw-border);">
+            <ol class="bullets">
+              <li><strong>Identify Symmetry</strong> – Spherical, cylindrical, or planar?</li>
+              <li><strong>Choose Gaussian Surface</strong> – Match symmetry, pass through point of interest</li>
+              <li><strong>Calculate Flux</strong> – Simplifies to E·A with good symmetry</li>
+              <li><strong>Find Q<sub>enclosed</sub></strong> – Use ρV, λL, or σA</li>
+              <li><strong>Apply Gauss's Law</strong> – Set flux = Q<sub>enc</sub>/ε₀, solve for E</li>
+            </ol>
+          </div>
+        </details>
+
+        <!-- Collapsible: Conductors vs Insulators -->
+        <details class="panel" style="cursor: pointer;">
+          <summary style="font-weight: 700; font-size: var(--step-1); padding: 0.5rem 0; list-style: none; user-select: none;">
+            <span style="display: inline-block; margin-right: 0.5rem;">▶</span>
+            ⚡ Conductors vs Insulators
+            <span style="color: var(--hw-gray-600); font-weight: 400; font-size: 0.9rem; margin-left: 0.5rem;">(toggle checkbox in visualizations below)</span>
+          </summary>
+          
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--hw-border);">
+            <div class="grid-2">
+              <div class="card">
+                <h3>Conductors</h3>
+                <p><strong>\(E = 0\) inside</strong> • Charge on surface • Discontinuous jump</p>
+              </div>
+
+              <div class="card">
+                <h3>Insulators</h3>
+                <p><strong>\(E \neq 0\) inside</strong> • Charge throughout volume • Continuous transition</p>
+              </div>
+            </div>
+          </div>
+        </details>
 
         <section class="panel">
           <h2 class="h5 eyebrow">Charged Sphere Visualization</h2>
