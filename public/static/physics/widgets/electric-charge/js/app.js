@@ -535,6 +535,11 @@ function ensureStepperFor(index) {
     ev.stopPropagation();
     const sph = world.spheres[index];
     sph.grounded = !sph.grounded;
+    if (sph.grounded) {
+      btnGnd.textContent = 'Unground';
+    } else {
+      btnGnd.textContent = 'Ground';
+    }
   });
   const rec = { el, valEl, btnGnd };
   dynamicSteppers.set(index, rec);
