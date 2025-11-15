@@ -120,6 +120,15 @@ body {
     margin-top: -8px;
     margin-bottom: 12px;
     font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.practice-hint button {
+    font-size: 12px;
+    padding: 6px 12px;
+    min-height: auto;
 }
 
 .row {

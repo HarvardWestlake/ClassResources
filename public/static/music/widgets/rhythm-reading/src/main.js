@@ -56,6 +56,7 @@ import './styles.css';
         btnPlay: document.getElementById('play'),
         btnReset: document.getElementById('reset'),
         practiceHint: document.getElementById('practiceHint'),
+        exitPractice: document.getElementById('exitPractice'),
         sheet: document.getElementById('sheet'),
         canvasWrap: document.querySelector('.canvas-wrap'),
         startOverlay: document.getElementById('startOverlay'),
@@ -595,7 +596,7 @@ import './styles.css';
         }
 
         isPlaying = true;
-        if (el.practiceHint) el.practiceHint.style.display = 'block';
+        if (el.practiceHint) el.practiceHint.style.display = 'flex';
         loop();
     }
 
@@ -2459,6 +2460,13 @@ import './styles.css';
             if (el.tutorialsOverlay) el.tutorialsOverlay.style.display = 'none';
             if (el.startOverlay) el.startOverlay.style.display = 'flex';
             resizeCanvas();
+        });
+    }
+
+    // Exit practice button
+    if (el.exitPractice) {
+        el.exitPractice.addEventListener('click', () => {
+            stopPlayback();
         });
     }
 
