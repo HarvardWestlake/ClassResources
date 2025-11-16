@@ -450,10 +450,19 @@
             font-size: 0.9rem;
             line-height: 1.55;
             z-index: 1000;
-            pointer-events: none;
+            pointer-events: auto;  /* NEW - ALLOWS CLICKING LINKS */
             max-width: 320px;
             box-shadow: 0 20px 40px rgba(30, 21, 15, 0.28);
         }
+        .tooltip a {
+    color: #fde047;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.tooltip a:hover {
+    color: #fef08a;
+}
 
         .tooltip strong {
             color: var(--hw-white);
@@ -678,16 +687,31 @@
         return el;
     }
 
-    function showTooltip(html, x, y) {
-        tooltip.innerHTML = html;
-        tooltip.style.left = Math.max(12, x + 12) + 'px';
-        tooltip.style.top = Math.max(12, y + 12) + 'px';
-        tooltip.style.display = 'block';
-    }
+// Add state tracking for sticky tooltips
+let isTooltipSticky = false;
+let currentStickyToken = null;
 
-    function hideTooltip() {
-        tooltip.style.display = 'none';
+function showTooltip(html, x, y, sticky = false) {
+    tooltip.innerHTML = html;
+    tooltip.style.left = Math.max(12, x + 12) + 'px';
+    tooltip.style.top = Math.max(12, y + 12) + 'px';
+    tooltip.style.display = 'block';
+    isTooltipSticky = sticky;
+}
+
+function hideTooltip(force = false) {
+    // NEVER hide if the user is about to click a link
+    if (document.querySelector('.tooltip a:hover')) {
+        return;
     }
+    
+    if (isTooltipSticky && !force) {
+        return; // Don't hide if sticky unless forced
+    }
+    tooltip.style.display = 'none';
+    isTooltipSticky = false;
+    currentStickyToken = null;
+}
 
     // Overlay rendering
     function renderOverlay(rawText, tokens, groups) {
@@ -808,22 +832,46 @@
     }
 
     function bindRenderedTextTooltips() {
-        renderedText.querySelectorAll('.token').forEach(el => {
-            const ti = Number(el.getAttribute('data-ti'));
-            const t = STATE.tokens[ti];
-            const html = buildTooltipHtml(t);
-            el.addEventListener('mouseenter', (e) => showTooltip(html, e.clientX, e.clientY));
-            el.addEventListener('mousemove', (e) => showTooltip(html, e.clientX, e.clientY));
-            el.addEventListener('mouseleave', hideTooltip);
-            el.addEventListener('click', (e) => {
-                if (tooltip.style.display === 'block') { hideTooltip(); }
-                else { showTooltip(html, e.clientX, e.clientY); }
-            });
-            el.addEventListener('focus', (e) => showTooltip(html, e.clientX || 0, e.clientY || 0));
-            el.addEventListener('blur', hideTooltip);
-            el.setAttribute('tabindex', '0');
+    renderedText.querySelectorAll('.token').forEach(el => {
+        const ti = Number(el.getAttribute('data-ti'));
+        const t = STATE.tokens[ti];
+        const html = buildTooltipHtml(t);
+        
+        el.addEventListener('mouseenter', (e) => {
+            if (!isTooltipSticky) {
+                showTooltip(html, e.clientX, e.clientY);
+            }
         });
-    }
+        
+        el.addEventListener('mousemove', (e) => {
+            if (!isTooltipSticky) {
+                showTooltip(html, e.clientX, e.clientY);
+            }
+        });
+        
+        el.addEventListener('mouseleave', () => {
+            if (!isTooltipSticky) {
+                hideTooltip();
+            }
+        });
+        
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentStickyToken === el) {
+                // Clicking same token - unstick
+                hideTooltip(true);
+            } else {
+                // Make this tooltip sticky
+                currentStickyToken = el;
+                showTooltip(html, e.clientX, e.clientY, true);
+            }
+        });
+        
+        el.setAttribute('tabindex', '0');
+        el.addEventListener('focus', (e) => showTooltip(html, e.clientX || 0, e.clientY || 0));
+        el.addEventListener('blur', hideTooltip);
+    });
+}
 
     function attachTokenHover(index, html) {
         // Defer until after insert by event delegation on overlay
@@ -838,46 +886,70 @@
     }
 
     function tokenHoverHandler(e) {
-        const target = e.target.closest('.token');
-        if (!target) {
-            hideTooltip();
-            return;
+    const target = e.target.closest('.token');
+    if (!target) {
+        if (!isTooltipSticky) hideTooltip();
+        return;
+    }
+    const ti = Number(target.getAttribute('data-ti'));
+    const t = STATE.tokens[ti];
+    if (!t) return;
+    const html = buildTooltipHtml(t);
+    
+    if (e.type === 'click') {
+        e.stopPropagation();
+        if (currentStickyToken === target) {
+            hideTooltip(true);
+        } else {
+            currentStickyToken = target;
+            showTooltip(html, e.clientX, e.clientY, true);
         }
-        const ti = Number(target.getAttribute('data-ti'));
-        const t = STATE.tokens[ti];
-        if (!t) return;
-        const html = buildTooltipHtml(t);
+    } else if (!isTooltipSticky) {
         showTooltip(html, e.clientX, e.clientY);
     }
+}
 
-    function tokenHoverOut() {
+function tokenHoverOut() {
+    if (!isTooltipSticky) {
         hideTooltip();
     }
+}
 
     function buildTooltipHtml(t) {
-        if (!t) return '';
-        let def = t.definition || 'Unknown';
+    if (!t) return '';
+    let def = t.definition || 'Unknown';
 
-        // Safety check: if definition is same as the Latin word (normalized or original), show "Unknown"
-        if (def === t.normalized || def === t.original || def === 'unknown') {
-            def = 'Unknown';
-        }
+    // Check if definition is unknown/missing
+    const isUnknown = !def || def === 'Unknown' || def === 'unknown' || def === t.normalized || def === t.original;
 
-        const pos = t.pos || 'Unknown';
-        let extra = '';
-        if (pos === 'noun') {
-            extra = t.features.case ? `, case: ${t.features.case}` : '';
-        } else if (pos === 'verb') {
-            extra = t.features.tense ? `, tense: ${t.features.tense}` : '';
-        } else if (pos === 'adjective') {
-            extra = '';
-        } else if (pos === 'gerundive') {
-            extra = t.features.case ? `, case: ${t.features.case}` : '';
-        } else if (pos === 'participle') {
-            extra = t.features.tense ? `, tense: ${t.features.tense}` : '';
-        }
-        return `<strong>${escapeHtml(t.original)}</strong><br>${escapeHtml(def)}<br><span class="hint">${pos}${extra}</span>`;
+    if (isUnknown) {
+        // Create a link to Latin-is-Simple
+        const searchWord = encodeURIComponent(t.original);
+        const url = `https://www.latin-is-simple.com/en/vocabulary/search/?q=${searchWord}`;
+        def = `<a href="${url}" target="_blank" style="color: #fde047; text-decoration: underline;">Search on Latin-is-Simple →</a>`;
+    } else {
+        // Clean up the definition
+        def = def.replace(/^[fmn]\.?\s+/i, '');
+        def = def.replace(/^[,;\s]+/, '');
+        def = escapeHtml(def);
     }
+    
+    const pos = t.pos || 'Unknown';
+    let extra = '';
+    if (pos === 'noun') {
+        extra = t.features.case ? `, case: ${t.features.case}` : '';
+    } else if (pos === 'verb') {
+        extra = t.features.tense ? `, tense: ${t.features.tense}` : '';
+    } else if (pos === 'adjective') {
+        extra = '';
+    } else if (pos === 'gerundive') {
+        extra = t.features.case ? `, case: ${t.features.case}` : '';
+    } else if (pos === 'participle') {
+        extra = t.features.tense ? `, tense: ${t.features.tense}` : '';
+    }
+    
+    return `<strong>${escapeHtml(t.original)}</strong><br>${def}<br><span class="hint">${pos}${extra}</span>`;
+}
 
     // Legend removed - Translation Chunks don't need labels
 
@@ -3617,6 +3689,495 @@ for (let i = 0; i < tokens.length; i++) {
 
     // Comprehensive Latin dictionary based on https://personal.math.ubc.ca/~cass/frivs/latin/latin-dict-full.html
     const LEXICON = {
+        // Add these to your LEXICON object:
+        // === MOST COMMON WORDS (Top 100) ===
+// Conjunctions & Particles
+'atque': { pos: 'conjunction', def: 'and, and also' },
+'ac': { pos: 'conjunction', def: 'and' },
+'-que': { pos: 'particle', def: 'and' },
+'sed': { pos: 'conjunction', def: 'but' },
+'autem': { pos: 'conjunction', def: 'but, however, moreover' },
+'enim': { pos: 'particle', def: 'for, indeed' },
+'nam': { pos: 'conjunction', def: 'for' },
+'etiam': { pos: 'adverb', def: 'also, even' },
+'quoque': { pos: 'adverb', def: 'also, too' },
+'aut': { pos: 'conjunction', def: 'or' },
+'vel': { pos: 'conjunction', def: 'or' },
+
+// Prepositions (very common)
+'ab': { pos: 'preposition', def: 'from, by' },
+'abs': { pos: 'preposition', def: 'from, by' },
+'apud': { pos: 'preposition', def: 'among, at the house of' },
+'contra': { pos: 'preposition', def: 'against' },
+'inter': { pos: 'preposition', def: 'between, among' },
+'ob': { pos: 'preposition', def: 'on account of, because of' },
+'propter': { pos: 'preposition', def: 'on account of, because of' },
+'trans': { pos: 'preposition', def: 'across' },
+
+// Pronouns (essential)
+'ille': { pos: 'pronoun', def: 'that, he' },
+'illa': { pos: 'pronoun', def: 'that, she' },
+'illud': { pos: 'pronoun', def: 'that' },
+'illum': { pos: 'pronoun', def: 'that, him' },
+'illam': { pos: 'pronoun', def: 'that, her' },
+'illi': { pos: 'pronoun', def: 'to that, those' },
+'illius': { pos: 'pronoun', def: 'of that' },
+'hic': { pos: 'pronoun', def: 'this, he' },
+'haec': { pos: 'pronoun', def: 'this, she' },
+'hoc': { pos: 'pronoun', def: 'this' },
+'hunc': { pos: 'pronoun', def: 'this, him' },
+'hanc': { pos: 'pronoun', def: 'this, her' },
+'huius': { pos: 'pronoun', def: 'of this' },
+'is': { pos: 'pronoun', def: 'this, that, he' },
+'id': { pos: 'pronoun', def: 'this, that, it' },
+'idem': { pos: 'pronoun', def: 'the same' },
+'eadem': { pos: 'pronoun', def: 'the same' },
+
+// Question words
+'quis': { pos: 'pronoun', def: 'who?, what?' },
+'quid': { pos: 'pronoun', def: 'what?' },
+'cur': { pos: 'adverb', def: 'why?' },
+'quando': { pos: 'adverb', def: 'when?' },
+'quomodo': { pos: 'adverb', def: 'how?' },
+'ubi': { pos: 'adverb', def: 'where?' },
+
+// === SCHOOL & EDUCATION VOCABULARY ===
+'schola': { pos: 'noun', def: 'school' },
+'scholae': { pos: 'noun', def: 'school' },
+'scholam': { pos: 'noun', def: 'school' },
+'scholarum': { pos: 'noun', def: 'schools' },
+'scholis': { pos: 'noun', def: 'schools' },
+
+'discipulus': { pos: 'noun', def: 'student, pupil' },
+'discipuli': { pos: 'noun', def: 'student' },
+'discipulo': { pos: 'noun', def: 'student' },
+'discipulum': { pos: 'noun', def: 'student' },
+'discipulorum': { pos: 'noun', def: 'students' },
+
+'discipula': { pos: 'noun', def: 'female student' },
+'discipulae': { pos: 'noun', def: 'female student' },
+
+'magister': { pos: 'noun', def: 'teacher, master' },
+'magistri': { pos: 'noun', def: 'teacher' },
+'magistro': { pos: 'noun', def: 'teacher' },
+'magistrum': { pos: 'noun', def: 'teacher' },
+'magistrorum': { pos: 'noun', def: 'teachers' },
+
+'magistra': { pos: 'noun', def: 'female teacher' },
+'magistrae': { pos: 'noun', def: 'female teacher' },
+
+'liber': { pos: 'noun', def: 'book' },
+'libri': { pos: 'noun', def: 'book' },
+'libro': { pos: 'noun', def: 'book' },
+'librum': { pos: 'noun', def: 'book' },
+'librorum': { pos: 'noun', def: 'books' },
+'libris': { pos: 'noun', def: 'books' },
+
+'lectio': { pos: 'noun', def: 'lesson, reading' },
+'lectionis': { pos: 'noun', def: 'lesson' },
+'lectione': { pos: 'noun', def: 'lesson' },
+'lectionem': { pos: 'noun', def: 'lesson' },
+
+'studium': { pos: 'noun', def: 'study, eagerness' },
+'studii': { pos: 'noun', def: 'study' },
+'studio': { pos: 'noun', def: 'study' },
+'studia': { pos: 'noun', def: 'studies' },
+
+'studeo': { pos: 'verb', def: 'study, be eager for' },
+'studet': { pos: 'verb', def: 'studies' },
+'student': { pos: 'verb', def: 'study' },
+'studere': { pos: 'verb', def: 'study' },
+
+'tabula': { pos: 'noun', def: 'board, tablet' },
+'tabulae': { pos: 'noun', def: 'board' },
+'tabulam': { pos: 'noun', def: 'board' },
+
+'stilus': { pos: 'noun', def: 'stylus, pen' },
+'stili': { pos: 'noun', def: 'stylus' },
+'stilo': { pos: 'noun', def: 'stylus' },
+
+'litterae': { pos: 'noun', def: 'letters, literature' },
+'litterarum': { pos: 'noun', def: 'letters' },
+
+// === CAESAR'S GALLIC WARS (Latin 2-3) ===
+'caesar': { pos: 'proper-noun', def: 'Caesar' },
+'caesaris': { pos: 'proper-noun', def: 'Caesar' },
+'caesarem': { pos: 'proper-noun', def: 'Caesar' },
+'caesare': { pos: 'proper-noun', def: 'Caesar' },
+
+'gallia': { pos: 'noun', def: 'Gaul' },
+'galliae': { pos: 'noun', def: 'Gaul' },
+'galliam': { pos: 'noun', def: 'Gaul' },
+
+'gallus': { pos: 'noun', def: 'Gaul (person)' },
+'galli': { pos: 'noun', def: 'Gauls' },
+'gallos': { pos: 'noun', def: 'Gauls' },
+'gallorum': { pos: 'noun', def: 'Gauls' },
+
+'helvetius': { pos: 'adjective', def: 'Helvetian' },
+'helvetii': { pos: 'noun', def: 'Helvetians' },
+'helvetiorum': { pos: 'noun', def: 'Helvetians' },
+
+'legio': { pos: 'noun', def: 'legion' },
+'legionis': { pos: 'noun', def: 'legion' },
+'legionem': { pos: 'noun', def: 'legion' },
+'legiones': { pos: 'noun', def: 'legions' },
+
+'castra': { pos: 'noun', def: 'camp' },
+'castrorum': { pos: 'noun', def: 'camp' },
+'castris': { pos: 'noun', def: 'camp' },
+
+'exercitus': { pos: 'noun', def: 'army' },
+'exercituum': { pos: 'noun', def: 'armies' },
+
+'hostis': { pos: 'noun', def: 'enemy' },
+'hostes': { pos: 'noun', def: 'enemies' },
+'hostium': { pos: 'noun', def: 'enemies' },
+'hostibus': { pos: 'noun', def: 'enemies' },
+
+'proelium': { pos: 'noun', def: 'battle' },
+'proelii': { pos: 'noun', def: 'battle' },
+'proelio': { pos: 'noun', def: 'battle' },
+'proelia': { pos: 'noun', def: 'battles' },
+
+'victoria': { pos: 'noun', def: 'victory' },
+'victoriae': { pos: 'noun', def: 'victory' },
+'victoriam': { pos: 'noun', def: 'victory' },
+
+'clades': { pos: 'noun', def: 'defeat, disaster' },
+'cladis': { pos: 'noun', def: 'defeat' },
+'cladem': { pos: 'noun', def: 'defeat' },
+
+'imperium': { pos: 'noun', def: 'command, empire' },
+'imperii': { pos: 'noun', def: 'command' },
+'imperio': { pos: 'noun', def: 'command' },
+
+// === CICERO (Latin 3-4) ===
+'cicero': { pos: 'proper-noun', def: 'Cicero' },
+'ciceronis': { pos: 'proper-noun', def: 'Cicero' },
+
+'oratio': { pos: 'noun', def: 'speech' },
+'orationis': { pos: 'noun', def: 'speech' },
+'oratione': { pos: 'noun', def: 'speech' },
+'orationem': { pos: 'noun', def: 'speech' },
+'orationes': { pos: 'noun', def: 'speeches' },
+
+'coniuratio': { pos: 'noun', def: 'conspiracy' },
+'coniurationis': { pos: 'noun', def: 'conspiracy' },
+'coniurationem': { pos: 'noun', def: 'conspiracy' },
+
+'catilina': { pos: 'proper-noun', def: 'Catiline' },
+'catilinae': { pos: 'proper-noun', def: 'Catiline' },
+
+'senatus': { pos: 'noun', def: 'senate' },
+'senatui': { pos: 'noun', def: 'senate' },
+
+'consul': { pos: 'noun', def: 'consul' },
+'consulis': { pos: 'noun', def: 'consul' },
+'consule': { pos: 'noun', def: 'consul' },
+'consulem': { pos: 'noun', def: 'consul' },
+'consules': { pos: 'noun', def: 'consuls' },
+
+'res publica': { pos: 'noun', def: 'republic, state' },
+'rei publicae': { pos: 'noun', def: 'republic' },
+
+'civis': { pos: 'noun', def: 'citizen' },
+'cives': { pos: 'noun', def: 'citizens' },
+'civium': { pos: 'noun', def: 'citizens' },
+
+'libertas': { pos: 'noun', def: 'freedom, liberty' },
+'libertatis': { pos: 'noun', def: 'freedom' },
+'libertatem': { pos: 'noun', def: 'freedom' },
+'libertate': { pos: 'noun', def: 'freedom' },
+
+// === VERGIL'S AENEID (Latin 3-4) ===
+'vergilius': { pos: 'proper-noun', def: 'Vergil' },
+'aeneis': { pos: 'noun', def: 'Aeneid' },
+'aeneidos': { pos: 'noun', def: 'Aeneid' },
+
+'pius': { pos: 'adjective', def: 'dutiful, pious' },
+'pia': { pos: 'adjective', def: 'dutiful, pious' },
+'pium': { pos: 'adjective', def: 'dutiful, pious' },
+'pio': { pos: 'adjective', def: 'dutiful, pious' },
+
+'fatum': { pos: 'noun', def: 'fate, destiny' },
+'fati': { pos: 'noun', def: 'fate' },
+'fato': { pos: 'noun', def: 'fate' },
+'fata': { pos: 'noun', def: 'fates' },
+'fatis': { pos: 'noun', def: 'fates' },
+
+'dido': { pos: 'proper-noun', def: 'Dido' },
+'didonis': { pos: 'proper-noun', def: 'Dido' },
+
+'turnus': { pos: 'proper-noun', def: 'Turnus' },
+'turni': { pos: 'proper-noun', def: 'Turnus' },
+
+'latinus': { pos: 'proper-noun', def: 'Latinus' },
+'latini': { pos: 'proper-noun', def: 'Latinus' },
+
+'troia': { pos: 'noun', def: 'Troy' },
+'troiae': { pos: 'noun', def: 'Troy' },
+'troiam': { pos: 'noun', def: 'Troy' },
+
+'troianus': { pos: 'adjective', def: 'Trojan' },
+'troiana': { pos: 'adjective', def: 'Trojan' },
+'troianum': { pos: 'adjective', def: 'Trojan' },
+
+'heros': { pos: 'noun', def: 'hero' },
+'herois': { pos: 'noun', def: 'hero' },
+'heroa': { pos: 'noun', def: 'hero' },
+
+// === OVID'S METAMORPHOSES (Latin 4) ===
+'ovidius': { pos: 'proper-noun', def: 'Ovid' },
+'metamorphosis': { pos: 'noun', def: 'metamorphosis, transformation' },
+
+'apollo': { pos: 'proper-noun', def: 'Apollo' },
+'apollinis': { pos: 'proper-noun', def: 'Apollo' },
+
+'daphne': { pos: 'proper-noun', def: 'Daphne' },
+'daphnes': { pos: 'proper-noun', def: 'Daphne' },
+
+'cupido': { pos: 'proper-noun', def: 'Cupid' },
+'cupidinis': { pos: 'proper-noun', def: 'Cupid' },
+
+'narcissus': { pos: 'proper-noun', def: 'Narcissus' },
+'narcissi': { pos: 'proper-noun', def: 'Narcissus' },
+
+'echo': { pos: 'proper-noun', def: 'Echo' },
+'echos': { pos: 'proper-noun', def: 'Echo' },
+
+// === COMMON VERBS (all forms) ===
+'possum': { pos: 'verb', def: 'be able, can' },
+'potes': { pos: 'verb', def: 'can' },
+'potest': { pos: 'verb', def: 'can' },
+'possumus': { pos: 'verb', def: 'can' },
+'potestis': { pos: 'verb', def: 'can' },
+'possunt': { pos: 'verb', def: 'can' },
+'posse': { pos: 'verb', def: 'be able, can' },
+'potui': { pos: 'verb', def: 'was able' },
+
+'volo': { pos: 'verb', def: 'want, wish' },
+'vis': { pos: 'verb', def: 'want' },
+'vult': { pos: 'verb', def: 'wants' },
+'volumus': { pos: 'verb', def: 'want' },
+'vultis': { pos: 'verb', def: 'want' },
+'volunt': { pos: 'verb', def: 'want' },
+'velle': { pos: 'verb', def: 'want' },
+
+'nolo': { pos: 'verb', def: 'not want, be unwilling' },
+'non vis': { pos: 'verb', def: 'not want' },
+'non vult': { pos: 'verb', def: 'not want' },
+'nolumus': { pos: 'verb', def: 'not want' },
+'nolunt': { pos: 'verb', def: 'not want' },
+'nolle': { pos: 'verb', def: 'not want' },
+
+'fero': { pos: 'verb', def: 'carry, bear, bring' },
+'fers': { pos: 'verb', def: 'carry' },
+'fert': { pos: 'verb', def: 'carries' },
+'ferimus': { pos: 'verb', def: 'carry' },
+'fertis': { pos: 'verb', def: 'carry' },
+'ferunt': { pos: 'verb', def: 'carry' },
+'ferre': { pos: 'verb', def: 'carry' },
+'tuli': { pos: 'verb', def: 'carried' },
+'latum': { pos: 'verb', def: 'carried' },
+
+'eo': { pos: 'verb', def: 'go' },
+'is': { pos: 'verb', def: 'go' },
+'it': { pos: 'verb', def: 'goes' },
+'imus': { pos: 'verb', def: 'go' },
+'itis': { pos: 'verb', def: 'go' },
+'eunt': { pos: 'verb', def: 'go' },
+'ire': { pos: 'verb', def: 'go' },
+'ii': { pos: 'verb', def: 'went' },
+'ivi': { pos: 'verb', def: 'went' },
+'itum': { pos: 'verb', def: 'gone' },
+
+'inquam': { pos: 'verb', def: 'say, said' },
+'inquis': { pos: 'verb', def: 'say' },
+'inquit': { pos: 'verb', def: 'says, said' },
+'inquiunt': { pos: 'verb', def: 'say' },
+
+// === COMMON ADJECTIVES ===
+'melior': { pos: 'adjective', def: 'better' },
+'melius': { pos: 'adjective', def: 'better' },
+'optimus': { pos: 'adjective', def: 'best' },
+'optima': { pos: 'adjective', def: 'best' },
+'optimum': { pos: 'adjective', def: 'best' },
+
+'peior': { pos: 'adjective', def: 'worse' },
+'peius': { pos: 'adjective', def: 'worse' },
+'pessimus': { pos: 'adjective', def: 'worst' },
+'pessima': { pos: 'adjective', def: 'worst' },
+'pessimum': { pos: 'adjective', def: 'worst' },
+
+'maior': { pos: 'adjective', def: 'greater, larger' },
+'maius': { pos: 'adjective', def: 'greater' },
+'maximus': { pos: 'adjective', def: 'greatest, largest' },
+'maxima': { pos: 'adjective', def: 'greatest' },
+'maximum': { pos: 'adjective', def: 'greatest' },
+
+'minor': { pos: 'adjective', def: 'smaller, less' },
+'minus': { pos: 'adjective', def: 'smaller, less' },
+'minimus': { pos: 'adjective', def: 'smallest, least' },
+'minima': { pos: 'adjective', def: 'smallest' },
+'minimum': { pos: 'adjective', def: 'smallest' },
+
+'plus': { pos: 'adjective', def: 'more' },
+'pluris': { pos: 'adjective', def: 'more' },
+'plurimus': { pos: 'adjective', def: 'most, very many' },
+'plurima': { pos: 'adjective', def: 'most' },
+'plurimum': { pos: 'adjective', def: 'most' },
+
+// === NUMBERS ===
+'quattuor': { pos: 'numeral', def: 'four' },
+'quinque': { pos: 'numeral', def: 'five' },
+'sex': { pos: 'numeral', def: 'six' },
+'septem': { pos: 'numeral', def: 'seven' },
+'octo': { pos: 'numeral', def: 'eight' },
+'novem': { pos: 'numeral', def: 'nine' },
+'decem': { pos: 'numeral', def: 'ten' },
+'centum': { pos: 'numeral', def: 'hundred' },
+'mille': { pos: 'numeral', def: 'thousand' },
+'milia': { pos: 'numeral', def: 'thousands' },
+
+// === TIME EXPRESSIONS ===
+'dum': { pos: 'conjunction', def: 'while, as long as, until' },
+'donec': { pos: 'conjunction', def: 'until, as long as' },
+'postquam': { pos: 'conjunction', def: 'after' },
+'priusquam': { pos: 'conjunction', def: 'before' },
+'antequam': { pos: 'conjunction', def: 'before' },
+'simul': { pos: 'adverb', def: 'at the same time, together' },
+'simul atque': { pos: 'conjunction', def: 'as soon as' },
+'interea': { pos: 'adverb', def: 'meanwhile' },
+'subito': { pos: 'adverb', def: 'suddenly' },
+
+// === LOCATION / DIRECTION ===
+'huc': { pos: 'adverb', def: 'to here, hither' },
+'illuc': { pos: 'adverb', def: 'to there, thither' },
+'hinc': { pos: 'adverb', def: 'from here, hence' },
+'inde': { pos: 'adverb', def: 'from there, thence' },
+'unde': { pos: 'adverb', def: 'from where, whence' },
+'quo': { pos: 'adverb', def: 'to where, whither' },
+'qua': { pos: 'adverb', def: 'by which way, where' },
+
+// COMMON WORDS THAT ARE ALSO PROPER NAMES
+// agricola = farmer (NOT just Agricola the Roman general)
+'agricola': { pos: 'noun', def: 'farmer, husbandman' },
+'agricolae': { pos: 'noun', def: 'farmer, husbandman' },
+'agricolam': { pos: 'noun', def: 'farmer, husbandman' },
+'agricolarum': { pos: 'noun', def: 'farmers' },
+'agricolis': { pos: 'noun', def: 'farmers' },
+
+// aquila = eagle (NOT just the town or constellation)
+'aquila': { pos: 'noun', def: 'eagle' },
+'aquilae': { pos: 'noun', def: 'eagle' },
+'aquilam': { pos: 'noun', def: 'eagle' },
+'aquilarum': { pos: 'noun', def: 'eagles' },
+
+// silva = forest (NOT just Silva as a name)
+'silva': { pos: 'noun', def: 'forest, woods' },
+'silvae': { pos: 'noun', def: 'forest' },
+'silvam': { pos: 'noun', def: 'forest' },
+'silvarum': { pos: 'noun', def: 'forests' },
+'silvis': { pos: 'noun', def: 'forests' },
+
+// cicero = chickpea (NOT just the orator)
+'cicero': { pos: 'noun', def: 'chickpea' },
+'ciceronis': { pos: 'noun', def: 'chickpea' },
+
+// scipio = staff, walking stick (NOT just Scipio Africanus)
+'scipio': { pos: 'noun', def: 'staff, walking stick' },
+'scipionis': { pos: 'noun', def: 'staff' },
+
+// brutus = heavy, dull, stupid (NOT just Marcus Brutus)
+'brutus': { pos: 'adjective', def: 'heavy, dull, stupid' },
+'bruta': { pos: 'adjective', def: 'heavy, dull' },
+'brutum': { pos: 'adjective', def: 'heavy, dull' },
+
+// cato = shrewd person, wise man (NOT just Cato the Elder/Younger)
+'cato': { pos: 'noun', def: 'shrewd person, wise man' },
+'catonis': { pos: 'noun', def: 'shrewd person' },
+
+// rufus = red, red-haired (common as adjective before becoming a name)
+'rufus': { pos: 'adjective', def: 'red, red-haired, ruddy' },
+'rufa': { pos: 'adjective', def: 'red, red-haired' },
+'rufum': { pos: 'adjective', def: 'red, red-haired' },
+
+// niger = black, dark (common adjective/name)
+'niger': { pos: 'adjective', def: 'black, dark' },
+'nigra': { pos: 'adjective', def: 'black, dark' },
+'nigrum': { pos: 'adjective', def: 'black, dark' },
+
+// albus = white, bright (common adjective/name)
+'albus': { pos: 'adjective', def: 'white, bright' },
+'alba': { pos: 'adjective', def: 'white, bright' },
+'album': { pos: 'adjective', def: 'white, bright' },
+
+// corvus = crow, raven (NOT just the Roman cognomen)
+'corvus': { pos: 'noun', def: 'crow, raven' },
+'corvi': { pos: 'noun', def: 'crow' },
+'corvum': { pos: 'noun', def: 'crow' },
+
+// leo = lion (NOT just Pope Leo or constellation)
+'leo': { pos: 'noun', def: 'lion' },
+'leonis': { pos: 'noun', def: 'lion' },
+'leonem': { pos: 'noun', def: 'lion' },
+'leone': { pos: 'noun', def: 'lion' },
+
+// pius = dutiful, pious (NOT just Antoninus Pius)
+'pius': { pos: 'adjective', def: 'dutiful, pious, devoted' },
+'pia': { pos: 'adjective', def: 'dutiful, pious' },
+'pium': { pos: 'adjective', def: 'dutiful, pious' },
+
+// felix = lucky, happy, fortunate (NOT just as a name)
+'felix': { pos: 'adjective', def: 'lucky, happy, fortunate' },
+'felicis': { pos: 'adjective', def: 'lucky, happy' },
+'felicem': { pos: 'adjective', def: 'lucky, happy' },
+
+// victor = conqueror, victor (NOT just as a name)
+'victor': { pos: 'noun', def: 'conqueror, victor, winner' },
+'victoris': { pos: 'noun', def: 'conqueror' },
+'victorem': { pos: 'noun', def: 'conqueror' },
+
+// augustus = majestic, venerable (before it became a title)
+'augustus': { pos: 'adjective', def: 'majestic, venerable, august' },
+'augusta': { pos: 'adjective', def: 'majestic, venerable' },
+'augustum': { pos: 'adjective', def: 'majestic, venerable' },
+
+// gracchus = jackdaw (bird) (NOT just the Gracchi brothers)
+'gracchus': { pos: 'noun', def: 'jackdaw (a bird)' },
+'gracchi': { pos: 'noun', def: 'jackdaw' },
+
+// flaccus = flabby-eared (common cognomen from adjective)
+'flaccus': { pos: 'adjective', def: 'flabby-eared, drooping' },
+'flacca': { pos: 'adjective', def: 'flabby-eared' },
+'flaccum': { pos: 'adjective', def: 'flabby-eared' },
+
+// paulus = small, little (NOT just the apostle Paul/Paulus)
+'paulus': { pos: 'adjective', def: 'small, little' },
+'paula': { pos: 'adjective', def: 'small, little' },
+'paulum': { pos: 'adjective', def: 'small, little' },
+
+// PRAENOMINA THAT ARE ALSO ORDINAL NUMBERS
+// quintus = fifth (both a name and a number)
+'quintus': { pos: 'adjective', def: 'fifth' },
+'quinta': { pos: 'adjective', def: 'fifth' },
+'quintum': { pos: 'adjective', def: 'fifth' },
+
+// sextus = sixth
+'sextus': { pos: 'adjective', def: 'sixth' },
+'sexta': { pos: 'adjective', def: 'sixth' },
+'sextum': { pos: 'adjective', def: 'sixth' },
+
+// septimus = seventh
+'septimus': { pos: 'adjective', def: 'seventh' },
+'septima': { pos: 'adjective', def: 'seventh' },
+'septimum': { pos: 'adjective', def: 'seventh' },
+
+// decimus = tenth
+'decimus': { pos: 'adjective', def: 'tenth' },
+'decima': { pos: 'adjective', def: 'tenth' },
+'decimum': { pos: 'adjective', def: 'tenth' },
         // Common verbs (with infinitives)
         'amo': { pos: 'verb', def: 'love' }, 'amas': { pos: 'verb', def: 'love' }, 'amat': { pos: 'verb', def: 'love' }, 'amamus': { pos: 'verb', def: 'love' }, 'amant': { pos: 'verb', def: 'love' }, 'amare': { pos: 'verb', def: 'love' },
         'amor': { pos: 'verb', def: 'am loved' }, 'amaris': { pos: 'verb', def: 'are loved' }, 'amatur': { pos: 'verb', def: 'is loved' }, 'amamur': { pos: 'verb', def: 'are loved' }, 'amamini': { pos: 'verb', def: 'are loved' }, 'amantur': { pos: 'verb', def: 'are loved' },
@@ -4239,12 +4800,12 @@ for (let i = 0; i < tokens.length; i++) {
         const normalized = normalizeLatin(word);
         console.log('[API LOOKUP] Starting lookup for:', word, '→', normalized);
        
-        // Check cache first
-        const cache = getWordCache();
-        if (cache[normalized]) {
-            console.log('[API LOOKUP] Found in cache:', normalized, '→', cache[normalized]);
-            return cache[normalized];
-        }
+        // // Check cache first
+        // const cache = getWordCache();
+        // if (cache[normalized]) {
+        //     console.log('[API LOOKUP] Found in cache:', normalized, '→', cache[normalized]);
+        //     return cache[normalized];
+        // }
        
         console.log('[API LOOKUP] Not in cache, trying APIs...');
        
@@ -4363,46 +4924,45 @@ if (lexSenseElements.length > 0) {
     const firstDef = lexSenseElements[0].textContent.trim();
     console.log('[API LOOKUP] Raw first definition:', firstDef.substring(0, 200));
     
-    // Clean it up:
-    // Remove Roman numerals at start (I., II., etc)
-    let cleaned = firstDef.replace(/^[IVX]+\.\s*/, '');
-    
-    // Remove letter markers (A., B., C.)
-    cleaned = cleaned.replace(/^[A-Z]\.\s*/, '');
-    
-    // Remove editorial markers
-    cleaned = cleaned.replace(/^(Transf\.|Lit\.|Fig\.|Meton\.|Poet\.|In gen\.|Esp\.|Absol\.)\s*/gi, '');
-    
-    // Take only up to first semicolon, colon, or citation
-    cleaned = cleaned.split(/[;:]/)[0].trim();
-    
-    // Remove any citations (text with author abbreviations like "Lucr, 1, 353")
-    cleaned = cleaned.replace(/\b[A-Z][a-z]{2,}\b.*\d.*/g, '').trim();
-    
-    // Take first clause (before comma if multiple)
-    // But keep compound phrases like "food for man and beast"
-    const firstClause = cleaned.split(',')[0].trim();
-    
-    if (firstClause.length > 2 && firstClause.length < 150) {
-        definition = firstClause;
-        console.log('[API LOOKUP] ✓ Extracted definition:', definition);
-    }
+    let cleaned = firstDef;
+
+// STEP 1: Extract everything AFTER the etymology bracket (if present)
+// Perseus format: [etymology stuff], actual definition
+if (cleaned.includes(']')) {
+    // Take everything after the last closing bracket
+    cleaned = cleaned.split(']').pop();
 }
 
-// If still no definition, try extracting from any English text
-if (!definition || definition === lemma) {
-    console.log('[API LOOKUP] ⚠️ Could not extract clean definition, trying fallback...');
+// STEP 2: Remove Roman numerals at start (I., II., etc)
+cleaned = cleaned.replace(/^[IVX]+\.\s*/, '');
+
+// STEP 3: Remove gender markers at start (f., m., n.)
+cleaned = cleaned.replace(/^[fmn]\.\s*/i, '');
+
+// STEP 4: Remove leading punctuation/whitespace
+cleaned = cleaned.replace(/^[,;\s]+/, '');
+
+// STEP 5: Remove quoted Latin phrases (like "ovis mas")
+cleaned = cleaned.replace(/^"[^"]*",?\s*/g, '');
+
+// STEP 6: Take first sentence/clause (before period or semicolon)
+cleaned = cleaned.split(/[.;]/)[0].trim();
+
+// STEP 7: Remove any remaining citations
+cleaned = cleaned.replace(/\b[A-Z][a-z]{2,}\.\s*[A-Z].*$/g, '').trim();
+
+// STEP 8: Take first meaningful part (before comma, but keep "a sheep" not just "a")
+const parts = cleaned.split(',');
+cleaned = parts[0].trim();
+
+console.log('[API LOOKUP] Cleaned definition:', cleaned);
     
-    // Just take the first few words after Roman numeral
-    const allText = dictDoc.querySelector('.lex_sense, .lex_sense1')?.textContent || '';
-    const withoutRoman = allText.replace(/^[IVX]+\.\s*/, '');
-    const firstWords = withoutRoman.split(/[\s]+/).slice(0, 8).join(' ');
-    
-    if (firstWords && firstWords.length > 2) {
-        definition = firstWords.split(',')[0].split(';')[0].trim();
-        console.log('[API LOOKUP] ✓ Fallback definition:', definition);
-    } else {
-        definition = 'unknown';
+    if (withoutParens.length > 2 && withoutParens.length < 150) {
+        definition = withoutParens;
+        console.log('[API LOOKUP] ✓ Extracted definition:', definition);
+    } else if (firstClause.length > 2 && firstClause.length < 150) {
+        definition = firstClause;
+        console.log('[API LOOKUP] ✓ Extracted definition:', definition);
     }
 }
             
@@ -4713,6 +5273,40 @@ try {
 
     // Initialize counts
     updateWordCount();
+// Prevent any clicks inside tooltip from closing it
+tooltip.addEventListener('mousedown', (e) => {
+    e.stopImmediatePropagation();
+}, true);
+
+tooltip.addEventListener('click', (e) => {
+    e.stopImmediatePropagation();
+    
+    // If it's a link, manually open it
+    if (e.target.tagName === 'A') {
+        const href = e.target.getAttribute('href');
+        if (href) {
+            window.open(href, '_blank');
+            hideTooltip(true); // Close after opening link
+        }
+    }
+}, true);
+
+// Global handler to close tooltip when clicking outside
+document.addEventListener('mousedown', (e) => {
+    // Ignore if clicking inside tooltip
+    if (tooltip.contains(e.target)) {
+        return;
+    }
+    
+    // Ignore if clicking on a token (handled separately)
+    if (e.target.closest('.token')) {
+        return;
+    }
+    
+    // Close the tooltip
+    hideTooltip(true);
+});
+    
 })();
     </script>
 </body>
