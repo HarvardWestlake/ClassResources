@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "firebase": "^12.6.0",
     "globe.gl": "^2.44.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
