@@ -117,9 +117,17 @@ input[type="range"] { vertical-align: middle; }
   height: 100vh;
   display: block;
   cursor: grab;
+  touch-action: none;
+  -ms-touch-action: none;
 }
 #canvas.dragging { cursor: grabbing; }
 #canvas.adding { cursor: crosshair; }
+.controls,
+.controls .mode-option,
+#steppers,
+.stepper {
+  touch-action: none;
+}
 .legend {
   display: inline-flex;
   gap: 10px;

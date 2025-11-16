@@ -8,6 +8,10 @@ import { step as physicsStep } from './physics.js';
 // Canvas setup with HiDPI support
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+// Ensure mobile browsers don't intercept drags/gestures
+if (canvas && typeof canvas.style !== 'undefined') {
+  canvas.style.touchAction = 'none';
+}
 function resizeCanvas() {
   const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   const width = Math.floor(window.innerWidth);
