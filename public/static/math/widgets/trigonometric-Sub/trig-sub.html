@@ -868,32 +868,56 @@
           </button>
         </div>
         <div id="tsw-body">
-          <div class="row-3">
+          <div class="row">
             <div>
               <label for="tsw-function">Function</label>
               <select id="tsw-function" aria-label="function">
-                <option value="sqrt_minus">sqrt(a^2 - x^2)</option>
-                <option value="sqrt_plus">sqrt(a^2 + x^2)</option>
-                <option value="sqrt_x2_minus">sqrt(x^2 - a^2)</option>
-                <option value="inv_sqrt_minus">1/sqrt(a^2 - x^2)</option>
-                <option value="inv_sqrt_plus">1/sqrt(a^2 + x^2)</option>
-                <option value="inv_sqrt_x2_minus">1/sqrt(x^2 - a^2)</option>
-                <option value="inv_minus">1/(a^2 - x^2)</option>
-                <option value="inv_plus">1/(a^2 + x^2)</option>
-                <option value="inv_x2_minus">1/(x^2 - a^2)</option>
+                <option value="sqrt_minus">√(a² − x²)</option>
+                <option value="sqrt_plus">√(a² + x²)</option>
+                <option value="sqrt_x2_minus">√(x² − a²)</option>
+                <option value="inv_sqrt_minus">1/√(a² − x²)</option>
+                <option value="inv_sqrt_plus">1/√(a² + x²)</option>
+                <option value="inv_sqrt_x2_minus">1/√(x² − a²)</option>
+                <option value="inv_minus">1/(a² − x²)</option>
+                <option value="inv_plus">1/(a² + x²)</option>
+                <option value="inv_x2_minus">1/(x² − a²)</option>
               </select>
+              <div id="tsw-function-preview" aria-live="polite" style="margin-top: 8px; font-size: 22px;"></div>
+
+              <div style="margin-top: 8px">
+                <label for="tsw-a">a</label>
+                <input
+                  id="tsw-a"
+                  type="number"
+                  step="0.1"
+                  min="0.5"
+                  value="2"
+                  aria-label="parameter a"
+                />
+              </div>
+
+              <div id="tsw-bounds-row" style="margin-top: 8px">
+                <div>
+                  <label for="tsw-L">Left bound L</label>
+                  <input
+                    id="tsw-L"
+                    type="number"
+                    step="0.1"
+                    aria-label="left bound"
+                  />
+                </div>
+                <div style="margin-top: 8px">
+                  <label for="tsw-R">Right bound R</label>
+                  <input
+                    id="tsw-R"
+                    type="number"
+                    step="0.1"
+                    aria-label="right bound"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label for="tsw-a">a</label>
-              <input
-                id="tsw-a"
-                type="number"
-                step="0.1"
-                min="0.5"
-                value="2"
-                aria-label="parameter a"
-              />
-            </div>
+
             <div>
               <label>&nbsp;</label>
               <div style="display: flex; gap: 12px; align-items: center">
@@ -910,27 +934,6 @@
                   integral</label
                 >
               </div>
-            </div>
-          </div>
-
-          <div class="row" style="margin-top: 8px" id="tsw-bounds-row">
-            <div>
-              <label for="tsw-L">Left bound L</label>
-              <input
-                id="tsw-L"
-                type="number"
-                step="0.1"
-                aria-label="left bound"
-              />
-            </div>
-            <div>
-              <label for="tsw-R">Right bound R</label>
-              <input
-                id="tsw-R"
-                type="number"
-                step="0.1"
-                aria-label="right bound"
-              />
             </div>
           </div>
 
@@ -1318,6 +1321,7 @@
         const subPanel = document.getElementById("tsw-subpanel");
         const mapBox = document.getElementById("tsw-map");
         const thetaBox = document.getElementById("tsw-theta");
+        const funcPreview = document.getElementById("tsw-function-preview");
 
         const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -1474,6 +1478,19 @@
           },
         };
 
+        // TeX for the original f(x) shown under the Function select
+        const funcTex = {
+          sqrt_minus: "\\sqrt{a^2 - x^2}",
+          sqrt_plus: "\\sqrt{a^2 + x^2}",
+          sqrt_x2_minus: "\\sqrt{x^2 - a^2}",
+          inv_sqrt_minus: "\\frac{1}{\\sqrt{a^2 - x^2}}",
+          inv_sqrt_plus: "\\frac{1}{\\sqrt{a^2 + x^2}}",
+          inv_sqrt_x2_minus: "\\frac{1}{\\sqrt{x^2 - a^2}}",
+          inv_minus: "\\frac{1}{a^2 - x^2}",
+          inv_plus: "\\frac{1}{a^2 + x^2}",
+          inv_x2_minus: "\\frac{1}{x^2 - a^2}",
+        };
+
         const W = 800;
         const H = 420;
         const m = { left: 54, right: 18, top: 18, bottom: 38 };
@@ -1563,6 +1580,7 @@
           showGeom.checked = state.showGeom;
           if (indefToggle) indefToggle.checked = state.indef;
           if (boundsRow) boundsRow.style.display = state.indef ? "none" : "";
+          renderFunctionPreview();
         }
 
         function linspace(lo, hi, n) {
@@ -1573,13 +1591,20 @@
         }
 
         function computeRanges(cfg, a) {
-          let [xMin, xMax] = cfg.domain(a);
-          state.L = clamp(state.L, xMin, xMax);
-          state.R = clamp(state.R, xMin, xMax);
-          if (state.L >= state.R) {
-            state.L = xMin;
-            state.R = xMax;
-          }
+          // Suggested view window from the config (may depend on a)
+          let [vMin, vMax] = cfg.domain(a);
+
+          // Preserve user-selected bounds; compute clamped copies for safe rendering/integration
+          const Lc = Math.min(state.L, state.R);
+          const Rc = Math.max(state.L, state.R);
+          const l = clamp(Lc, vMin, vMax);
+          const r = clamp(Rc, vMin, vMax);
+
+          // Ensure the view includes the user-selected bounds, even if outside suggested view
+          const xMin = Math.min(vMin, Lc);
+          const xMax = Math.max(vMax, Rc);
+
+          // Sample to estimate y-range over the visible window
           const n = 200;
           let yMax = 0;
           const xs = linspace(xMin, xMax, n);
@@ -1589,7 +1614,7 @@
           }
           if (!Number.isFinite(yMax) || yMax <= 0) yMax = 1;
           const yMin = 0;
-          return { xMin, xMax, yMin, yMax: yMax * 1.08 };
+          return { xMin, xMax, yMin, yMax: yMax * 1.08, _clampedL: l, _clampedR: r };
         }
 
         function clearSvg() {
@@ -1699,8 +1724,9 @@
         function buildAreaPath(cfg, a, range) {
           const { yMin } = range;
           const n = 300;
-          const L = state.L,
-            R = state.R;
+          // Use clamped bounds for shaded area to avoid drawing outside the function domain
+          const L = range._clampedL != null ? range._clampedL : state.L;
+          const R = range._clampedR != null ? range._clampedR : state.R;
           const xs = linspace(L, R, n);
           const { xToPx, yToPx } = range._scales;
           const parts = [];
@@ -2031,6 +2057,21 @@
           updateMetrics();
           writeParams();
           savePrefs();
+          renderFunctionPreview();
+        }
+
+        function renderFunctionPreview() {
+          if (!funcPreview) return;
+          const tex = funcTex[state.funcId] || "";
+          if (window.katex) {
+            try {
+              katex.render(tex, funcPreview, { throwOnError: false });
+            } catch {
+              funcPreview.textContent = tex;
+            }
+          } else {
+            funcPreview.textContent = tex;
+          }
         }
 
         funcSel.addEventListener("change", () => {
@@ -2107,6 +2148,7 @@
           if (window.katex) {
             try {
               renderSubPanel();
+              renderFunctionPreview();
             } catch (e) {}
           }
         });
@@ -2119,6 +2161,7 @@
               if (window.katex) {
                 try {
                   renderSubPanel();
+                  renderFunctionPreview();
                 } catch (e) {}
               }
             }
