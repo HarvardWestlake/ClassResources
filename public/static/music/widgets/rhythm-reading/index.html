@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rhythm Practice</title>
     <meta name="theme-color" content="#f2f0ec" />
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♪</text></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap"
@@ -49,7 +51,6 @@
                     <div><span class="dot" style="background:var(--warn)"></span> Early/Late</div>
                 </div>
                 <div class="actions" style="margin-top:10px;">
-                    <button id="stop" class="btn">Stop</button>
                     <button id="reset" class="btn btn--outline">Reset Score</button>
                 </div>
             </div>
@@ -59,6 +60,10 @@
             <div class="card">
                 <div class="title">Rhythm Reading</div>
                 <div class="subtitle">Practice sight-reading rhythms</div>
+                <div id="practiceHint" class="practice-hint" style="display:none;">
+                    <span>Press ESC to end practice</span>
+                    <button id="exitPractice">Exit</button>
+                </div>
                 <div class="canvas-wrap">
                     <canvas id="sheet"></canvas>
                     <div class="start-overlay" id="startOverlay">
