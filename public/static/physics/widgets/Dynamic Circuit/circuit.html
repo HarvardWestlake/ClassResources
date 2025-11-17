@@ -45,6 +45,40 @@
     .btn:disabled { opacity: .55; cursor: not-allowed; }
     .btn--outline { background: transparent; color: var(--text); border:1px solid #c9d2e3; }
     .btn--outline:hover { border-color: var(--brand); color: var(--brand-ink); }
+    /* Ensure label remains visible on interaction with a subtle white glow */
+    .btn:hover,
+    .btn:active,
+    .btn:focus {
+      background: var(--brand-ink);
+      color: #fff;
+      text-shadow: 0 0 2px rgba(255,255,255,0.85), 0 0 6px rgba(255,255,255,0.55);
+      outline: none;
+    }
+    .btn--outline:hover,
+    .btn--outline:active,
+    .btn--outline:focus {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand-ink);
+      text-shadow: 0 0 2px rgba(255,255,255,0.85), 0 0 6px rgba(255,255,255,0.55);
+      outline: none;
+    }
+    /* Selected state that keeps outline sizing consistent */
+    .btn--selected {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
+    }
+
+    /* User Guide card */
+    .user-guide { grid-column: 3 / span 2; align-self: start; }
+    .user-guide h3, .user-guide .h3 { margin: 0 0 8px; }
+    .user-guide ul { margin: 0; padding-left: 18px; }
+    .user-guide li { margin-bottom: 8px; }
+    .user-guide li:last-child { margin-bottom: 0; }
+    @media (max-width: 720px) {
+      .user-guide { grid-column: 1 / -1; }
+    }
 
     /* Adjust Ohmage Modal */
     #ohmModal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(17,24,39,0.45); z-index: 9998; }
@@ -63,42 +97,58 @@
 </head>
 <body>
   <div class="app-wrap container page">
-    <h1 class="h1">Two-Resistor Circuit</h1>
+    <h1 class="h1">Dynamic Resistor Circuit</h1>
 
     <div class="controls">
       <div class="field" style="grid-column: span 2;">
-        <label class="label" for="newR">Add Component</label>
+        <label class="label">Select A Resistor</label>
         <div class="inline">
           <button class="btn btn--outline" id="addResistor" type="button">+ Basic Resistor</button>
           <button class="btn btn--outline" id="addBulb" type="button">💡 Bulb</button>
         </div>
+        <label class="label" style="margin-top:6px;">Configuration</label>
         <div class="inline">
-          <button class="btn" id="addAsSeriesBtn" type="button">Series</button>
+          <button class="btn btn--outline btn--selected" id="addAsSeriesBtn" type="button">Series</button>
           <button class="btn btn--outline" id="addAsParallelBtn" type="button">Parallel</button>
           <input type="radio" name="addmode" value="series" checked style="display:none" />
           <input type="radio" name="addmode" value="parallel" style="display:none" />
         </div>
+        <label class="label" style="margin-top:6px;">Set Resistance</label>
         <div class="inline">
-          <input class="input" id="newR" type="number" step="0.1" min="0.01" value="10" />
-          <button class="btn btn--outline" id="removeSel" type="button" disabled>Remove Selected</button>
+          <input class="input" id="newR" type="number" step="1" min="0" value="10" />
+        </div>
+        <div class="inline" style="margin-top:6px;">
+          <button class="btn" id="addComponentBtn" type="button" style="width:100%;">Add Resistor</button>
         </div>
         <div class="muted">Adds to the current configuration (series or parallel)</div>
       </div>
 
-      <div class="field" style="grid-column: span 2;">
+      <div class="field" style="grid-column: 5 / span 2; grid-row: 1 / span 2;">
         <label class="label" for="voltage">Supply Voltage (V)</label>
         <input class="range" id="voltage" type="range" min="0" max="120" step="0.1" value="12" />
         <div class="muted"><span id="voltageVal">12.0</span> V</div>
+        <div class="field" style="margin-top:6px;">
+          <button class="btn btn--outline" id="removeSel" type="button" disabled>Remove Selected</button>
+          <div class="muted">removes all selected resistors in the circuit at once</div>
+        </div>
+        <div class="field" style="margin-top:6px;">
+          <button class="btn btn--outline" id="resetAll" type="button">Reset Circuit</button>
+        </div>
       </div>
 
-      <div class="field">
-        <label class="label" for="r1">R1 (Ω)</label>
-        <input class="input" id="r1" type="number" step="0.1" min="0.01" value="10" />
+      <div class="card user-guide" role="region" aria-labelledby="userGuideTitle">
+        <div id="userGuideTitle" class="h3">User Guide</div>
+        <ul>
+          <li>Use Add Component to add a resistor or bulb.</li>
+          <li>Click any resistor to see resistance, power, current, and voltage drop.</li>
+          <li>Right-click a resistor to set its resistance or remove it.</li>
+          <li>Select resistors to add new ones in series or parallel.</li>
+          <li>Lightbulb brightness reflects individual power output.</li>
+        </ul>
       </div>
-      <div class="field">
-        <label class="label" for="r2">R2 (Ω)</label>
-        <input class="input" id="r2" type="number" step="0.1" min="0.01" value="10" />
-      </div>
+
+      
+
     </div>
 
     <div class="readouts">
@@ -119,7 +169,7 @@
     <!-- Removed R1/R2 info cards (no starting resistors) -->
 
     <div class="svg-wrap">
-      <svg id="circuit" viewBox="0 0 900 460" width="100%" height="420" aria-label="Circuit diagram"></svg>
+      <svg id="circuit" viewBox="0 0 900 478" width="100%" height="436" preserveAspectRatio="xMinYMin meet" aria-label="Circuit diagram"></svg>
     </div>
   
   </div>

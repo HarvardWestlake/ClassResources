@@ -4,25 +4,24 @@
   // DOM
   const elV = document.getElementById("voltage");
   const elVVal = document.getElementById("voltageVal");
-  const elR1 = document.getElementById("r1");
-  const elR2 = document.getElementById("r2");
   const elMode = Array.from(document.querySelectorAll('input[name="mode"]'));
   const elAddMode = Array.from(document.querySelectorAll('input[name="addmode"]'));
   const svg = document.getElementById("circuit");
+  if (svg) svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
   const elNewR = document.getElementById("newR");
   const elAdd = document.getElementById("addRes");
   const elNewType = document.getElementById("newType");
   const elAddResistor = document.getElementById("addResistor");
   const elAddBulb = document.getElementById("addBulb");
   const elRemove = document.getElementById("removeSel");
+  const elReset = document.getElementById("resetAll");
+  const elAddComponentBtn = document.getElementById("addComponentBtn");
+  let currentType = "resistor";
 
   const elTotalR = document.getElementById("totalR");
   const elTotalI = document.getElementById("totalI");
   const elTotalP = document.getElementById("totalP");
-  const elR1VI = document.getElementById("r1VI");
-  const elR1P = document.getElementById("r1P");
-  const elR2VI = document.getElementById("r2VI");
-  const elR2P = document.getElementById("r2P");
+  // Removed R1/R2 specific inputs and readouts
 
   // New Add-Mode buttons (toggle between Series/Parallel)
   const elSeriesBtn = document.getElementById("addAsSeriesBtn");
@@ -33,30 +32,35 @@
     if (!elAddModeSeries || !elAddModeParallel || !elSeriesBtn || !elParallelBtn) return;
     if (mode === "series") {
       elAddModeSeries.checked = true;
-      elSeriesBtn.classList.add("btn");
-      elSeriesBtn.classList.remove("btn--outline");
-      elParallelBtn.classList.add("btn--outline");
-      elParallelBtn.classList.remove("btn");
+      elSeriesBtn.classList.add("btn--selected");
+      elParallelBtn.classList.remove("btn--selected");
     } else {
       elAddModeParallel.checked = true;
-      elParallelBtn.classList.add("btn");
-      elParallelBtn.classList.remove("btn--outline");
-      elSeriesBtn.classList.add("btn--outline");
-      elSeriesBtn.classList.remove("btn");
+      elParallelBtn.classList.add("btn--selected");
+      elSeriesBtn.classList.remove("btn--selected");
     }
   }
   if (elSeriesBtn) elSeriesBtn.addEventListener("click", () => setAddModeBtn("series"));
   if (elParallelBtn) elParallelBtn.addEventListener("click", () => setAddModeBtn("parallel"));
   // Initialize default state
   setAddModeBtn("series");
+  // Default type selection: Basic Resistor
+  if (elAddResistor) {
+    elAddResistor.classList.add("btn--selected");
+  }
 
-  // Geometry
-  const W = 900, H = 460;
+  // Geometry (dynamic height)
+  let W = 900, H = 478; // base canvas size
+  const BASE_H = 478;
   const margin = 110; // more white space around the circuit
-  const leftX = margin, rightX = W - margin;
-  const topY = margin, bottomY = H - margin;
-  const centerX = (leftX + rightX) / 2;
-  const centerY = (topY + bottomY) / 2;
+  let leftX, rightX, topY, bottomY, centerX, centerY;
+  function recalcLayout() {
+    leftX = margin; rightX = W - margin;
+    topY = margin; bottomY = H - margin;
+    centerX = (leftX + rightX) / 2;
+    centerY = (topY + bottomY) / 2;
+  }
+  recalcLayout();
 
   // Selection state (multi-select)
   const selectedIds = new Set(); // values: 'r1', 'r2'
@@ -224,12 +228,7 @@
       const comp = pendingAdjustId ? findComponentRef(pendingAdjustId) : null;
       if (!comp) return closeOhmModal();
       const val = Math.max(0.01, parseFloat(ohmInput.value || "0"));
-      if (isFinite(val)) {
-        comp.R = val;
-        if (resistors[0]?.id === comp.id) if (elR1) elR1.value = String(val);
-        if (resistors[1]?.id === comp.id) if (elR2) elR2.value = String(val);
-        update();
-      }
+      if (isFinite(val)) { comp.R = val; update(); }
       closeOhmModal();
     });
     ohmModal.addEventListener("click", (e) => {
@@ -505,16 +504,46 @@
 
   // Localized parallel group renderers on top/bottom and left/right edges
   function drawLocalParallelGroupTop(cx, yMain, children, pMax, res, brightnessMap) {
-    const halfSpan = Math.max(RES_RENDER_LEN, 120) / 2;
-    const xL = cx - halfSpan, xR = cx + halfSpan;
-    // mask the main wire segment to avoid bypass look
-    const mask = line(xL, yMain, xR, yMain);
-    mask.setAttribute("stroke", "#fff");
-    mask.setAttribute("stroke-width", "6");
-    mask.setAttribute("pointer-events", "none");
-    svg.appendChild(mask);
+    // Filter out empty branches to avoid blank lanes
+    const filtered = (children || []).filter(ch =>
+      ch && (
+        (ch.kind === "comp") ||
+        (ch.kind === "series" && Array.isArray(ch.children) && ch.children.length > 0)
+      )
+    );
+    const BASE_WIDTH_FOR_TWO = (2 * RES_RENDER_LEN) + 14; // minimal room for two series elements
+    const MIN_SERIES_GAP = 14; // tighter, still comfortable spacing between series elements
+
+    // Longest series run across branches
+    let maxSeries = 0;
+    for (const ch of filtered) {
+      if (ch && ch.kind === "series" && Array.isArray(ch.children)) {
+        maxSeries = Math.max(maxSeries, ch.children.length);
+      }
+    }
+
+    // Desired group width with clamp to rails:
+    // - Minimal width sized just enough for two elements or the exact series span if >2
+    //   width_for_m = m*RES_RENDER_LEN + (m-1)*MIN_SERIES_GAP
+    let desiredWidth = BASE_WIDTH_FOR_TWO;
+    if (maxSeries > 2) desiredWidth = Math.max(BASE_WIDTH_FOR_TWO, (maxSeries * RES_RENDER_LEN) + ((maxSeries - 1) * MIN_SERIES_GAP));
+    const railPad = 28;
+    const minX = leftX + railPad;
+    const maxX = rightX - railPad;
+    const maxWidth = Math.max(0, maxX - minX);
+    const groupWidth = Math.min(desiredWidth, maxWidth);
+    let xL = cx - groupWidth / 2;
+    xL = Math.max(minX, Math.min(xL, maxX - groupWidth)); // shift away from corner if needed
+    const xR = xL + groupWidth;
+    // Mask the main horizontal wire between bus taps to avoid a short across the group
+    const hwMask = line(xL, yMain, xR, yMain);
+    hwMask.setAttribute("stroke", "#fff");
+    hwMask.setAttribute("stroke-width", "6");
+    hwMask.setAttribute("pointer-events", "none");
+    svg.appendChild(hwMask);
+
     // Lanes above/below
-    const n = children.length;
+    const n = filtered.length;
     const nAbove = Math.floor(n / 2);
     const nBelow = n - nAbove;
     const laneGap = 22;
@@ -526,26 +555,48 @@
     // render children
     let idx = 0;
     const lanes = [];
-    for (let i = 0; i < nAbove && idx < n; i++, idx++) lanes.push({ comp: children[idx], y: aboveYs[i], pos: "above" });
-    for (let i = 0; i < nBelow && idx < n; i++, idx++) lanes.push({ comp: children[idx], y: belowYs[i], pos: "below" });
-    const length = xR - xL;
+    for (let i = 0; i < nAbove && idx < n; i++, idx++) lanes.push({ comp: filtered[idx], y: aboveYs[i], pos: "above" });
+    for (let i = 0; i < nBelow && idx < n; i++, idx++) lanes.push({ comp: filtered[idx], y: belowYs[i], pos: "below" });
+    const groupLen = xR - xL;
     lanes.forEach(l => {
       const c = l.comp;
       if (c.kind === "series" && Array.isArray(c.children)) {
         const m = c.children.length;
-        const spacing = (xR - xL) / (m + 1);
+        const spacing = m > 1 ? Math.max(((groupLen - RES_RENDER_LEN) / (m - 1)), RES_RENDER_LEN + MIN_SERIES_GAP) : 0;
+        const start = (xL + xR) / 2 - (spacing * (m - 1)) / 2;
+        const halfLen = RES_RENDER_LEN / 2;
+        // Precompute centers for connectors
+        const centers = Array.from({ length: m }, (_, k) => start + k * spacing);
+        // Left bus to first element
+        if (m > 0) {
+          const firstLeft = centers[0] - halfLen;
+          if (firstLeft > xL) svg.appendChild(line(xL, l.y, firstLeft, l.y));
+        }
+        // Between consecutive elements
+        for (let k = 0; k < m - 1; k++) {
+          const rightPrev = centers[k] + halfLen;
+          const leftNext = centers[k + 1] - halfLen;
+          if (leftNext > rightPrev) {
+            svg.appendChild(line(rightPrev, l.y, leftNext, l.y));
+          }
+        }
+        // Last element to right bus
+        if (m > 0) {
+          const lastRight = centers[m - 1] + halfLen;
+          if (xR > lastRight) svg.appendChild(line(lastRight, l.y, xR, l.y));
+        }
         c.children.forEach((cc, k) => {
-          const cx = xL + spacing * (k + 1);
+          const px = centers[k];
           const sel = selectedIds.has(cc.id);
           const powRaw = Math.max(0, (res.per[cc.id]?.P || 0));
           const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
-          const g = componentHorizontal(cc.type || "resistor", cx, l.y, RES_RENDER_LEN, pow, sel);
+          const g = componentHorizontal(cc.type || "resistor", px, l.y, RES_RENDER_LEN, pow, sel);
           g.dataset.resistorId = cc.id;
           g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(cc.id); else selectedIds.add(cc.id); update(); });
           g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, cc.id); });
           svg.appendChild(g);
           if (sel) {
-            svg.appendChild(popupBox(cx, l.y, [
+            svg.appendChild(popupBox(px, l.y, [
               `R = ${fmtR(cc.R)}`,
               `V = ${fmtV(res.per[cc.id]?.V || 0)}`,
               `I = ${fmtI(res.per[cc.id]?.I || 0)}`,
@@ -557,7 +608,8 @@
         const sel = selectedIds.has(c.id);
         const powRaw = Math.max(0, (res.per[c.id]?.P || 0));
         const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
-        const g = componentHorizontal(c.type || "resistor", (xL + xR) / 2, l.y, length, pow, sel);
+        // Single element: span full group to connect bus bars
+        const g = componentHorizontal(c.type || "resistor", (xL + xR) / 2, l.y, groupLen, pow, sel);
         g.dataset.resistorId = c.id;
         g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(c.id); else selectedIds.add(c.id); update(); });
         g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, c.id); });
@@ -575,16 +627,44 @@
   }
 
   function drawLocalParallelGroupLeft(xMain, cy, children, pMax, res, brightnessMap) {
-    const halfSpan = Math.max(RES_RENDER_LEN, 120) / 2;
-    const yT = cy - halfSpan, yB = cy + halfSpan;
-    // mask the main wire segment to avoid bypass look
-    const mask = line(xMain, yT, xMain, yB);
-    mask.setAttribute("stroke", "#fff");
-    mask.setAttribute("stroke-width", "6");
-    mask.setAttribute("pointer-events", "none");
-    svg.appendChild(mask);
+    // Filter out empty branches
+    const filtered = (children || []).filter(ch =>
+      ch && (
+        (ch.kind === "comp") ||
+        (ch.kind === "series" && Array.isArray(ch.children) && ch.children.length > 0)
+      )
+    );
+    const BASE_HEIGHT_FOR_TWO = (2 * RES_RENDER_LEN) + 14;
+    const MIN_SERIES_GAP = 14;
+
+    // Longest series run across branches
+    let maxSeries = 0;
+    for (const ch of filtered) {
+      if (ch && ch.kind === "series" && Array.isArray(ch.children)) {
+        maxSeries = Math.max(maxSeries, ch.children.length);
+      }
+    }
+
+    // Desired group height with clamp to rails; shift away from corners if needed
+    let desiredHeight = BASE_HEIGHT_FOR_TWO;
+    if (maxSeries > 2) desiredHeight = Math.max(BASE_HEIGHT_FOR_TWO, (maxSeries * RES_RENDER_LEN) + ((maxSeries - 1) * MIN_SERIES_GAP));
+    const railPad = 28;
+    const minY = topY + railPad;
+    const maxY = bottomY - railPad;
+    const maxHeight = Math.max(0, maxY - minY);
+    const groupHeight = Math.min(desiredHeight, maxHeight);
+    let yT = cy - groupHeight / 2;
+    yT = Math.max(minY, Math.min(yT, maxY - groupHeight)); // shift away from corner if needed
+    const yB = yT + groupHeight;
+    // Mask the main vertical wire between bus taps to avoid a short across the group
+    const vwMask = line(xMain, yT, xMain, yB);
+    vwMask.setAttribute("stroke", "#fff");
+    vwMask.setAttribute("stroke-width", "6");
+    vwMask.setAttribute("pointer-events", "none");
+    svg.appendChild(vwMask);
+
     // Lanes left/right
-    const n = children.length;
+    const n = filtered.length;
     const nLeft = Math.floor(n / 2);
     const nRight = n - nLeft;
     const laneGap = 22;
@@ -596,26 +676,48 @@
     // render children
     let idx = 0;
     const lanes = [];
-    for (let i = 0; i < nLeft && idx < n; i++, idx++) lanes.push({ comp: children[idx], x: leftXs[i], pos: "left" });
-    for (let i = 0; i < nRight && idx < n; i++, idx++) lanes.push({ comp: children[idx], x: rightXs[i], pos: "right" });
-    const length = yB - yT;
+    for (let i = 0; i < nLeft && idx < n; i++, idx++) lanes.push({ comp: filtered[idx], x: leftXs[i], pos: "left" });
+    for (let i = 0; i < nRight && idx < n; i++, idx++) lanes.push({ comp: filtered[idx], x: rightXs[i], pos: "right" });
+    const groupLen = yB - yT;
     lanes.forEach(l => {
       const c = l.comp;
       if (c.kind === "series" && Array.isArray(c.children)) {
         const m = c.children.length;
-        const spacing = (yB - yT) / (m + 1);
+        const spacing = m > 1 ? Math.max(((groupLen - RES_RENDER_LEN) / (m - 1)), RES_RENDER_LEN + MIN_SERIES_GAP) : 0;
+        const start = (yT + yB) / 2 - (spacing * (m - 1)) / 2;
+        const halfLen = RES_RENDER_LEN / 2;
+        // Precompute centers for connectors
+        const centers = Array.from({ length: m }, (_, k) => start + k * spacing);
+        // Top bus to first element
+        if (m > 0) {
+          const firstTop = centers[0] - halfLen;
+          if (firstTop > yT) svg.appendChild(line(l.x, yT, l.x, firstTop));
+        }
+        // Between consecutive elements
+        for (let k = 0; k < m - 1; k++) {
+          const bottomPrev = centers[k] + halfLen;
+          const topNext = centers[k + 1] - halfLen;
+          if (topNext > bottomPrev) {
+            svg.appendChild(line(l.x, bottomPrev, l.x, topNext));
+          }
+        }
+        // Last element to bottom bus
+        if (m > 0) {
+          const lastBottom = centers[m - 1] + halfLen;
+          if (yB > lastBottom) svg.appendChild(line(l.x, lastBottom, l.x, yB));
+        }
         c.children.forEach((cc, k) => {
-          const cy = yT + spacing * (k + 1);
+          const py = centers[k];
           const sel = selectedIds.has(cc.id);
           const powRaw = Math.max(0, (res.per[cc.id]?.P || 0));
           const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
-          const g = componentVertical(cc.type || "resistor", l.x, cy, RES_RENDER_LEN, pow, sel);
+          const g = componentVertical(cc.type || "resistor", l.x, py, RES_RENDER_LEN, pow, sel);
           g.dataset.resistorId = cc.id;
           g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(cc.id); else selectedIds.add(cc.id); update(); });
           g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, cc.id); });
           svg.appendChild(g);
           if (sel) {
-            svg.appendChild(popupBox(l.x, cy, [
+            svg.appendChild(popupBox(l.x, py, [
               `R = ${fmtR(cc.R)}`,
               `V = ${fmtV(res.per[cc.id]?.V || 0)}`,
               `I = ${fmtI(res.per[cc.id]?.I || 0)}`,
@@ -627,7 +729,8 @@
         const sel = selectedIds.has(c.id);
         const powRaw = Math.max(0, (res.per[c.id]?.P || 0));
         const pow = brightnessMap ? brightnessMap(powRaw) : powRaw;
-        const g = componentVertical(c.type || "resistor", l.x, (yT + yB) / 2, length, pow, sel);
+        // Single element: span full group to connect bus bars
+        const g = componentVertical(c.type || "resistor", l.x, (yT + yB) / 2, groupLen, pow, sel);
         g.dataset.resistorId = c.id;
         g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(c.id); else selectedIds.add(c.id); update(); });
         g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, c.id); });
@@ -1245,25 +1348,53 @@
 
   function update() {
     const V = parseFloat(elV.value);
-    const mode = elMode.find(r => r.checked)?.value || "series";
+    // Always render with localized-parallel series layout; add-mode is separate
+    const mode = "series";
 
     elVVal.textContent = fmt(V, 1);
 
-    let res;
-    if (mode === "series") res = computeSeriesN(V, resistors);
-    else res = computeParallelN(V, resistors);
+    let res = computeSeriesN(V, resistors);
+
+    // Dynamically expand vertical size based on effective series width
+    // Units: comp=1; series=sum; parallel=1+max(branch)
+    function unitsOf(node) {
+      if (!node) return 0;
+      if (node.kind === "comp") return 1;
+      if (node.kind === "series" && Array.isArray(node.children)) {
+        return node.children.reduce((s, ch) => s + unitsOf(ch), 0);
+      }
+      if (node.kind === "parallel" && Array.isArray(node.children)) {
+        const branchUnits = node.children.map(ch => unitsOf(ch));
+        const longest = branchUnits.length ? Math.max(...branchUnits) : 0;
+        return 1 + longest;
+      }
+      return 0;
+    }
+    function totalUnitsTopLevel(list) {
+      return (list || []).reduce((s, n) => s + unitsOf(n), 0);
+    }
+    const totalUnits = totalUnitsTopLevel(resistors);
+    const extraRows = Math.max(0, totalUnits - 13); // start expanding at 14
+    // After threshold, expand downward by 0.5 × resistor length per extra unit
+    const extraPx = extraRows * (RES_RENDER_LEN / 2);
+    H = BASE_H + extraPx;
+    // Update SVG viewBox and height only when threshold reached (avoid initial shift)
+    if (svg && extraRows > 0) {
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      // Preserve original CSS height-to-viewBox ratio if available
+      const baseViewH = 460;
+      const baseCssH = parseFloat(svg.getAttribute("height") || "420");
+      const ratio = baseCssH > 0 ? (baseCssH / baseViewH) : 0.913; // fallback to ~420/460
+      const newCssH = Math.max(420, Math.round(H * ratio));
+      svg.setAttribute("height", String(newCssH));
+    }
+    recalcLayout();
 
     elTotalR.textContent = fmtR(res.Rtot);
     elTotalI.textContent = fmtI(res.Itot);
     elTotalP.textContent = fmtP(res.Ptot);
 
-    // Side cards may not exist; guard updates
-    if (elR1VI) elR1VI.textContent = "";
-    if (elR2VI) elR2VI.textContent = "";
-    const first = resistors[0];
-    const second = resistors[1];
-    if (elR1P) elR1P.textContent = first ? `P=${fmtP(res.per[first.id].P)}` : "";
-    if (elR2P) elR2P.textContent = second ? `P=${fmtP(res.per[second.id].P)}` : "";
+    // R1/R2 side cards removed
 
     render(mode, V, resistors, res);
     // Toggle remove button availability
@@ -1272,34 +1403,12 @@
     }
   }
 
-  [elV, elR1, elR2, ...elMode].forEach(input => {
+  [elV, ...elMode].forEach(input => {
     input.addEventListener("input", update);
     input.addEventListener("change", update);
   });
 
-  // Explicitly bind R1/R2 inputs to only update their respective components
-  if (elR1) {
-    const syncR1 = () => {
-      if (resistors.length >= 1) {
-        const v = Math.max(0.01, parseFloat(elR1.value || "0"));
-        resistors[0].R = isFinite(v) ? v : resistors[0].R;
-        update();
-      }
-    };
-    elR1.addEventListener("input", syncR1);
-    elR1.addEventListener("change", syncR1);
-  }
-  if (elR2) {
-    const syncR2 = () => {
-      if (resistors.length >= 2) {
-        const v = Math.max(0.01, parseFloat(elR2.value || "0"));
-        resistors[1].R = isFinite(v) ? v : resistors[1].R;
-        update();
-      }
-    };
-    elR2.addEventListener("input", syncR2);
-    elR2.addEventListener("change", syncR2);
-  }
+  // Removed R1/R2 input bindings
 
   function handleAdd(type) {
     const R = Math.max(0.01, parseFloat(elNewR.value || "0"));
@@ -1396,11 +1505,27 @@
     // Fallback
     showToast("Select components within the same series row or the same parallel group to add in parallel.");
   }
+  // Type selection toggles (persistent)
   if (elAddResistor) {
-    elAddResistor.addEventListener("click", () => handleAdd("resistor"));
+    elAddResistor.addEventListener("click", () => {
+      currentType = "resistor";
+      elAddResistor.classList.add("btn--selected");
+      if (elAddBulb) elAddBulb.classList.remove("btn--selected");
+      if (elAddComponentBtn) elAddComponentBtn.textContent = "Add Resistor";
+    });
   }
   if (elAddBulb) {
-    elAddBulb.addEventListener("click", () => handleAdd("bulb"));
+    elAddBulb.addEventListener("click", () => {
+      currentType = "bulb";
+      elAddBulb.classList.add("btn--selected");
+      if (elAddResistor) elAddResistor.classList.remove("btn--selected");
+      if (elAddComponentBtn) elAddComponentBtn.textContent = "Add Bulb";
+    });
+  }
+  // Add component action
+  if (elAddComponentBtn) {
+    elAddComponentBtn.textContent = "Add Resistor"; // default
+    elAddComponentBtn.addEventListener("click", () => handleAdd(currentType));
   }
   if (elRemove) {
     elRemove.addEventListener("click", () => {
@@ -1408,6 +1533,14 @@
       const ids = Array.from(selectedIds);
       ids.forEach(removeById);
       selectedIds.clear();
+      update();
+    });
+  }
+  if (elReset) {
+    elReset.addEventListener("click", () => {
+      resistors.length = 0;
+      selectedIds.clear();
+      nextId = 1;
       update();
     });
   }
