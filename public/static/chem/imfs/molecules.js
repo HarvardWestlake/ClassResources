@@ -12,6 +12,7 @@ function cssVar(name, fallback) {
 function colorFor(el) {
   const oxygen = cssVar("--red", "#ff7a7a");
   const sulfur = cssVar("--yellow", "#ffd24d");
+  
   const hydrogen = cssVar("--muted", "#cfd8e3");
   const carbon = cssVar("--panel-2", "#d0d8e6");
   if (el === "O") return oxygen;

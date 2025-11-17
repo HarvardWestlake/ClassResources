@@ -197,11 +197,18 @@ class IMFSim {
 
   spawnParticles() {
     this.particles.length = 0;
+    // Spawn particles in middle 90% of container (avoiding walls and floor)
+    const marginX = this.width * 0.05; // 5% margin on each side
+    const marginY = this.height * 0.05; // 5% margin on top and bottom
+    const spawnXMin = marginX;
+    const spawnXMax = this.width - marginX;
+    const spawnYMin = marginY;
+    const spawnYMax = this.height - marginY;
     for (let i = 0; i < this.params.N; i++) {
       this.particles.push(
         makeParticle(
-          Math.random() * this.width,
-          Math.random() * this.height,
+          spawnXMin + Math.random() * (spawnXMax - spawnXMin),
+          spawnYMin + Math.random() * (spawnYMax - spawnYMin),
           "mol"
         )
       );
@@ -215,9 +222,16 @@ class IMFSim {
     while (this.particles.length > n) this.particles.pop();
     // Add new ones
     while (this.particles.length < n) {
+      // Spawn particles in middle 90% of container (avoiding walls and floor)
+      const marginX = this.width * 0.05; // 5% margin on each side
+      const marginY = this.height * 0.05; // 5% margin on top and bottom
+      const spawnXMin = marginX;
+      const spawnXMax = this.width - marginX;
+      const spawnYMin = marginY;
+      const spawnYMax = this.height - marginY;
       const p = makeParticle(
-        Math.random() * this.width,
-        Math.random() * this.height,
+        spawnXMin + Math.random() * (spawnXMax - spawnXMin),
+        spawnYMin + Math.random() * (spawnYMax - spawnYMin),
         "mol"
       );
       // Slightly lower initial speeds for stability when adding
@@ -247,6 +261,39 @@ class IMFSim {
   // Periodic wrap
   wrap(p) {
     // disabled; using wall collisions instead
+  }
+
+  // Calculate overall IMF strength (0-1 scale) based on all IMF parameters
+  // Returns 0 for hexane-like (weak IMFs) and 1 for honey-like (strong IMFs)
+  // Used to interpolate behavior between hexane and honey
+  getIMFStrength() {
+    const v = this.params.viscosity || 0;
+    const eps = this.params.epsilon || 0;
+    const hb = this.params.hbStrength || 0;
+    const dp = this.params.dipole || 0;
+
+    // Normalize each component to 0-1 scale
+    // Viscosity: 0.05-10 -> 0-1 (hexane ~0.05, honey ~10)
+    const vNorm = Math.min(1, Math.max(0, (v - 0.05) / (10 - 0.05)));
+    // Epsilon: 0.05-0.7 -> 0-1 (hexane ~0.05, honey ~0.7)
+    const epsNorm = Math.min(1, Math.max(0, (eps - 0.05) / (0.7 - 0.05)));
+    // H-bond: 0-3 -> 0-1 (hexane 0, honey ~2.5)
+    const hbNorm = Math.min(1, Math.max(0, hb / 3));
+    // Dipole: 0-2 -> 0-1 (hexane 0, DMSO ~0.6, honey 0)
+    const dpNorm = Math.min(1, Math.max(0, dp / 2));
+
+    // Weighted combination with emphasis on viscosity and H-bonds
+    // Viscosity and H-bonds are most important for honey-like behavior
+    const imfStrength =
+      vNorm * 0.45 + hbNorm * 0.35 + dpNorm * 0.12 + epsNorm * 0.08;
+
+    return Math.min(1, Math.max(0, imfStrength));
+  }
+
+  // Get interpolation factor: 0 = hexane behavior, 1 = honey behavior
+  // Uses IMF strength to interpolate between hexane and honey characteristics
+  getBehaviorInterpolation() {
+    return this.getIMFStrength();
   }
 
   // Lennard–Jones force (soft-capped)
@@ -435,12 +482,21 @@ class IMFSim {
         const heatingZoneHeight = this.height * 0.05; // bottom 5% of container
         const heatingZoneTop = this.height - heatingZoneHeight;
         const minHeatIntensity = 0.2; // 20% heat at the 5% mark (top of heating zone)
-        // Hexane accumulates thermal energy faster (lower viscosity = faster heating)
+        // Thermal gain rate: hexane heats faster (3x), honey heats slower (1x)
+        // Interpolate based on IMF strength for playground mode
         const baseThermalGainRate = 0.03; // Base rate per second
-        const isHexane = (this.params.viscosity || 0) < 0.1; // Hexane has very low viscosity
+        let thermalGainMultiplier = 1.0;
+        if (this.currentScenario === "playground") {
+          // Interpolate between hexane (3.0x) and honey (1.0x) based on IMF strength
+          const t = this.getBehaviorInterpolation(); // 0 = hexane, 1 = honey
+          thermalGainMultiplier = 3.0 - (3.0 - 1.0) * t; // 3.0 at t=0, 1.0 at t=1
+        } else {
+          // Use material-specific behavior
+          const isHexane = (this.params.viscosity || 0) < 0.1;
+          thermalGainMultiplier = isHexane ? 3.0 : 1.0;
+        }
         const thermalGainRate =
-          (isHexane ? baseThermalGainRate * 3.0 : baseThermalGainRate) *
-          this.heatIntensity; // Scale by heat intensity
+          baseThermalGainRate * thermalGainMultiplier * this.heatIntensity; // Scale by heat intensity
         const thermalDissipationRate = 0.015; // Rate per second for dissipation
 
         // Create non-uniform heating pattern along X-axis (hotspots like real stovetop)
@@ -519,13 +575,22 @@ class IMFSim {
             // Add upward acceleration for heated particles (buoyancy effect)
             // Heated particles naturally want to rise - use acceleration to overcome gravity
             // Thermal energy provides upward force that opposes gravity
-            // At thermalEnergy = 0.4, upwardAccel = -1600, which overcomes gravity (900)
-            const upwardAccel = p.thermalEnergy * -2000; // Negative Y = upward, strong enough to overcome gravity
+            // Scale upward velocity based on IMF strength - stronger IMFs reduce upward velocity
+            const imfStrength = this.getIMFStrength();
+            const upwardAccelBase = -2000; // Base upward acceleration
+            // Stronger IMFs reduce upward acceleration (0.3 to 1.0 multiplier)
+            const upwardAccelMultiplier = 0.3 + (1.0 - imfStrength) * 0.7;
+            const upwardAccel =
+              p.thermalEnergy * upwardAccelBase * upwardAccelMultiplier;
             p.acc[1] += upwardAccel;
 
             // Also add some direct upward velocity boost for immediate effect
             if (p.thermalEnergy > 0.2) {
-              const upwardVelocityBoost = p.thermalEnergy * -40; // Additional upward boost
+              const upwardVelocityBoostBase = -40; // Base upward velocity boost
+              const upwardVelocityBoost =
+                p.thermalEnergy *
+                upwardVelocityBoostBase *
+                upwardAccelMultiplier;
               p.vel[1] += upwardVelocityBoost * dtStep;
             }
 
@@ -561,12 +626,21 @@ class IMFSim {
             // Particles with thermal energy still vibrate (they carry heat with them)
             if (p.thermalEnergy > 0.1) {
               // Add upward acceleration for particles carrying thermal energy
-              const upwardAccel = p.thermalEnergy * -1800; // Slightly less than in heating zone
+              // Scale upward velocity based on IMF strength - stronger IMFs reduce upward velocity
+              const imfStrength = this.getIMFStrength();
+              const upwardAccelBase = -1800; // Base upward acceleration (slightly less than in heating zone)
+              const upwardAccelMultiplier = 0.3 + (1.0 - imfStrength) * 0.7;
+              const upwardAccel =
+                p.thermalEnergy * upwardAccelBase * upwardAccelMultiplier;
               p.acc[1] += upwardAccel;
 
               // Also add upward velocity boost for immediate effect
               if (p.thermalEnergy > 0.2) {
-                const upwardVelocityBoost = p.thermalEnergy * -35;
+                const upwardVelocityBoostBase = -35;
+                const upwardVelocityBoost =
+                  p.thermalEnergy *
+                  upwardVelocityBoostBase *
+                  upwardAccelMultiplier;
                 p.vel[1] += upwardVelocityBoost * dtStep;
               }
 
@@ -659,21 +733,32 @@ class IMFSim {
       // Higher energy threshold for escaping dense liquid (boiling)
       // Viscosity makes it harder to evaporate - scale threshold with viscosity
       // Stronger intermolecular forces (via cohesion coefficients) naturally reduce evaporation
-      // Map viscosity to escape multiplier: honey (10) -> 4.0, DMSO (1.2) -> 2.2, hexane (0.05) -> 1.5
-      const v = this.params.viscosity || 0;
-      // Better separation: DMSO should be significantly harder to evaporate than hexane
-      const escapeMultiplier =
-        v > 5
-          ? 1.5 + (v - 5) * 0.5 // Honey: 4.0
-          : v > 1
-          ? 1.5 + (v - 0.05) * 0.9 // DMSO: 1.5 + 1.15*0.9 = 2.535 (increased from 1.62)
-          : 1.5 + v * 0.1; // Hexane: 1.505
-      // Map viscosity to thermal threshold [0,1]: honey (10) -> 0.85, DMSO (1.2) -> 0.6, hexane (0.05) -> 0.26
-      // Piecewise: low v uses linear, high v uses slower scaling
-      const thermalBoilingThreshold =
-        v <= 2
-          ? Math.min(0.95, 0.25 + v * 0.29) // DMSO: 0.25 + 1.2*0.29 = 0.598, Hexane: 0.25 + 0.05*0.29 = 0.2645
-          : Math.min(0.95, 0.5 + (v - 2) * 0.04375); // Honey: 0.5 + 8*0.04375 = 0.85
+      let escapeMultiplier, thermalBoilingThreshold;
+
+      if (this.currentScenario === "playground") {
+        // Interpolate between hexane and honey behavior based on IMF strength
+        const t = this.getBehaviorInterpolation(); // 0 = hexane, 1 = honey
+        // Escape multiplier: hexane (1.505) -> honey (4.0)
+        escapeMultiplier = 1.505 + (4.0 - 1.505) * t;
+        // Thermal threshold: hexane (0.26) -> honey (0.85)
+        thermalBoilingThreshold = 0.26 + (0.85 - 0.26) * t;
+      } else {
+        // Use material-specific behavior
+        const v = this.params.viscosity || 0;
+        // Better separation: DMSO should be significantly harder to evaporate than hexane
+        escapeMultiplier =
+          v > 5
+            ? 1.5 + (v - 5) * 0.5 // Honey: 4.0
+            : v > 1
+            ? 1.5 + (v - 0.05) * 0.9 // DMSO: 1.5 + 1.15*0.9 = 2.535 (increased from 1.62)
+            : 1.5 + v * 0.1; // Hexane: 1.505
+        // Map viscosity to thermal threshold [0,1]: honey (10) -> 0.85, DMSO (1.2) -> 0.6, hexane (0.05) -> 0.26
+        // Piecewise: low v uses linear, high v uses slower scaling
+        thermalBoilingThreshold =
+          v <= 2
+            ? Math.min(0.95, 0.25 + v * 0.29) // DMSO: 0.25 + 1.2*0.29 = 0.598, Hexane: 0.25 + 0.05*0.29 = 0.2645
+            : Math.min(0.95, 0.5 + (v - 2) * 0.04375); // Honey: 0.5 + 8*0.04375 = 0.85
+      }
 
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
@@ -695,22 +780,34 @@ class IMFSim {
           // Surface particles can evaporate more easily
           if (p.localNeighbors < rhoMin) {
             // Surface/edge particles: material-dependent evaporation threshold
-            // Honey needs highest threshold, DMSO needs moderate-high, hexane needs lowest
-            // Better separation between DMSO and hexane
-            const surfaceMultiplier =
-              v > 5
-                ? 1.8 // Honey: 1.8
-                : v > 1
-                ? 1.5 // DMSO: 1.5 (increased from 1.2)
-                : 0.7; // Hexane: 0.7 (reduced from 0.8 for faster evaporation)
+            let surfaceMultiplier, surfaceThermalThreshold;
+
+            if (this.currentScenario === "playground") {
+              // Interpolate between hexane and honey behavior based on IMF strength
+              const t = this.getBehaviorInterpolation(); // 0 = hexane, 1 = honey
+              // Surface multiplier: hexane (0.7) -> honey (1.8)
+              surfaceMultiplier = 0.7 + (1.8 - 0.7) * t;
+              // Surface thermal threshold: hexane (0.1275) -> honey (0.8)
+              surfaceThermalThreshold = 0.1275 + (0.8 - 0.1275) * t;
+            } else {
+              // Use material-specific behavior
+              const v = this.params.viscosity || 0;
+              // Honey needs highest threshold, DMSO needs moderate-high, hexane needs lowest
+              surfaceMultiplier =
+                v > 5
+                  ? 1.8 // Honey: 1.8
+                  : v > 1
+                  ? 1.5 // DMSO: 1.5 (increased from 1.2)
+                  : 0.7; // Hexane: 0.7 (reduced from 0.8 for faster evaporation)
+              // Surface thermal threshold: DMSO needs significantly more thermal energy than hexane
+              surfaceThermalThreshold =
+                v > 5
+                  ? 0.4 + (v - 2) * 0.05 // Honey: 0.8
+                  : v > 1
+                  ? 0.2 + v * 0.3 // DMSO: 0.2 + 1.2*0.3 = 0.56 (increased from 0.39)
+                  : 0.12 + v * 0.15; // Hexane: 0.12 + 0.05*0.15 = 0.1275 (reduced from 0.16)
+            }
             const surfaceThreshold = vGas2 * surfaceMultiplier;
-            // Surface thermal threshold: DMSO needs significantly more thermal energy than hexane
-            const surfaceThermalThreshold =
-              v > 5
-                ? 0.4 + (v - 2) * 0.05 // Honey: 0.8
-                : v > 1
-                ? 0.2 + v * 0.3 // DMSO: 0.2 + 1.2*0.3 = 0.56 (increased from 0.39)
-                : 0.12 + v * 0.15; // Hexane: 0.12 + 0.05*0.15 = 0.1275 (reduced from 0.16)
             if (
               v2 > surfaceThreshold &&
               thermalEnergy > surfaceThermalThreshold
@@ -718,9 +815,12 @@ class IMFSim {
               p.state = "gas";
               p.gasUntil = nowS + 1500;
               p.lastStateChange = nowS;
-              // Give upward boost to help escape - hexane gets stronger boost for faster evaporation
-              const isHexane = (this.params.viscosity || 0) < 0.1;
-              const upwardBoost = isHexane ? -60 : -30; // Hexane: -60, others: -30
+              // Give upward boost to help escape - scale by IMF strength
+              const imfStrength = this.getIMFStrength();
+              const upwardBoostBase = -60; // Base upward boost
+              // Stronger IMFs reduce upward boost (0.3 to 1.0 multiplier)
+              const upwardBoostMultiplier = 0.3 + (1.0 - imfStrength) * 0.7;
+              const upwardBoost = upwardBoostBase * upwardBoostMultiplier;
               if (p.vel[1] < 50) {
                 p.vel[1] += upwardBoost;
               }
@@ -745,9 +845,12 @@ class IMFSim {
               p.state = "gas";
               p.gasUntil = nowS + 2000;
               p.lastStateChange = nowS;
-              // Give upward boost to help escape the liquid blob - hexane gets stronger boost
-              const isHexane = (this.params.viscosity || 0) < 0.1;
-              const upwardBoost = isHexane ? -80 : -40; // Hexane: -80, others: -40
+              // Give upward boost to help escape the liquid blob - scale by IMF strength
+              const imfStrength = this.getIMFStrength();
+              const upwardBoostBase = -80; // Base upward boost for boiling
+              // Stronger IMFs reduce upward boost (0.3 to 1.0 multiplier)
+              const upwardBoostMultiplier = 0.3 + (1.0 - imfStrength) * 0.7;
+              const upwardBoost = upwardBoostBase * upwardBoostMultiplier;
               if (p.vel[1] < 50) {
                 p.vel[1] += upwardBoost;
               }
@@ -1167,36 +1270,42 @@ class IMFSim {
         ctx.fillStyle = "#6b7280";
         ctx.fillText(splashText4, w / 2, h / 2 + 15);
 
-        // Draw restart button
-        // Check if all 3 trials have been completed
-        const allTrialsCompleted = this.completedTrials.size >= 3;
-        const buttonText = allTrialsCompleted
-          ? "Restart Trials"
-          : "Go to Next Trial";
-        // Adjust button width for longer text
-        const btnW = allTrialsCompleted ? 140 : 120;
-        const btnH = 35;
-        const btnX = w / 2 - btnW / 2;
-        const btnY = h / 2 + 40;
+        // Draw restart button (only in normal mode, not playground)
+        // In playground mode, celebration/sadness is shown via checkPlaygroundGoal
+        if (this.currentScenario !== "playground") {
+          // Check if all 3 trials have been completed
+          const allTrialsCompleted = this.completedTrials.size >= 3;
+          const buttonText = allTrialsCompleted
+            ? "Restart Trials"
+            : "Go to Next Trial";
+          // Adjust button width for longer text
+          const btnW = allTrialsCompleted ? 140 : 120;
+          const btnH = 35;
+          const btnX = w / 2 - btnW / 2;
+          const btnY = h / 2 + 40;
 
-        ctx.fillStyle = "#dc2626";
-        ctx.fillRect(btnX, btnY, btnW, btnH);
-        ctx.strokeStyle = "#b91c1c";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(btnX, btnY, btnW, btnH);
+          ctx.fillStyle = "#dc2626";
+          ctx.fillRect(btnX, btnY, btnW, btnH);
+          ctx.strokeStyle = "#b91c1c";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(btnX, btnY, btnW, btnH);
 
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, Roboto";
-        ctx.fillText(buttonText, w / 2, btnY + btnH / 2 + 4);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, Roboto";
+          ctx.fillText(buttonText, w / 2, btnY + btnH / 2 + 4);
 
-        // Store button bounds for click detection
-        this.restartButtonBounds = {
-          x: btnX,
-          y: btnY,
-          w: btnW,
-          h: btnH,
-          allTrialsCompleted,
-        };
+          // Store button bounds for click detection
+          this.restartButtonBounds = {
+            x: btnX,
+            y: btnY,
+            w: btnW,
+            h: btnH,
+            allTrialsCompleted,
+          };
+        } else {
+          // In playground mode, don't show button
+          this.restartButtonBounds = null;
+        }
 
         ctx.textAlign = "left";
         ctx.textBaseline = "alphabetic";
@@ -1285,14 +1394,14 @@ class IMFSim {
       }
     }
 
-    // Threshold: lower threshold to ensure all particles are included
+    // Threshold: balanced threshold for clean liquid visualization
     let maxVal = 0;
     for (let k = 0; k < grid.length; k++)
       if (grid[k] > maxVal) maxVal = grid[k];
     if (maxVal <= 0.0001) return;
-    const threshold = maxVal * 0.15; // Lowered from 0.35 to include more area
+    const threshold = maxVal * 0.22; // Balanced threshold for cleaner liquid body
 
-    // Marching squares - collect closed loops
+    // Marching squares - collect closed loops with proper case 5 handling
     const segments = [];
     function interp(ax, ay, av, bx, by, bv) {
       const t = (threshold - av) / (bv - av || 1e-6);
@@ -1313,45 +1422,73 @@ class IMFSim {
         if (v3 > threshold) idx |= 8;
         if (idx === 0 || idx === 15) continue;
         const e = [];
-        switch (idx) {
-          case 1:
-          case 14:
-            e.push(interp(x, y, v0, x + cellSize, y, v1));
-            e.push(interp(x, y, v0, x, y + cellSize, v3));
-            break;
-          case 2:
-          case 13:
-            e.push(interp(x + cellSize, y, v1, x + cellSize, y + cellSize, v2));
-            e.push(interp(x, y, v0, x + cellSize, y, v1));
-            break;
-          case 3:
-          case 12:
-            e.push(interp(x + cellSize, y, v1, x + cellSize, y + cellSize, v2));
-            e.push(interp(x, y, v0, x, y + cellSize, v3));
-            break;
-          case 4:
-          case 11:
-            e.push(interp(x + cellSize, y, v1, x + cellSize, y + cellSize, v2));
-            e.push(interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2));
-            break;
-          case 5:
+
+        // Handle case 5 (saddle point) ambiguity properly to avoid weird shapes
+        if (idx === 5) {
+          // Use average of diagonal pairs to resolve ambiguity
+          const avg1 = (v0 + v2) / 2;
+          const avg2 = (v1 + v3) / 2;
+          if (avg1 > avg2) {
+            // Connect opposite corners (top-left to bottom-right)
+            e.push(interp(x, y, v0, x + cellSize, y + cellSize, v2));
+            e.push(interp(x + cellSize, y, v1, x, y + cellSize, v3));
+          } else {
+            // Connect adjacent corners (top-right to bottom-left)
             e.push(interp(x, y, v0, x, y + cellSize, v3));
             e.push(interp(x + cellSize, y, v1, x + cellSize, y + cellSize, v2));
-            break;
-          case 6:
-          case 9:
-            e.push(interp(x, y, v0, x + cellSize, y, v1));
-            e.push(interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2));
-            break;
-          case 7:
-          case 8:
-            e.push(interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2));
-            e.push(interp(x, y, v0, x, y + cellSize, v3));
-            break;
-          case 10:
-            e.push(interp(x, y, v0, x + cellSize, y, v1));
-            e.push(interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2));
-            break;
+          }
+        } else {
+          // Standard marching squares cases
+          switch (idx) {
+            case 1:
+            case 14:
+              e.push(interp(x, y, v0, x + cellSize, y, v1));
+              e.push(interp(x, y, v0, x, y + cellSize, v3));
+              break;
+            case 2:
+            case 13:
+              e.push(
+                interp(x + cellSize, y, v1, x + cellSize, y + cellSize, v2)
+              );
+              e.push(interp(x, y, v0, x + cellSize, y, v1));
+              break;
+            case 3:
+            case 12:
+              e.push(
+                interp(x + cellSize, y, v1, x + cellSize, y + cellSize, v2)
+              );
+              e.push(interp(x, y, v0, x, y + cellSize, v3));
+              break;
+            case 4:
+            case 11:
+              e.push(
+                interp(x + cellSize, y, v1, x + cellSize, y + cellSize, v2)
+              );
+              e.push(
+                interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2)
+              );
+              break;
+            case 6:
+            case 9:
+              e.push(interp(x, y, v0, x + cellSize, y, v1));
+              e.push(
+                interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2)
+              );
+              break;
+            case 7:
+            case 8:
+              e.push(
+                interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2)
+              );
+              e.push(interp(x, y, v0, x, y + cellSize, v3));
+              break;
+            case 10:
+              e.push(interp(x, y, v0, x + cellSize, y, v1));
+              e.push(
+                interp(x, y + cellSize, v3, x + cellSize, y + cellSize, v2)
+              );
+              break;
+          }
         }
         if (e.length === 2) segments.push(e);
       }
@@ -1360,27 +1497,39 @@ class IMFSim {
     // Connect segments into closed paths
     const paths = [];
     const used = new Array(segments.length).fill(false);
-    const tolerance = cellSize * 0.5; // More lenient connection tolerance
+    const connectionTolerance = cellSize * 0.8; // Stricter tolerance for actual connections
+    const bucketSize = cellSize * 1.5; // Larger buckets for initial search, but we'll check distance precisely
 
     function key(pt) {
       return (
-        Math.floor(pt[0] / tolerance) + "," + Math.floor(pt[1] / tolerance)
+        Math.floor(pt[0] / bucketSize) + "," + Math.floor(pt[1] / bucketSize)
       );
     }
 
-    function findNearestPoint(pt, otherPt, threshold) {
-      const dx = pt[0] - otherPt[0];
-      const dy = pt[1] - otherPt[1];
-      return dx * dx + dy * dy < threshold * threshold;
+    function distanceSq(pt1, pt2) {
+      const dx = pt1[0] - pt2[0];
+      const dy = pt1[1] - pt2[1];
+      return dx * dx + dy * dy;
     }
 
+    function findNearestPoint(pt, otherPt, threshold) {
+      return distanceSq(pt, otherPt) < threshold * threshold;
+    }
+
+    // Build endpoint map with all endpoints for efficient lookup
     const endpointMap = new Map();
     for (let si = 0; si < segments.length; si++) {
       const [a, b] = segments[si];
-      const ka = key(a),
-        kb = key(b);
-      (endpointMap.get(ka) || endpointMap.set(ka, []).get(ka)).push(si);
-      (endpointMap.get(kb) || endpointMap.set(kb, []).get(kb)).push(si);
+      const ka = key(a);
+      const kb = key(b);
+      if (!endpointMap.has(ka)) endpointMap.set(ka, []);
+      if (!endpointMap.has(kb)) endpointMap.set(kb, []);
+      endpointMap
+        .get(ka)
+        .push({ segmentIdx: si, endpoint: a, otherEndpoint: b });
+      endpointMap
+        .get(kb)
+        .push({ segmentIdx: si, endpoint: b, otherEndpoint: a });
     }
 
     for (let i = 0; i < segments.length; i++) {
@@ -1391,65 +1540,102 @@ class IMFSim {
       let start = a;
       let end = b;
 
-      // Grow forward from end
+      // Grow forward from end - find closest endpoint
       while (true) {
         const k = key(end);
-        const list = endpointMap.get(k) || [];
-        let found = false;
-        for (const si of list) {
-          if (used[si]) continue;
-          const [p, q] = segments[si];
-          if (findNearestPoint(end, q, tolerance)) {
-            path.push(p);
-            end = p;
-            used[si] = true;
-            found = true;
-            break;
-          } else if (findNearestPoint(end, p, tolerance)) {
-            path.push(q);
-            end = q;
-            used[si] = true;
-            found = true;
-            break;
+        const candidates = [];
+
+        // Check current bucket and adjacent buckets
+        for (let dk = -1; dk <= 1; dk++) {
+          for (let dl = -1; dl <= 1; dl++) {
+            const checkKey = `${Math.floor(end[0] / bucketSize) + dk},${
+              Math.floor(end[1] / bucketSize) + dl
+            }`;
+            const list = endpointMap.get(checkKey) || [];
+            for (const entry of list) {
+              if (used[entry.segmentIdx]) continue;
+              const distSq = distanceSq(end, entry.endpoint);
+              if (distSq < connectionTolerance * connectionTolerance) {
+                candidates.push({ ...entry, distSq });
+              }
+            }
           }
         }
-        if (!found) break;
+
+        if (candidates.length === 0) break;
+
+        // Find the closest candidate
+        candidates.sort((a, b) => a.distSq - b.distSq);
+        const best = candidates[0];
+        path.push(best.otherEndpoint);
+        end = best.otherEndpoint;
+        used[best.segmentIdx] = true;
       }
 
-      // Grow backward from start
+      // Grow backward from start - find closest endpoint
       while (true) {
         const k = key(start);
-        const list = endpointMap.get(k) || [];
-        let found = false;
-        for (const si of list) {
-          if (used[si]) continue;
-          const [p, q] = segments[si];
-          if (findNearestPoint(start, p, tolerance)) {
-            path.unshift(q);
-            start = q;
-            used[si] = true;
-            found = true;
-            break;
-          } else if (findNearestPoint(start, q, tolerance)) {
-            path.unshift(p);
-            start = p;
-            used[si] = true;
-            found = true;
-            break;
+        const candidates = [];
+
+        // Check current bucket and adjacent buckets
+        for (let dk = -1; dk <= 1; dk++) {
+          for (let dl = -1; dl <= 1; dl++) {
+            const checkKey = `${Math.floor(start[0] / bucketSize) + dk},${
+              Math.floor(start[1] / bucketSize) + dl
+            }`;
+            const list = endpointMap.get(checkKey) || [];
+            for (const entry of list) {
+              if (used[entry.segmentIdx]) continue;
+              const distSq = distanceSq(start, entry.endpoint);
+              if (distSq < connectionTolerance * connectionTolerance) {
+                candidates.push({ ...entry, distSq });
+              }
+            }
           }
         }
-        if (!found) break;
+
+        if (candidates.length === 0) break;
+
+        // Find the closest candidate
+        candidates.sort((a, b) => a.distSq - b.distSq);
+        const best = candidates[0];
+        path.unshift(best.otherEndpoint);
+        start = best.otherEndpoint;
+        used[best.segmentIdx] = true;
       }
 
       // Only add paths that are closed or have enough points
       if (path.length >= 3) {
         // Check if path is closed (start and end are close)
-        const isClosed = findNearestPoint(start, end, tolerance);
+        const isClosed = findNearestPoint(start, end, connectionTolerance);
         if (isClosed) {
           path.push(path[0]); // Ensure it's explicitly closed
         }
         paths.push(path);
       }
+    }
+
+    // Filter paths to keep only the main liquid body (largest area)
+    // This prevents weird disconnected shapes from appearing
+    if (paths.length > 1) {
+      const pathAreas = paths.map((path) => {
+        if (path.length < 3) return { path, area: 0 };
+        // Calculate signed area using shoelace formula
+        let area = 0;
+        for (let i = 0; i < path.length - 1; i++) {
+          area += path[i][0] * path[i + 1][1] - path[i + 1][0] * path[i][1];
+        }
+        return { path, area: Math.abs(area) };
+      });
+
+      // Sort by area and keep only paths that are at least 15% of the largest
+      pathAreas.sort((a, b) => b.area - a.area);
+      const maxArea = pathAreas[0].area;
+      const filteredPaths = pathAreas
+        .filter((p) => p.area > maxArea * 0.15)
+        .map((p) => p.path);
+      paths.length = 0;
+      paths.push(...filteredPaths);
     }
 
     // Detect open contours closed by walls and apply appropriate shading
@@ -1473,7 +1659,7 @@ class IMFSim {
 
       const firstPt = path[0];
       const lastPt = path[path.length - 1];
-      const isClosed = findNearestPoint(firstPt, lastPt, tolerance);
+      const isClosed = findNearestPoint(firstPt, lastPt, connectionTolerance);
 
       // Check individual points for wall proximity (more accurate than bounds)
       let nearGround = false;
@@ -1629,115 +1815,137 @@ class IMFSim {
         ctx.lineTo(path[i][0], path[i][1]);
       }
 
-      // Prefer wall closing over upward closing - use walls if any are detected
-      if (nearGround || nearLeftWall || nearRightWall) {
+      // Wall closing logic that prevents diagonal connections
+      // The key is to connect from the path's actual endpoints to the nearest wall points
+      if (!isClosed && (nearGround || nearLeftWall || nearRightWall)) {
         const firstPt = path[0];
         const lastPt = path[path.length - 1];
 
-        // Build closing path based on which walls are touched
-        // Handle combinations: bottom, left, right, left+bottom, right+bottom, left+right+bottom
+        // Find the actual points where the path touches each wall
+        // We'll use these to connect along walls without creating diagonals
 
-        if (nearGround && nearLeftWall && nearRightWall) {
-          // All three walls: bottom + left + right
-          // Connect from last point down to ground, then along ground,
-          // then up left wall, then horizontally to right wall top, then down right wall, then back to first
-          if (leftmostIdx < rightmostIdx) {
-            ctx.lineTo(rightmostX, containerBottom);
-            ctx.lineTo(leftmostX, containerBottom);
-          } else {
-            ctx.lineTo(leftmostX, containerBottom);
-            ctx.lineTo(rightmostX, containerBottom);
+        // Collect all points that are on or near walls
+        const bottomPoints = [];
+        const leftPoints = [];
+        const rightPoints = [];
+
+        for (const pt of path) {
+          if (nearGround && pt[1] >= bottomThreshold) {
+            bottomPoints.push({ x: pt[0], y: containerBottom });
           }
-          // Connect up left wall
-          if (bottommostPt && topmostPt) {
-            ctx.lineTo(containerLeft, bottommostY);
-            ctx.lineTo(containerLeft, topmostY);
+          if (nearLeftWall && pt[0] <= leftThreshold) {
+            leftPoints.push({ x: containerLeft, y: pt[1] });
           }
-          // Connect horizontally to right wall top
-          // Use the higher of the two top Y values to ensure proper connection
-          const leftTopY = topmostY !== null ? topmostY : bottommostY;
-          const rightTopY =
-            rightTopmostY !== null ? rightTopmostY : rightBottommostY;
-          const connectingTopY = Math.min(leftTopY, rightTopY);
-          ctx.lineTo(containerRight, connectingTopY);
-          // Connect down right wall (from top to bottom)
-          if (
-            rightTopmostPt &&
-            rightBottommostPt &&
-            rightTopmostY !== null &&
-            rightBottommostY !== null
-          ) {
-            // Already at top, so go down
-            ctx.lineTo(containerRight, rightBottommostY);
+          if (nearRightWall && pt[0] >= rightThreshold) {
+            rightPoints.push({ x: containerRight, y: pt[1] });
           }
-          // Connect back to first point
-          ctx.lineTo(firstPt[0], firstPt[1]);
-        } else if (nearGround && nearLeftWall) {
-          // Bottom + left wall
-          if (leftmostIdx < rightmostIdx) {
-            ctx.lineTo(rightmostX, containerBottom);
-            ctx.lineTo(leftmostX, containerBottom);
-          } else {
-            ctx.lineTo(leftmostX, containerBottom);
-            ctx.lineTo(rightmostX, containerBottom);
-          }
-          // Connect up left wall
-          if (bottommostPt && topmostPt) {
-            ctx.lineTo(containerLeft, bottommostY);
-            ctx.lineTo(containerLeft, topmostY);
-          }
-          ctx.lineTo(firstPt[0], firstPt[1]);
-        } else if (nearGround && nearRightWall) {
-          // Bottom + right wall
-          if (leftmostIdx < rightmostIdx) {
-            ctx.lineTo(rightmostX, containerBottom);
-            ctx.lineTo(leftmostX, containerBottom);
-          } else {
-            ctx.lineTo(leftmostX, containerBottom);
-            ctx.lineTo(rightmostX, containerBottom);
-          }
-          // Connect up right wall
-          if (rightBottommostPt && rightTopmostPt) {
-            ctx.lineTo(containerRight, rightBottommostY);
-            ctx.lineTo(containerRight, rightTopmostY);
-          }
-          ctx.lineTo(firstPt[0], firstPt[1]);
-        } else if (nearGround) {
-          // Bottom only
-          if (leftmostIdx < rightmostIdx) {
-            ctx.lineTo(rightmostX, containerBottom);
-            ctx.lineTo(leftmostX, containerBottom);
-          } else {
-            ctx.lineTo(leftmostX, containerBottom);
-            ctx.lineTo(rightmostX, containerBottom);
-          }
-          ctx.lineTo(firstPt[0], firstPt[1]);
-        } else if (nearLeftWall) {
-          // Left wall only
-          if (bottommostPt && topmostPt) {
-            if (topmostIdx < bottommostIdx) {
-              ctx.lineTo(containerLeft, bottommostY);
-              ctx.lineTo(containerLeft, topmostY);
-            } else {
-              ctx.lineTo(containerLeft, topmostY);
-              ctx.lineTo(containerLeft, bottommostY);
-            }
-          }
-          ctx.lineTo(firstPt[0], firstPt[1]);
-        } else if (nearRightWall) {
-          // Right wall only
-          if (rightTopmostPt && rightBottommostPt) {
-            if (rightTopmostIdx < rightBottommostIdx) {
-              ctx.lineTo(containerRight, rightBottommostY);
-              ctx.lineTo(containerRight, rightTopmostY);
-            } else {
-              ctx.lineTo(containerRight, rightTopmostY);
-              ctx.lineTo(containerRight, rightBottommostY);
-            }
-          }
-          ctx.lineTo(firstPt[0], firstPt[1]);
         }
 
+        // Find the connection points: where path ends meet walls
+        // Connect from lastPt to the nearest wall point, then along the wall
+
+        if (nearGround && bottomPoints.length > 0) {
+          // Find the leftmost and rightmost bottom points from actual path points
+          let leftmostX = Infinity;
+          let rightmostX = -Infinity;
+          for (const bp of bottomPoints) {
+            if (bp.x < leftmostX) leftmostX = bp.x;
+            if (bp.x > rightmostX) rightmostX = bp.x;
+          }
+
+          // Find the nearest bottom point to lastPt to avoid diagonal connections
+          let nearestBottomX = lastPt[0];
+          let minDist = Infinity;
+          for (const bp of bottomPoints) {
+            const dist = Math.abs(bp.x - lastPt[0]);
+            if (dist < minDist) {
+              minDist = dist;
+              nearestBottomX = bp.x;
+            }
+          }
+
+          // Connect from last point to nearest bottom point
+          ctx.lineTo(nearestBottomX, containerBottom);
+
+          // Then connect along bottom wall from nearest to the other extreme
+          if (
+            nearestBottomX === rightmostX ||
+            nearestBottomX > (leftmostX + rightmostX) / 2
+          ) {
+            // Nearest is on the right side, connect leftward along wall
+            ctx.lineTo(leftmostX, containerBottom);
+          } else {
+            // Nearest is on the left side, connect rightward along wall
+            ctx.lineTo(rightmostX, containerBottom);
+          }
+        } else if (nearLeftWall && leftPoints.length > 0) {
+          // Find topmost and bottommost left points
+          let topmostY = Infinity;
+          let bottommostY = -Infinity;
+          for (const lp of leftPoints) {
+            if (lp.y < topmostY) topmostY = lp.y;
+            if (lp.y > bottommostY) bottommostY = lp.y;
+          }
+
+          // Find the nearest left point to lastPt
+          let nearestLeftY = lastPt[1];
+          let minDist = Infinity;
+          for (const lp of leftPoints) {
+            const dist = Math.abs(lp.y - lastPt[1]);
+            if (dist < minDist) {
+              minDist = dist;
+              nearestLeftY = lp.y;
+            }
+          }
+
+          // Connect from last point to nearest left point
+          ctx.lineTo(containerLeft, nearestLeftY);
+
+          // Then connect along left wall
+          if (
+            nearestLeftY === bottommostY ||
+            nearestLeftY > (topmostY + bottommostY) / 2
+          ) {
+            ctx.lineTo(containerLeft, topmostY);
+          } else {
+            ctx.lineTo(containerLeft, bottommostY);
+          }
+        } else if (nearRightWall && rightPoints.length > 0) {
+          // Find topmost and bottommost right points
+          let topmostY = Infinity;
+          let bottommostY = -Infinity;
+          for (const rp of rightPoints) {
+            if (rp.y < topmostY) topmostY = rp.y;
+            if (rp.y > bottommostY) bottommostY = rp.y;
+          }
+
+          // Find the nearest right point to lastPt
+          let nearestRightY = lastPt[1];
+          let minDist = Infinity;
+          for (const rp of rightPoints) {
+            const dist = Math.abs(rp.y - lastPt[1]);
+            if (dist < minDist) {
+              minDist = dist;
+              nearestRightY = rp.y;
+            }
+          }
+
+          // Connect from last point to nearest right point
+          ctx.lineTo(containerRight, nearestRightY);
+
+          // Then connect along right wall
+          if (
+            nearestRightY === bottommostY ||
+            nearestRightY > (topmostY + bottommostY) / 2
+          ) {
+            ctx.lineTo(containerRight, topmostY);
+          } else {
+            ctx.lineTo(containerRight, bottommostY);
+          }
+        }
+
+        // Close back to start point
+        ctx.lineTo(firstPt[0], firstPt[1]);
         ctx.closePath();
       } else {
         // Explicitly close the path before filling (for closed contours)
@@ -1816,6 +2024,16 @@ class IMFSim {
     if (typeof window.updatePlaygroundGoalProgress === "function") {
       try {
         window.updatePlaygroundGoalProgress();
+      } catch (_) {}
+    }
+
+    // Update narrator (throttled, not a separate timer)
+    if (
+      typeof window.renderNarration === "function" &&
+      typeof window.updateNarratorThrottled === "function"
+    ) {
+      try {
+        window.updateNarratorThrottled();
       } catch (_) {}
     }
 
@@ -2140,6 +2358,45 @@ IMFSim.prototype.setGasCanvas = function (canvas) {
 
       legendY += 18;
     });
+
+    // Overlay message when heating is off, simulation is paused, or no data exists yet
+    const hasCurrentTrialData =
+      this.currentScenario &&
+      this.gasHistory.some((p) => p.scenario === this.currentScenario);
+    // Show overlay if: heating is off OR simulation is paused OR (no data and trial hasn't ended)
+    // Hide overlay when: heating is on AND running AND (has data OR trial ended with data)
+    const shouldShowOverlay =
+      !this.heatingOn ||
+      !this.running ||
+      (!hasCurrentTrialData && !this.trialEnded);
+    if (shouldShowOverlay) {
+      // Semi-transparent grey overlay
+      ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+      ctx.fillRect(0, 0, w, h);
+
+      // Message text - bigger font
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 20px system-ui, -apple-system, Segoe UI, Roboto";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      const messageLines = [
+        "Graph starts when heating begins",
+        "and ends after 30 seconds.",
+        "You can then switch and compare trials.",
+      ];
+
+      const lineHeight = 30;
+      const startY = h / 2 - ((messageLines.length - 1) * lineHeight) / 2;
+
+      messageLines.forEach((line, i) => {
+        ctx.fillText(line, w / 2, startY + i * lineHeight);
+      });
+
+      // Reset text alignment
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+    }
   };
 };
 
@@ -2161,12 +2418,59 @@ function scenarioColor(kind) {
 function applyIMFCoeffsFor(sim, kind) {
   const v = Math.max(0, Number(sim.params.viscosity || 0));
   if (kind === "playground") {
-    // Use playground parameters directly
-    const hb = sim.params.hbStrength || 0;
-    const dp = sim.params.dipole || 0;
-    sim.params.cohLJ = 1.0 + 0.5 * v;
-    sim.params.cohHB = hb > 0 ? 2.0 + hb * 1.5 : 0;
-    sim.params.cohDP = dp > 0 ? 1.5 + dp * 1.2 : 0;
+    // SIMPLIFIED: Direct interpolation between hexane and honey based on IMF strength
+    // IMF strength (0-1) directly controls behavior: 0 = hexane, 1 = honey
+    const t = sim.getIMFStrength(); // 0 = hexane-like, 1 = honey-like
+
+    // Get user's slider values
+    const userEpsilon = sim.params.epsilon || 0;
+    const userHb = sim.params.hbStrength || 0;
+    const userDp = sim.params.dipole || 0;
+
+    // Hexane characteristics (weak IMFs, easy evaporation)
+    const hexaneEpsilon = 0.05;
+    const hexaneCohLJ = 0.011;
+    const hexaneCohHB = 0.0;
+    const hexaneCohDP = 0.0;
+
+    // Honey characteristics (strong IMFs, hard evaporation)
+    const honeyEpsilon = 0.7;
+    const honeyCohLJ = 9.5;
+    const honeyCohHB = 18.0;
+    const honeyCohDP = 1.0;
+
+    // Use user's epsilon directly - it's already in the right range
+    // The cohesion coefficients will scale based on IMF strength
+
+    // Interpolate cohesion coefficients - these directly control how particles stick together
+    // Make the range very wide: hexane (0.011) to honey (9.5) = ~860x difference
+    sim.params.cohLJ = hexaneCohLJ + (honeyCohLJ - hexaneCohLJ) * t;
+
+    // Scale H-bond cohesion if user enabled it
+    if (userHb > 0) {
+      // Scale based on IMF strength - honey has very strong H-bonds
+      sim.params.cohHB = hexaneCohHB + (honeyCohHB - hexaneCohHB) * t;
+      // Also scale hbStrength itself based on IMF strength for stronger effect
+      sim.params.hbStrength = userHb * (0.5 + 0.5 * t); // Scale user value by 0.5x to 1.0x based on IMF
+    } else {
+      sim.params.cohHB = 0;
+      sim.params.hbStrength = 0;
+    }
+
+    // Scale dipole cohesion if user enabled it
+    if (userDp > 0) {
+      const dmsoCohDP = 1.8; // DMSO-like dipole strength
+      sim.params.cohDP = hexaneCohDP + (dmsoCohDP - hexaneCohDP) * t;
+      // Scale dipole strength itself
+      sim.params.dipole = userDp * (0.5 + 0.5 * t);
+    } else {
+      sim.params.cohDP = 0;
+      sim.params.dipole = 0;
+    }
+
+    // User's epsilon is used directly in force calculations
+    // The cohesion coefficients control how strongly those forces act
+
     return;
   }
   if (kind === "honey") {
@@ -2202,32 +2506,46 @@ export function mountIMFs(root) {
   root.appendChild(host);
   const shadow = host.attachShadow({ mode: "open" });
 
-  // Load HW stylesheet inside shadow
-  const IMFSCSS_HREF = "https://learnhw.web.app/assets/index-DGT0gdx8.css";
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = IMFSCSS_HREF;
-  shadow.appendChild(link);
+  // External stylesheet removed - using only local styles defined below
+  // This prevents 404 errors from unavailable external resources
 
   // IMFs local shim styles for sizing and rounding
   const shim = document.createElement("style");
   shim.textContent = `
     .imfs-shell { padding: 12px 0; max-width: 100%; width: 100%; overflow-x: hidden; }
     .container.container--wide { max-width: 100%; width: 100%; padding-left: 4px; padding-right: 4px; box-sizing: border-box; overflow-x: hidden; }
+    /* Title section styling - better spacing and typography */
+    .imfs-shell > section.panel:first-child { padding: 24px 32px; margin-bottom: 0; }
+    .imfs-shell > section.panel:first-child h2 { 
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font-weight: 700;
+      font-size: 24px;
+      line-height: 1.3;
+      margin: 0 0 12px 0;
+      color: #111827;
+      letter-spacing: -0.02em;
+    }
+    .imfs-shell > section.panel:first-child p { 
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0;
+      color: #6b7280;
+    }
     .imfs-wrap { display: grid; grid-template-columns: 1fr; gap: 16px; }
     /* Compact controls styling */
     .imfs-controls-row { grid-column: 1; display: block; }
     .imfs-controls-row .panel { max-width: 100%; padding: 12px; box-sizing: border-box; }
     .controls-compact { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-start; width: 100%; box-sizing: border-box; }
-    .controls-compact .control-group { display: flex; flex-direction: column; gap: 4px; flex: 0 1 auto; min-width: 0; }
+    .controls-compact .control-group { display: flex; flex-direction: column; gap: 4px; flex: 0 1 auto; min-width: 0; align-items: flex-start; }
     .controls-compact .control-group:first-child { flex: 0 0 auto; min-width: 160px; }
     .controls-compact .control-group.compact-dropdown { flex: 1 1 140px; min-width: 120px; max-width: 200px; }
     .controls-compact .control-group.compact-dropdown .label { font-size: 12px; margin-bottom: 2px; }
     .controls-compact .control-group.compact-dropdown .select,
     .controls-compact .control-group.compact-dropdown .range { font-size: 13px; padding: 4px 8px; width: 100%; box-sizing: border-box; }
-    .controls-compact .control-group.compact-dropdown .range { height: 24px; }
+    .controls-compact .control-group.compact-dropdown .range { height: 32px !important; min-height: 32px; }
     .controls-compact .control-group.compact-dropdown .muted { font-size: 11px; }
-    .controls-compact .normal-controls { display: flex; flex-direction: row; gap: 10px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+    .controls-compact .normal-controls { display: flex; flex-direction: row; gap: 10px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; align-items: center; }
     .controls-compact .settings-dropdown { flex: 0 0 auto; min-width: 120px; }
     .controls-compact .settings-toggle { padding: 6px 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
     .controls-compact .playground-controls { display: flex; flex-direction: row; gap: 10px; align-items: center; flex: 1 1 auto; min-width: 0; }
@@ -2235,7 +2553,19 @@ export function mountIMFs(root) {
     .controls-compact .playground-params-dropdown { flex: 0 0 auto; min-width: 120px; }
     .controls-compact .playground-params-toggle { padding: 6px 10px; font-size: 13px; width: 100%; box-sizing: border-box; }
     .controls-compact .control-buttons { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
-    .controls-compact .control-buttons .btn { padding: 6px 12px; font-size: 13px; min-width: 60px; box-sizing: border-box; }
+    .controls-compact .control-buttons .btn { padding: 10px 18px; font-size: 13px; min-width: 60px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; height: 42px; }
+    /* Toggle buttons group */
+    .toggle-buttons-group { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+    .toggle-buttons-group .btn { padding: 10px 18px; font-size: 13px; min-width: 60px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; height: 42px; }
+    /* Heat button - separated and emphasized */
+    .heat-button-wrapper { display: flex; align-items: center; flex-shrink: 0; margin-left: 8px; padding-left: 8px; border-left: 1px solid #e5e7eb; }
+    .heat-button-wrapper .btn { padding: 10px 20px; font-size: 13px; font-weight: 600; min-width: 70px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; height: 42px; }
+    /* Active state for toggle buttons */
+    .imfs-shell .btn.btn--outline.is-active { background: #fee2e2; color: #dc2626; border-color: #dc2626; font-weight: 600; box-shadow: 0 0 0 2px #fee2e2 inset; }
+    .imfs-shell .btn.btn--outline.is-active:hover { background: #fecaca; border-color: #b91c1c; }
+    /* Heat button active state - more prominent */
+    .imfs-shell #t-heat.is-active { background: #dc2626; color: #ffffff; border-color: #dc2626; font-weight: 600; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3); }
+    .imfs-shell #t-heat.is-active:hover { background: #b91c1c; border-color: #b91c1c; }
     @media (max-width: 768px) {
       .imfs-controls-row .panel { padding: 10px 6px; margin: 0 2px; }
       .controls-compact { flex-direction: column; gap: 10px; align-items: stretch; }
@@ -2245,10 +2575,15 @@ export function mountIMFs(root) {
       .controls-compact .normal-controls { flex-direction: column; width: 100%; gap: 8px; }
       .controls-compact .control-buttons { width: 100%; justify-content: center; }
       .controls-compact .control-buttons .btn { flex: 1 1 0; min-width: 0; }
+      .controls-compact .toggle-buttons-group { width: 100%; justify-content: center; flex-wrap: wrap; }
+      .controls-compact .toggle-buttons-group .btn { flex: 1 1 0; min-width: 0; }
+      .controls-compact .heat-button-wrapper { width: 100%; margin-left: 0; padding-left: 0; border-left: none; border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; justify-content: center; }
+      .controls-compact .heat-button-wrapper .btn { width: 100%; }
       .controls-compact .playground-controls { flex-direction: column; width: 100%; gap: 8px; }
       .controls-compact .playground-goal { width: 100%; }
       .controls-compact .playground-params-dropdown { width: 100%; }
       .controls-compact .settings-dropdown { width: 100%; }
+      .controls-compact .imf-checkbox-group { flex-direction: row !important; justify-content: flex-start; gap: 16px !important; }
     }
     .imfs-main-row { display: grid; grid-template-columns: 1fr 225px 1fr; gap: 16px; align-items: start; }
     .imfs-3d-row { grid-column: 1 / -1; display: block; margin-top: 8px; }
@@ -2262,6 +2597,9 @@ export function mountIMFs(root) {
     }
     @media (max-width: 768px) {
       .imfs-shell { padding: 4px 0; }
+      .imfs-shell > section.panel:first-child { padding: 20px 20px; }
+      .imfs-shell > section.panel:first-child h2 { font-size: 20px; }
+      .imfs-shell > section.panel:first-child p { font-size: 14px; }
       .imfs-controls-row .panel { padding: 10px 6px; margin: 0 2px; }
       .imfs-main-row { display: flex; flex-direction: column; gap: 12px; }
       .imfs-sim { height: 300px !important; width: calc(100% - 4px) !important; max-width: calc(100% - 4px); margin: 0 auto; }
@@ -2273,7 +2611,14 @@ export function mountIMFs(root) {
       .container.container--wide { padding-left: 2px; padding-right: 2px; }
     }
     .imfs-sim-container { display: contents; }
-    .imfs-sim { width: 225px !important; height: 420px; display: block; margin: 0 auto; border-radius: 12px; background: #ffffff; border: 1px solid #d1d5db; overflow: hidden; box-sizing: border-box; }
+    .imfs-sim { width: 225px !important; height: 420px; display: block; margin: 0 auto; border-radius: 12px; background: #ffffff; border: 3px solid #dc2626; overflow: hidden; box-sizing: border-box; box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1), 0 8px 24px rgba(220, 38, 38, 0.3), 0 0 40px rgba(220, 38, 38, 0.2); position: relative; transition: border-color 0.6s ease, box-shadow 0.6s ease; }
+    .imfs-sim.is-heating { border-color: #f97316; box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1), 0 8px 24px rgba(249, 115, 22, 0.3), 0 0 40px rgba(249, 115, 22, 0.2); }
+    .imfs-sim::before { content: ''; position: absolute; top: -6px; left: -6px; right: -6px; bottom: -6px; border: 2px solid rgba(220, 38, 38, 0.3); border-radius: 14px; pointer-events: none; z-index: -1; animation: pulse-glow 2s ease-in-out infinite; transition: border-color 0.6s ease; }
+    .imfs-sim.is-heating::before { border-color: rgba(249, 115, 22, 0.3); }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.02); }
+    }
     .imfs-gas { width: 100% !important; max-width: 100% !important; height: 420px; background: #ffffff; border: 1px solid #d1d5db; border-radius: 12px; display: block; box-sizing: border-box; }
     .imfs-3d { width: 100%; height: 280px; min-height: 200px; border-radius: 12px; background: #ffffff; overflow: hidden; position: relative; }
     .imfs-educational { width: 100%; background: #ffffff; border: 1px solid #d1d5db; border-radius: 12px; padding: 20px; box-sizing: border-box; }
@@ -2282,7 +2627,7 @@ export function mountIMFs(root) {
     #imfs-mol line { stroke: #0e1116; stroke-width: 3px; }
     #imfs-mol text { fill: #0e1116; }
     /* AI Narrator */
-    .ai-narrator-panel { height: 420px; overflow-y: auto; background: #ffffff; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+    .ai-narrator-panel { height: 420px; min-height: 420px; max-height: 420px; overflow-y: auto; background: #ffffff; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; box-sizing: border-box; }
     .ai-narrator-panel .narrator-content { overflow-y: auto; height: 100%; }
     .ai-narrator-panel .narrator-section { margin: 12px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
     .ai-narrator-panel .narrator-section:last-child { border-bottom: none; }
@@ -2336,6 +2681,7 @@ export function mountIMFs(root) {
     .playground-params-dropdown.open .playground-params-menu { display: block; }
     .playground-params-menu .field { margin-bottom: 12px; }
     .playground-params-menu .field:last-child { margin-bottom: 0; }
+    .playground-params-menu .field .range { height: 32px !important; min-height: 32px; width: 100%; }
     /* Celebration and sadness animations */
     .celebration-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s; }
     .celebration-content { background: #ffffff; border-radius: 16px; padding: 40px; text-align: center; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -2347,6 +2693,362 @@ export function mountIMFs(root) {
     .celebration-content p { margin: 0; font-size: 18px; color: #374151; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes scaleIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes pulse { 
+      0%, 100% { box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4); }
+      50% { box-shadow: 0 6px 20px rgba(220, 38, 38, 0.6); }
+    }
+    /* Tutorial overlay styles */
+    .tutorial-overlay { 
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      right: 0; 
+      bottom: 0; 
+      background: rgba(0, 0, 0, 0.75); 
+      z-index: 10000; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      animation: fadeIn 0.3s;
+      pointer-events: all;
+      overflow-y: auto;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .tutorial-overlay.hidden { display: none; }
+    .tutorial-content { 
+      background: #ffffff; 
+      border-radius: 24px; 
+      padding: 12px 20px; 
+      width: auto;
+      max-width: 500px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 2px rgba(255, 255, 255, 0.3); 
+      animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: fixed !important;
+      bottom: 20px !important;
+      left: 50% !important;
+      right: auto !important;
+      top: auto !important;
+      transform: translateX(-50%) !important;
+      z-index: 10001;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      filter: brightness(1.1);
+      white-space: nowrap;
+      margin: 0 !important;
+    }
+    /* Centered floating modal for intro/outro steps */
+    .tutorial-intro-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10004;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .tutorial-intro-content {
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 32px 40px;
+      max-width: 600px;
+      width: calc(100vw - 40px);
+      box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 0 2px rgba(255, 255, 255, 0.3);
+      animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      text-align: center;
+      pointer-events: all;
+    }
+    .tutorial-intro-content h3 {
+      margin: 0 0 16px 0;
+      font-size: 24px;
+      font-weight: 700;
+      color: #111827;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .tutorial-intro-content p {
+      margin: 0 0 24px 0;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #374151;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .tutorial-intro-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+    }
+    @media (max-width: 768px) {
+      .tutorial-intro-content {
+        padding: 24px 28px;
+        max-width: calc(100vw - 20px);
+      }
+      .tutorial-intro-content h3 {
+        font-size: 20px;
+      }
+      .tutorial-intro-content p {
+        font-size: 15px;
+      }
+    }
+    .tutorial-content .tutorial-text-content {
+      margin: 0;
+      text-align: center;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #374151;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .tutorial-content .tutorial-text-content h3 {
+      margin: 0 0 12px 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .tutorial-content .tutorial-text-content p {
+      margin: 0;
+    }
+    @media (max-width: 768px) {
+      .tutorial-content {
+        padding: 10px 16px;
+        bottom: 10px;
+        gap: 8px;
+        max-width: calc(100vw - 20px);
+      }
+      .tutorial-content.has-text {
+        padding: 16px 20px;
+        max-width: calc(100vw - 20px);
+      }
+      .tutorial-content .tutorial-step-indicator {
+        font-size: 12px;
+      }
+      .tutorial-content .tutorial-text-content {
+        font-size: 14px;
+      }
+      .tutorial-content .tutorial-text-content h3 {
+        font-size: 18px;
+      }
+      .tutorial-content .tutorial-buttons {
+        gap: 6px;
+      }
+      .tutorial-content .btn-tutorial {
+        padding: 6px 12px;
+        font-size: 13px;
+        min-width: 70px;
+        height: 32px;
+      }
+      .tutorial-tooltip {
+        max-width: calc(100vw - 30px) !important;
+        width: calc(100vw - 30px) !important;
+        padding: 12px 14px;
+        font-size: 13px;
+      }
+    }
+    .tutorial-content h3 { 
+      margin: 0 0 16px 0; 
+      font-size: 24px; 
+      font-weight: 700; 
+      color: #111827;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .tutorial-content p { 
+      margin: 0 0 24px 0; 
+      font-size: 16px; 
+      line-height: 1.6; 
+      color: #374151;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .tutorial-content .tutorial-step-indicator {
+      margin: 0;
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 600;
+      white-space: nowrap;
+      min-width: 40px;
+      text-align: center;
+    }
+    .tutorial-content .tutorial-buttons { 
+      display: flex; 
+      gap: 8px; 
+      justify-content: center; 
+      margin: 0;
+    }
+    .tutorial-content .btn-tutorial { 
+      padding: 8px 12px; 
+      border-radius: 12px; 
+      font-size: 18px; 
+      font-weight: 600; 
+      cursor: pointer; 
+      border: none;
+      font-family: 'Inter', system-ui, sans-serif;
+      transition: all 0.2s;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      min-width: 40px;
+      width: 40px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tutorial-content .btn-tutorial-skip {
+      min-width: auto;
+      width: auto;
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+    .tutorial-content .btn-tutorial-primary { 
+      background: #dc2626; 
+      color: #ffffff; 
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .tutorial-content .btn-tutorial-primary:hover { 
+      background: #b91c1c; 
+      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.5);
+      transform: translateY(-1px);
+    }
+    .tutorial-content .btn-tutorial-secondary { 
+      background: #f3f4f6; 
+      color: #374151; 
+    }
+    .tutorial-content .btn-tutorial-secondary:hover { 
+      background: #e5e7eb; 
+    }
+    .tutorial-content .btn-tutorial-secondary:disabled {
+      background: #f9fafb;
+      color: #9ca3af;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .tutorial-content .btn-tutorial-secondary:disabled:hover {
+      background: #f9fafb;
+    }
+    .tutorial-content .btn-tutorial-skip { 
+      background: transparent; 
+      color: #6b7280; 
+      text-decoration: underline;
+    }
+    .tutorial-content .btn-tutorial-skip:hover { 
+      color: #374151; 
+    }
+    .tutorial-highlight { 
+      position: fixed; 
+      border: 4px solid #dc2626; 
+      border-radius: 8px; 
+      box-shadow: 
+        0 0 0 9999px rgba(0, 0, 0, 0.5),
+        0 0 0 4px rgba(220, 38, 38, 0.3), 
+        0 0 30px rgba(220, 38, 38, 0.6),
+        inset 0 0 60px rgba(255, 255, 255, 0.4),
+        inset 0 0 120px rgba(255, 255, 255, 0.2);
+      pointer-events: none;
+      z-index: 10002;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 4px;
+      margin: -4px;
+      backdrop-filter: brightness(1.5) contrast(1.05);
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .tutorial-tooltip { 
+      position: fixed; 
+      background: #ffffff; 
+      padding: 14px 18px; 
+      border-radius: 8px; 
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 0 2px rgba(220, 38, 38, 0.2);
+      font-size: 14px;
+      color: #111827;
+      max-width: 320px;
+      z-index: 10003;
+      pointer-events: none;
+      line-height: 1.6;
+    }
+    .tutorial-tooltip strong {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+    .tutorial-tooltip::after {
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 0;
+      border: 8px solid transparent;
+    }
+    .tutorial-tooltip.top::after {
+      bottom: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-top-color: #ffffff;
+    }
+    .tutorial-tooltip.bottom::after {
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-bottom-color: #ffffff;
+    }
+    .tutorial-tooltip.left::after {
+      right: -16px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-left-color: #ffffff;
+    }
+    .tutorial-tooltip.right::after {
+      left: -16px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-right-color: #ffffff;
+    }
+    /* Replay tutorial button */
+    .replay-tutorial-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      background: #ffffff;
+      border: 2px solid #dc2626;
+      border-radius: 12px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: #dc2626;
+      transition: all 0.2s;
+    }
+    .replay-tutorial-btn:hover {
+      background: #fef2f2;
+      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.25);
+      transform: translateY(-2px);
+    }
+    .replay-tutorial-btn span:first-child {
+      font-size: 18px;
+    }
+    .replay-tutorial-text {
+      display: inline-block;
+    }
+    @media (max-width: 768px) {
+      .replay-tutorial-text {
+        display: none;
+      }
+      .replay-tutorial-btn {
+        padding: 10px;
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        justify-content: center;
+      }
+    }
     /* Playground mode styles */
     .playground-mode .normal-controls { display: none; }
     .playground-mode .playground-controls { display: flex; flex-direction: row; gap: 10px; align-items: center; }
@@ -2356,7 +3058,7 @@ export function mountIMFs(root) {
     .playground-mode .control-buttons #pg-reset { display: inline-block !important; }
     .normal-mode .playground-controls { display: none; }
     .normal-mode .control-buttons #pg-reset { display: none !important; }
-    .normal-mode .normal-controls { display: flex; flex-direction: row; gap: 8px; }
+    .normal-mode .normal-controls { display: flex; flex-direction: row; gap: 10px; align-items: center; }
     .playground-goal { background: #fef2f2; border: 2px solid #dc2626; border-radius: 6px; padding: 8px; margin-bottom: 0; }
     .playground-goal h4 { margin: 0 0 4px 0; color: #dc2626; font-size: 12px; font-weight: 600; }
     .playground-goal .goal-text { color: #111827; font-weight: 600; margin-bottom: 4px; font-size: 12px; }
@@ -2369,6 +3071,11 @@ export function mountIMFs(root) {
     .imf-checkbox { display: flex; align-items: center; gap: 8px; }
     .imf-checkbox input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
     .imf-checkbox label { cursor: pointer; font-weight: 500; }
+    /* Warning emoji styling */
+    .warning-emoji { display: inline-block; margin-left: 4px; cursor: help; font-size: 14px; }
+    /* Show IMF checkboxes in playground mode, hide in normal mode */
+    .playground-mode .imf-checkbox-group { display: flex !important; flex-direction: row !important; gap: 16px !important; margin-bottom: 0 !important; flex-shrink: 0; }
+    .normal-mode .imf-checkbox-group { display: none !important; }
     /* Debug panel styles */
     .debug-panel { 
       position: fixed; 
@@ -2437,25 +3144,23 @@ export function mountIMFs(root) {
                   </select>
                 </div>
                 <div class="control-group compact-dropdown">
-                  <label class="label">Particles</label>
-                  <input id="s-n" class="range" type="range" min="40" max="500" step="10" value="200" style="height:24px;">
+                  <label class="label">Particles <span class="warning-emoji" title="Performance degrades over 250 particles">⚠️</span></label>
+                  <input id="s-n" class="range" type="range" min="40" max="500" step="10" value="200">
                   <span class="muted" id="v-n" style="font-size:11px;"></span>
                 </div>
                 <div class="control-group compact-dropdown">
                   <label class="label">Heat Intensity</label>
-                  <input id="s-heat" class="range" type="range" min="0" max="5" step="0.1" value="5.0" style="height:24px;">
+                  <input id="s-heat" class="range" type="range" min="0" max="5" step="0.1" value="5.0">
                   <span class="muted" id="v-heat" style="font-size:11px;"></span>
                 </div>
               </div>
-              <div class="settings-dropdown">
-                <button id="settings-toggle" class="settings-toggle" style="padding: 6px 10px; font-size: 13px;">Settings</button>
-                <div class="settings-menu">
-                  <button id="t-gravity" class="btn btn--outline">Gravity</button>
-                  <button id="t-contour" class="btn btn--outline">Contour</button>
-                  <button id="t-shade" class="btn btn--outline">Shade Contour</button>
-                  <button id="t-molecules" class="btn btn--outline">Molecules</button>
-                  <button id="t-heat" class="btn btn--outline">Heat</button>
-                </div>
+              <div class="toggle-buttons-group">
+                <button id="t-gravity" class="btn btn--outline">Gravity</button>
+                <button id="t-contour" class="btn btn--outline">Contour</button>
+                <button id="t-molecules" class="btn btn--outline">Molecules</button>
+              </div>
+              <div class="heat-button-wrapper">
+                <button id="t-heat" class="btn btn--outline">Heat</button>
               </div>
               <div class="playground-controls">
                 <div class="playground-params-dropdown">
@@ -2492,7 +3197,7 @@ export function mountIMFs(root) {
                       <div class="parameter-explanation">Dipole-dipole interaction strength (only active if Dipole checkbox enabled)</div>
                     </div>
                     <div class="field">
-                      <label class="label">Particles (N)</label>
+                      <label class="label">Particles (N) <span class="warning-emoji" title="Performance degrades over 250 particles">⚠️</span></label>
                       <input id="pg-n" class="range" type="range" min="40" max="500" step="10" value="200">
                       <span class="muted" id="v-pg-n">200</span>
                       <div class="parameter-explanation">Number of particles in simulation</div>
@@ -2509,7 +3214,7 @@ export function mountIMFs(root) {
                   <div class="goal-text" id="goal-text" style="font-size: 12px; margin-bottom: 4px;">Loading...</div>
                   <div class="goal-progress" id="goal-progress" style="font-size: 11px;">Ready</div>
                 </div>
-                <div class="imf-checkbox-group" style="display: none;">
+                <div class="imf-checkbox-group">
                   <div class="imf-checkbox">
                     <input type="checkbox" id="cb-hbond" checked>
                     <label for="cb-hbond" style="font-size: 12px;">H-bond</label>
@@ -2600,6 +3305,29 @@ export function mountIMFs(root) {
       <h4>🔍 Particle Debug Info</h4>
       <div id="debug-content"></div>
     </div>
+    <div id="tutorial-overlay" class="tutorial-overlay hidden">
+      <div class="tutorial-content">
+        <div class="tutorial-step-indicator" id="tutorial-step-indicator">1/8</div>
+        <div class="tutorial-text-content" id="tutorial-text-content" style="display: none;"></div>
+        <div class="tutorial-buttons">
+          <button class="btn-tutorial btn-tutorial-skip" id="tutorial-skip">Skip</button>
+          <button class="btn-tutorial btn-tutorial-secondary" id="tutorial-prev" style="display: none;">&lt;</button>
+          <button class="btn-tutorial btn-tutorial-primary" id="tutorial-next">&gt;</button>
+        </div>
+      </div>
+      <div class="tutorial-intro-modal" id="tutorial-intro-modal" style="display: none;">
+        <div class="tutorial-intro-content">
+          <h3 id="tutorial-intro-title"></h3>
+          <p id="tutorial-intro-text"></p>
+        </div>
+      </div>
+      <div class="tutorial-highlight" id="tutorial-highlight"></div>
+      <div class="tutorial-tooltip" id="tutorial-tooltip"></div>
+    </div>
+    <button id="replay-tutorial-btn" class="replay-tutorial-btn" title="Replay Tutorial">
+      <span>📚</span>
+      <span class="replay-tutorial-text">Replay Tutorial</span>
+    </button>
   `;
   shadow.appendChild(shell);
 
@@ -2644,11 +3372,22 @@ export function mountIMFs(root) {
     ),
     tGravity: shadow.querySelector("#t-gravity"),
     tContour: shadow.querySelector("#t-contour"),
-    tShade: shadow.querySelector("#t-shade"),
     tMolecules: shadow.querySelector("#t-molecules"),
     tHeat: shadow.querySelector("#t-heat"),
     debugPanel: shadow.querySelector("#debug-panel"),
     debugContent: shadow.querySelector("#debug-content"),
+    tutorialOverlay: shadow.querySelector("#tutorial-overlay"),
+    tutorialStepIndicator: shadow.querySelector("#tutorial-step-indicator"),
+    tutorialNext: shadow.querySelector("#tutorial-next"),
+    tutorialPrev: shadow.querySelector("#tutorial-prev"),
+    tutorialSkip: shadow.querySelector("#tutorial-skip"),
+    tutorialHighlight: shadow.querySelector("#tutorial-highlight"),
+    tutorialTooltip: shadow.querySelector("#tutorial-tooltip"),
+    tutorialTextContent: shadow.querySelector("#tutorial-text-content"),
+    tutorialIntroModal: shadow.querySelector("#tutorial-intro-modal"),
+    tutorialIntroTitle: shadow.querySelector("#tutorial-intro-title"),
+    tutorialIntroText: shadow.querySelector("#tutorial-intro-text"),
+    replayTutorialBtn: shadow.querySelector("#replay-tutorial-btn"),
     // no thermostat box; KE is graphed below
   };
 
@@ -2663,20 +3402,8 @@ export function mountIMFs(root) {
     viewer = $3Dmol.createViewer(refs.mol3d, { backgroundColor: bg.trim() });
     // Disable zoom interactions after viewer is created
     if (refs.mol3d) {
-      // Prevent wheel zoom
-      const preventZoom = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      };
-      refs.mol3d.addEventListener("wheel", preventZoom, { passive: false });
-      refs.mol3d.addEventListener("touchstart", preventZoom, {
-        passive: false,
-      });
-      refs.mol3d.addEventListener("touchmove", preventZoom, { passive: false });
-      // Disable mouse interactions that could cause zoom/rotation
-      refs.mol3d.addEventListener("mousedown", preventZoom, { passive: false });
       // Find canvas inside viewer and disable pointer events
+      // This allows page scrolling to work normally over the 3D model
       setTimeout(() => {
         const canvas = refs.mol3d.querySelector("canvas");
         if (canvas) {
@@ -2837,40 +3564,67 @@ M  END
   let playgroundMode = false;
   let currentGoal = null;
 
-  // Goal definitions
+  // Goal definitions - varied and interesting goals with ranges
   const possibleGoals = [
     {
-      type: "exact",
-      target: 25,
-      text: "Reach exactly 25% evaporated after 30 seconds",
+      type: "range",
+      min: 20,
+      max: 35,
+      text: "Achieve moderate evaporation: 20-35% evaporated",
     },
     {
-      type: "exact",
-      target: 50,
-      text: "Reach exactly 50% evaporated after 30 seconds",
+      type: "range",
+      min: 45,
+      max: 60,
+      text: "Reach substantial evaporation: 45-60% evaporated",
     },
     {
-      type: "exact",
-      target: 75,
-      text: "Reach exactly 75% evaporated after 30 seconds",
+      type: "range",
+      min: 70,
+      max: 85,
+      text: "Achieve high evaporation: 70-85% evaporated",
+    },
+    {
+      type: "range",
+      min: 10,
+      max: 25,
+      text: "Keep evaporation low: 10-25% evaporated (strong IMFs)",
+    },
+    {
+      type: "range",
+      min: 55,
+      max: 75,
+      text: "Reach significant evaporation: 55-75% evaporated",
     },
     {
       type: "range",
       min: 30,
-      max: 40,
-      text: "Reach between 30-40% evaporated after 30 seconds",
+      max: 50,
+      text: "Achieve balanced evaporation: 30-50% evaporated",
     },
     {
       type: "range",
-      min: 60,
-      max: 70,
-      text: "Reach between 60-70% evaporated after 30 seconds",
+      min: 5,
+      max: 20,
+      text: "Minimize evaporation: 5-20% evaporated (very strong IMFs)",
     },
     {
       type: "range",
-      min: 15,
-      max: 35,
-      text: "Have at least 15% evaporated but less than 35% after 30 seconds",
+      min: 65,
+      max: 80,
+      text: "Achieve high evaporation: 65-80% evaporated",
+    },
+    {
+      type: "range",
+      min: 25,
+      max: 45,
+      text: "Reach moderate-to-high evaporation: 25-45% evaporated",
+    },
+    {
+      type: "range",
+      min: 80,
+      max: 95,
+      text: "Achieve very high evaporation: 80-95% evaporated (weak IMFs)",
     },
   ];
 
@@ -2996,6 +3750,8 @@ M  END
 
     updateParameterLimits();
     applyPlaygroundParams();
+
+    // Generate a new goal
     generateRandomGoal();
     if (refs.playgroundGoal) {
       refs.playgroundGoal.classList.remove("success", "failure");
@@ -3003,23 +3759,45 @@ M  END
     if (refs.goalProgress) {
       refs.goalProgress.textContent = "Ready to start";
     }
+
+    // Reset graph - clear playground data to show grey overlay
+    sim.gasHistory = sim.gasHistory.filter((p) => p.scenario !== "playground");
     sim.gasStart = performance.now();
     sim.escapedCount = 0;
     sim.escapedParticles = [];
     sim.trialEnded = false;
-    sim.stop(); // Stop simulation
+
+    // Reset and pause simulation
+    sim.heatingOn = false;
+    if (refs.tHeat) {
+      refs.tHeat.classList.remove("is-active");
+    }
+    if (refs.sim) refs.sim.classList.remove("is-heating");
+    sim.stop(); // Stop/pause simulation
+    sim.spawnParticles(); // Restart particles
     sim.draw();
   }
 
   function togglePlaygroundMode() {
     // Fully reset everything when switching modes
     sim.stop();
+    sim.heatingOn = false;
+    if (refs.tHeat) {
+      refs.tHeat.classList.remove("is-active");
+    }
+    if (refs.sim) refs.sim.classList.remove("is-heating");
+
+    // Reset graph - clear all data to show grey overlay
     sim.gasHistory = [];
+    sim.gasCount = 0;
     sim.escapedCount = 0;
     sim.escapedParticles = [];
     sim.trialEnded = false;
     sim.completedTrials.clear();
     sim.gasStart = performance.now();
+
+    // Redraw graph to show reset state (grey overlay)
+    sim.drawGasGraph();
 
     playgroundMode = !playgroundMode;
     const shellElement = shadow.querySelector(".imfs-shell");
@@ -3030,24 +3808,72 @@ M  END
       );
     }
     if (refs.modeToggle) {
-      refs.modeToggle.textContent = playgroundMode ? "Normal" : "Playground";
+      refs.modeToggle.textContent = playgroundMode
+        ? "Education Edition"
+        : "Playground";
     }
     if (playgroundMode) {
+      // Reset to playground mode
+      sim.currentScenario = "playground";
       updateParameterLimits();
       generateRandomGoal();
       applyPlaygroundParams();
+      sim.spawnParticles();
+      sim.draw();
     } else {
-      // Reset to normal mode - fully reset
+      // Reset to education edition mode - fully reset
       setScenario("honey");
+      sim.spawnParticles();
       sim.draw();
     }
   }
 
-  function setScenario(kind) {
+  function setScenario(kind, autoStart = false) {
+    // Preserve user settings before changing scenario
+    const preservedSettings = {
+      contourOn: sim.contourOn,
+      moleculesVisible: sim.moleculesVisible,
+      gravityOn: sim.gravityOn,
+      shadeContour: sim.shadeContour,
+      heatingOn: sim.heatingOn,
+    };
+
     sim.changeScenario(kind);
     const accent = scenarioColor(kind);
     sim.params.color = accent;
     applyIMFCoeffsFor(sim, kind);
+
+    // Restore user settings
+    sim.contourOn = preservedSettings.contourOn;
+    sim.moleculesVisible = preservedSettings.moleculesVisible;
+    sim.gravityOn = preservedSettings.gravityOn;
+    sim.shadeContour = preservedSettings.shadeContour;
+
+    // Update UI to reflect preserved settings
+    if (refs.tContour) {
+      refs.tContour.classList.toggle("is-active", sim.contourOn);
+    }
+    if (refs.tMolecules) {
+      refs.tMolecules.classList.toggle("is-active", sim.moleculesVisible);
+    }
+    if (refs.tGravity) {
+      refs.tGravity.classList.toggle("is-active", sim.gravityOn);
+    }
+
+    // Always pause and respawn particles when switching materials (unless autoStart)
+    if (!autoStart) {
+      sim.stop();
+      sim.heatingOn = false;
+      if (refs.tHeat) {
+        refs.tHeat.classList.remove("is-active");
+      }
+      if (refs.sim) {
+        refs.sim.classList.remove("is-heating");
+      }
+      sim.spawnParticles();
+      sim.draw();
+    }
+
     // Update AI narrator immediately on scenario change
     if (typeof renderNarration === "function") {
       try {
@@ -3136,6 +3962,17 @@ M  END
   shadow.querySelector("#b-play").addEventListener("click", () => sim.start());
   shadow.querySelector("#b-pause").addEventListener("click", () => sim.stop());
   shadow.querySelector("#b-reset").addEventListener("click", () => {
+    // Reset only the current trial's data from gasHistory
+    if (sim.currentScenario) {
+      sim.gasHistory = sim.gasHistory.filter(
+        (p) => p.scenario !== sim.currentScenario
+      );
+    }
+    // Reset trial state
+    sim.gasStart = performance.now();
+    sim.escapedCount = 0;
+    sim.escapedParticles = [];
+    sim.trialEnded = false;
     sim.spawnParticles();
     sim.draw();
   });
@@ -3143,6 +3980,11 @@ M  END
   // Playground mode toggle
   if (refs.modeToggle) {
     refs.modeToggle.addEventListener("click", togglePlaygroundMode);
+  }
+
+  // Reset playground button
+  if (refs.pgReset) {
+    refs.pgReset.addEventListener("click", resetPlayground);
   }
 
   // Playground parameter controls
@@ -3231,35 +4073,32 @@ M  END
         refs.goalProgress.textContent = `✅ Success! Reached ${escapedPct}% evaporated`;
       }
       // Show celebration
-      showCelebration(true, escapedPct);
+      showCelebration(true, escapedPct, currentGoal);
     } else {
       refs.playgroundGoal.classList.add("failure");
       if (refs.goalProgress) {
-        refs.goalProgress.textContent = `❌ Failed. Reached ${escapedPct}% evaporated (target: ${
-          currentGoal.type === "exact"
-            ? currentGoal.target + "%"
-            : currentGoal.min + "-" + currentGoal.max + "%"
-        })`;
+        refs.goalProgress.textContent = `❌ Failed. Reached ${escapedPct}% evaporated (target: ${currentGoal.min}-${currentGoal.max}%)`;
       }
       // Show sadness
-      showCelebration(false, escapedPct);
+      showCelebration(false, escapedPct, currentGoal);
     }
   }
 
-  function showCelebration(success, escapedPct) {
+  function showCelebration(success, escapedPct, goal = null) {
     // Remove any existing overlay
     const existing = document.querySelector(".celebration-overlay");
     if (existing) existing.remove();
 
     const overlay = document.createElement("div");
     overlay.className = "celebration-overlay";
+    const targetText = goal ? ` (target: ${goal.min}-${goal.max}%)` : "";
     overlay.innerHTML = `
       <div class="celebration-content ${success ? "success" : "failure"}">
         <h2>${success ? "🎉 Success!" : "😢 Not Quite"}</h2>
         <p>${
           success
             ? `You reached ${escapedPct}% evaporated! Great job understanding how IMFs affect evaporation!`
-            : `You reached ${escapedPct}% evaporated. Try adjusting the parameters and try again!`
+            : `You reached ${escapedPct}% evaporated${targetText}. Try adjusting the parameters (viscosity, IMF types, etc.) and try again!`
         }</p>
         <button class="btn" style="margin-top: 20px; width: auto; padding: 8px 24px;" onclick="this.closest('.celebration-overlay').remove()">Close</button>
       </div>
@@ -3308,7 +4147,11 @@ M  END
       e.stopPropagation();
       refs.playgroundParamsDropdown.classList.toggle("open");
     });
-    // Close dropdown when clicking outside or on a button inside
+    // Prevent clicks inside dropdown from closing it
+    refs.playgroundParamsDropdown.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+    // Close dropdown when clicking outside
     const closeDropdown = (e) => {
       if (!refs.playgroundParamsDropdown.contains(e.target)) {
         refs.playgroundParamsDropdown.classList.remove("open");
@@ -3317,7 +4160,7 @@ M  END
     document.addEventListener("click", closeDropdown);
   }
 
-  // New toggles: Gravity, Contour, Shade Contour
+  // New toggles: Gravity, Contour, Molecules
   if (refs.tGravity)
     refs.tGravity.addEventListener("click", () => {
       sim.gravityOn = !sim.gravityOn;
@@ -3327,22 +4170,22 @@ M  END
     refs.tContour.addEventListener("click", () => {
       sim.contourOn = !sim.contourOn;
       refs.tContour.classList.toggle("is-active", sim.contourOn);
-    });
-  if (refs.tShade)
-    refs.tShade.addEventListener("click", () => {
-      sim.shadeContour = !sim.shadeContour;
-      refs.tShade.classList.toggle("is-active", sim.shadeContour);
+      // Update visualization immediately, even when paused
+      sim.draw();
     });
   if (refs.tMolecules)
     refs.tMolecules.addEventListener("click", () => {
       sim.moleculesVisible = !sim.moleculesVisible;
       refs.tMolecules.classList.toggle("is-active", sim.moleculesVisible);
+      // Update visualization immediately, even when paused
+      sim.draw();
     });
   if (refs.tHeat)
     refs.tHeat.addEventListener("click", () => {
       const wasHeating = sim.heatingOn;
       sim.heatingOn = !sim.heatingOn;
       refs.tHeat.classList.toggle("is-active", sim.heatingOn);
+      if (refs.sim) refs.sim.classList.toggle("is-heating", sim.heatingOn);
       // When turning heat on, reset timer and escaped count for new trial
       if (!wasHeating && sim.heatingOn) {
         sim.gasStart = performance.now();
@@ -3357,7 +4200,31 @@ M  END
     });
 
   // --- AI Narrator ---
-  let narratorTimer = null;
+  let lastNarratorUpdate = 0;
+  const NARRATOR_UPDATE_INTERVAL = 1000; // Update every 1 second
+  let narratorUserScrollTime = 0; // Track when user last scrolled manually
+  let savedScrollPosition = 0; // Saved scroll position
+  let isRestoringScroll = false; // Flag to prevent scroll event from interfering
+
+  // Track user scrolling in narrator (only manual scrolling, not programmatic)
+  if (refs.narrator) {
+    refs.narrator.addEventListener("scroll", () => {
+      // Only update if we're not programmatically restoring scroll
+      if (!isRestoringScroll) {
+        narratorUserScrollTime = performance.now();
+        savedScrollPosition = refs.narrator.scrollTop;
+      }
+    });
+  }
+
+  function updateNarratorThrottled() {
+    const now = performance.now();
+    if (now - lastNarratorUpdate >= NARRATOR_UPDATE_INTERVAL) {
+      renderNarration(false);
+      lastNarratorUpdate = now;
+    }
+  }
+
   function imfTypeFor(kind) {
     if (kind === "honey") return "Hydrogen bonding (strongest)";
     if (kind === "dmso") return "Dipole–dipole (medium)";
@@ -3365,12 +4232,11 @@ M  END
   }
   function renderNarration(force = false) {
     if (!refs.narrator) return;
+
     const total = sim.particles.length + (sim.escapedParticles?.length || 0);
     const gas = sim.gasCount || 0;
     const escaped = sim.escapedCount || 0;
-    const tSec = Math.max(0, ((performance.now() - sim.gasStart) / 1000) | 0);
     const scenario = sim.currentScenario || "honey";
-    const imf = imfTypeFor(scenario);
     const gasPct = total > 0 ? Math.round((gas / total) * 100) : 0;
     const escapedPct = total > 0 ? Math.round((escaped / total) * 100) : 0;
     const heating = sim.heatingOn ? "on" : "off";
@@ -3397,11 +4263,78 @@ M  END
         ? '<span class="narrator-emphasis">Dipole–dipole</span> interactions align molecules anti-parallel, creating moderate cohesion. Evaporation requires moderate thermal energy—more than hexane but less than honey.'
         : 'Weak <span class="narrator-emphasis">London dispersion forces</span> provide minimal attraction between particles. With little holding them together, particles evaporate easily even at low temperatures.';
 
+    // Check if narrator content already exists - if so, update only the changing parts
+    const existingContent = refs.narrator.querySelector(".narrator-content");
+    const currentScenario = refs.narrator
+      .querySelector(".title")
+      ?.textContent?.includes(scenarioName);
+
+    if (existingContent && !force && currentScenario) {
+      // Update only the changing numbers and status - this preserves scroll position
+      const gasLine = existingContent.querySelector(
+        ".narrator-section:nth-child(2) .line:nth-child(2)"
+      );
+      const escapedLine = existingContent.querySelector(
+        ".narrator-section:nth-child(2) .line:nth-child(3)"
+      );
+      const statusLine = existingContent.querySelector(
+        ".narrator-section:nth-child(1) .line:nth-child(3)"
+      );
+      const boilingDiv = existingContent.querySelector(
+        ".narrator-section:nth-child(3) .narrator-highlight[style*='background']"
+      );
+
+      // Update gas particles count and percentage
+      if (gasLine) {
+        const highlights = gasLine.querySelectorAll(".narrator-highlight");
+        if (highlights[0]) highlights[0].textContent = String(gas);
+        if (highlights[1]) highlights[1].textContent = `${gasPct}%`;
+      }
+
+      // Update escaped count and percentage
+      if (escapedLine) {
+        const highlights = escapedLine.querySelectorAll(".narrator-highlight");
+        if (highlights[0]) highlights[0].textContent = String(escaped);
+        if (highlights[1]) highlights[1].textContent = `${escapedPct}%`;
+      }
+
+      // Update heating and gravity status
+      if (statusLine) {
+        const highlights = statusLine.querySelectorAll(".narrator-highlight");
+        if (highlights[0]) highlights[0].textContent = heating;
+        if (highlights[1]) highlights[1].textContent = gravity;
+      }
+
+      // Handle boiling behavior div (appears/disappears based on heating)
+      if (heating === "on" && !boilingDiv) {
+        // Need to add the boiling div
+        const whatHappeningSection = existingContent.querySelector(
+          ".narrator-section:nth-child(3)"
+        );
+        if (whatHappeningSection) {
+          const boilingDiv = document.createElement("div");
+          boilingDiv.className = "line narrator-highlight";
+          boilingDiv.style.cssText =
+            "margin-top: 8px; padding: 8px; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 4px;";
+          boilingDiv.innerHTML =
+            "<strong>🔥 Real Boiling Behavior:</strong> Notice how molecules at the bottom heat up first and push unheated molecules upward! This creates convection currents—just like real boiling water on a stovetop. The heated particles gain thermal energy and kinetic energy, rising while cooler particles sink to replace them.";
+          whatHappeningSection.appendChild(boilingDiv);
+        }
+      } else if (heating === "off" && boilingDiv) {
+        // Remove the boiling div
+        boilingDiv.remove();
+      }
+
+      // Scroll position is automatically preserved since we're not replacing innerHTML
+      return;
+    }
+
+    // Initial render or scenario changed - replace entire content
     const html = `
       <div class="narrator-content">
         <div class="narrator-section">
           <div class="title">${scenarioName} — <span class="narrator-emphasis">${imfType}</span></div>
-          <div class="line">IMF Strength: <span class="narrator-highlight">${imfStrength}</span> | Time: <span class="narrator-highlight">${tSec}s</span></div>
+          <div class="line">IMF Strength: <span class="narrator-highlight">${imfStrength}</span></div>
           <div class="line">Heating: <span class="narrator-highlight">${heating}</span> | Gravity: <span class="narrator-highlight">${gravity}</span></div>
         </div>
         <div class="narrator-section">
@@ -3430,18 +4363,15 @@ M  END
     `;
     refs.narrator.innerHTML = html;
   }
-  function startNarrator() {
-    try {
-      renderNarration(true);
-    } catch (_) {}
-    if (narratorTimer) clearInterval(narratorTimer);
-    narratorTimer = setInterval(() => {
-      try {
-        renderNarration(false);
-      } catch (_) {}
-    }, 1500);
-  }
-  startNarrator();
+
+  // Initial render
+  try {
+    renderNarration(true);
+  } catch (_) {}
+
+  // Expose functions for throttled updates from draw loop
+  window.renderNarration = renderNarration;
+  window.updateNarratorThrottled = updateNarratorThrottled;
 
   // Debug panel functionality
   let selectedParticle = null;
@@ -3640,14 +4570,15 @@ M  END
           sim.escapedCount = 0;
           sim.escapedParticles = [];
           sim.currentScenario = null;
-          // Start with honey
-          setScenario("honey");
+          // Start with honey (autoStart=true since restarting trials)
+          setScenario("honey", true);
           sim.gasStart = performance.now();
           sim.heatingOn = true;
           sim.spawnParticles();
           sim.start();
           sim.draw();
           if (refs.tHeat) refs.tHeat.classList.add("is-active");
+          if (refs.sim) refs.sim.classList.add("is-heating");
           return;
         }
 
@@ -3657,8 +4588,8 @@ M  END
         const nextIndex = (currentIndex + 1) % materials.length;
         const nextMaterial = materials[nextIndex];
 
-        // Switch to next material
-        setScenario(nextMaterial);
+        // Switch to next material with autoStart=true (don't pause)
+        setScenario(nextMaterial, true);
 
         // Start trial with heat automatically on
         sim.trialEnded = false;
@@ -3671,6 +4602,7 @@ M  END
         sim.draw();
         // Update heat button UI state
         if (refs.tHeat) refs.tHeat.classList.add("is-active");
+        if (refs.sim) refs.sim.classList.add("is-heating");
         return;
       }
     }
@@ -3730,6 +4662,10 @@ M  END
   if (refs.tGravity && sim.gravityOn) {
     refs.tGravity.classList.add("is-active");
   }
+  // Set molecules button to active state (molecules are visible by default)
+  if (refs.tMolecules && sim.moleculesVisible) {
+    refs.tMolecules.classList.add("is-active");
+  }
   // Attach gas graph canvas to sim
   try {
     const gasCanvas = shadow.querySelector("#imfs-gas");
@@ -3750,6 +4686,873 @@ M  END
     const cid = choosePreviewCID("honey");
     load3DByCID(cid);
   } catch (_) {}
+
+  // --- Tutorial System ---
+  const TUTORIAL_STORAGE_KEY = "imfs_tutorial_completed";
+  let currentTutorialStep = 0;
+  let tutorialDemoTimeout = null;
+  let tutorialDemoInterval = null;
+  let tutorialScrollTimeout = null;
+
+  const tutorialSteps = [
+    {
+      title: "Welcome to the IMFs Playground!",
+      text: "This interactive simulation lets you explore intermolecular forces (IMFs) through particle-level physics. You'll see how different forces affect evaporation and particle behavior.",
+      introText:
+        "Welcome! This tutorial will guide you through the IMFs Playground—an interactive tool for exploring how intermolecular forces affect particle behavior. You'll learn to control the simulation, compare different materials, and understand the physics behind evaporation and boiling.",
+      target: null,
+      position: "center",
+    },
+    {
+      title: "Education Edition vs Playground",
+      text: "Use the mode toggle to switch between Education Edition (pre-set materials like honey, DMSO, hexane) and Playground (customize all parameters yourself).",
+      target: "#mode-toggle",
+      position: "bottom",
+    },
+    {
+      title: "Material Selection",
+      text: "In Education Edition, choose different materials to compare. Honey has strong hydrogen bonds, DMSO has dipole-dipole forces, and hexane has only weak London dispersion forces.",
+      target: "#s-material",
+      position: "bottom",
+    },
+    {
+      title: "Control Buttons",
+      text: "Use Play/Pause to control the simulation. The Heat button adds thermal energy to particles at the bottom, simulating a stovetop. Toggle Gravity, Contour, and Molecules visibility as needed.",
+      target: ".control-buttons",
+      position: "bottom",
+    },
+    {
+      title: "The Simulation View",
+      text: "Watch particles interact in real-time. Particles change color as they heat up. Stronger IMFs make particles stick together more, making evaporation harder.",
+      target: "#imfs-sim",
+      position: "right",
+    },
+    {
+      title: "The Graph",
+      text: "The graph tracks escaped particles over time. It starts when you turn on heat and runs for 30 seconds. Compare different materials by switching between them after trials complete.",
+      target: "#imfs-gas",
+      position: "left",
+    },
+    {
+      title: "AI Narrator",
+      text: "The AI narrator explains what's happening in real-time. Scroll down to see detailed explanations of IMFs and particle behavior. Numbers update automatically without disrupting your reading.",
+      target: "#ai-narrator",
+      position: "left",
+    },
+    {
+      title: "You're Ready!",
+      text: "Start exploring! Try switching between materials, turning on heat, and watching how different IMFs affect evaporation. In Playground mode, you can customize everything!",
+      introText:
+        "You're all set! Remember: stronger IMFs (like hydrogen bonds in honey) make evaporation harder, while weaker IMFs (like London dispersion in hexane) allow easy evaporation. Use Education Edition to compare preset materials, or switch to Playground mode to experiment with custom parameters. Have fun exploring!",
+      target: null,
+      position: "center",
+    },
+  ];
+
+  function getElementBounds(selector) {
+    if (!selector) return null;
+    const element = shadow.querySelector(selector);
+    if (!element) return null;
+    // Get bounds relative to viewport (not shadow root)
+    const rect = element.getBoundingClientRect();
+    return {
+      x: rect.left + window.scrollX,
+      y: rect.top + window.scrollY,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  function showTutorialStep(stepIndex) {
+    if (stepIndex < 0 || stepIndex >= tutorialSteps.length) {
+      closeTutorial();
+      return;
+    }
+
+    const step = tutorialSteps[stepIndex];
+    currentTutorialStep = stepIndex;
+
+    // Auto-scroll to center the highlighted element FIRST
+    if (step.target) {
+      const element = shadow.querySelector(step.target);
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        const elementCenterY = rect.top + rect.height / 2;
+        const viewportCenterY = window.innerHeight / 2;
+        const scrollOffset = elementCenterY - viewportCenterY;
+
+        // Smooth scroll to center the element
+        // Temporarily re-enable scrolling for programmatic scroll
+        document.body.style.overflow = "auto";
+        document.documentElement.style.overflow = "auto";
+        window.scrollTo({
+          top: window.scrollY + scrollOffset,
+          behavior: "smooth",
+        });
+        // Re-disable scrolling after scroll completes
+        tutorialScrollTimeout = setTimeout(() => {
+          // Only re-disable if tutorial is still active
+          if (
+            refs.tutorialOverlay &&
+            !refs.tutorialOverlay.classList.contains("hidden")
+          ) {
+            document.body.style.overflow = "hidden";
+            document.documentElement.style.overflow = "hidden";
+          }
+        }, 1000);
+      }
+    } else {
+      // For center steps, scroll to top
+      // Temporarily re-enable scrolling for programmatic scroll
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+      // Re-disable scrolling after scroll completes
+      tutorialScrollTimeout = setTimeout(() => {
+        // Only re-disable if tutorial is still active
+        if (
+          refs.tutorialOverlay &&
+          !refs.tutorialOverlay.classList.contains("hidden")
+        ) {
+          document.body.style.overflow = "hidden";
+          document.documentElement.style.overflow = "hidden";
+        }
+      }, 1000);
+    }
+
+    // Update content
+    if (refs.tutorialStepIndicator) {
+      refs.tutorialStepIndicator.textContent = `${stepIndex + 1}/${
+        tutorialSteps.length
+      }`;
+    }
+
+    // Show/hide buttons
+    if (refs.tutorialPrev) {
+      // Always show Previous button, but disable it on step 1
+      refs.tutorialPrev.style.display = "inline-block";
+      refs.tutorialPrev.innerHTML = "&lt;";
+      refs.tutorialPrev.disabled = stepIndex === 0;
+    }
+    if (refs.tutorialNext) {
+      refs.tutorialNext.innerHTML =
+        stepIndex === tutorialSteps.length - 1 ? "✓" : "&gt;";
+    }
+
+    // For steps 1 and 8 (first and last), show centered text box only
+    const tutorialContent =
+      refs.tutorialOverlay?.querySelector(".tutorial-content");
+    const isIntroOrOutro =
+      stepIndex === 0 || stepIndex === tutorialSteps.length - 1;
+
+    // Always keep tutorial modal fixed at bottom center
+    if (tutorialContent) {
+      tutorialContent.style.position = "fixed";
+      tutorialContent.style.left = "50%";
+      tutorialContent.style.bottom = "20px";
+      tutorialContent.style.top = "auto";
+      tutorialContent.style.right = "auto";
+      tutorialContent.style.transform = "translateX(-50%)";
+      tutorialContent.style.margin = "0";
+      tutorialContent.style.display = "flex";
+      tutorialContent.style.visibility = "visible";
+      tutorialContent.style.opacity = "1";
+    }
+
+    // Clear any existing demo timers
+    if (tutorialDemoTimeout) {
+      clearTimeout(tutorialDemoTimeout);
+      tutorialDemoTimeout = null;
+    }
+    if (tutorialDemoInterval) {
+      clearInterval(tutorialDemoInterval);
+      tutorialDemoInterval = null;
+    }
+
+    if (isIntroOrOutro) {
+      // Show centered floating modal AND keep bottom bar visible
+      if (refs.tutorialHighlight) refs.tutorialHighlight.style.display = "none";
+      if (refs.tutorialTooltip) refs.tutorialTooltip.style.display = "none";
+
+      // Show centered floating modal
+      if (refs.tutorialIntroModal) {
+        refs.tutorialIntroModal.style.display = "flex";
+        if (refs.tutorialIntroTitle && refs.tutorialIntroText) {
+          if (step.introText) {
+            refs.tutorialIntroTitle.textContent = step.title;
+            refs.tutorialIntroText.textContent = step.introText;
+          } else {
+            refs.tutorialIntroTitle.textContent = step.title;
+            refs.tutorialIntroText.textContent = step.text;
+          }
+        }
+      }
+      // Keep bottom bar visible
+      if (tutorialContent) {
+        tutorialContent.style.display = "flex";
+      }
+    } else {
+      // Hide intro modal for regular steps
+      if (refs.tutorialIntroModal) {
+        refs.tutorialIntroModal.style.display = "none";
+      }
+      if (tutorialContent) {
+        tutorialContent.style.display = "flex";
+      }
+
+      // Start interactive demo only for specific steps
+      if (stepIndex === 4) {
+        // Step 5 (index 4): Start sim
+        startTutorialSimDemo();
+      } else if (stepIndex === 5) {
+        // Step 6 (index 5): Record mock graph data
+        startTutorialGraphDemo();
+      }
+      // For other steps, hide text content and show highlight/tooltip
+      if (refs.tutorialTextContent) {
+        refs.tutorialTextContent.style.display = "none";
+      }
+      if (tutorialContent) {
+        tutorialContent.classList.remove("has-text");
+      }
+
+      // Position highlight and tooltip (only for non-intro/outro steps)
+      if (step.target) {
+        const element = shadow.querySelector(step.target);
+        if (element && refs.tutorialHighlight) {
+          const viewportRect = element.getBoundingClientRect();
+          // Add padding around the element for better visual coverage
+          const padding = 6;
+          refs.tutorialHighlight.style.display = "block";
+          refs.tutorialHighlight.style.left = `${
+            viewportRect.left - padding
+          }px`;
+          refs.tutorialHighlight.style.top = `${viewportRect.top - padding}px`;
+          refs.tutorialHighlight.style.width = `${
+            viewportRect.width + padding * 2
+          }px`;
+          refs.tutorialHighlight.style.height = `${
+            viewportRect.height + padding * 2
+          }px`;
+
+          // Position tooltip (relative to viewport)
+          if (refs.tutorialTooltip) {
+            refs.tutorialTooltip.innerHTML = `<strong>${step.title}</strong><br>${step.text}`;
+            refs.tutorialTooltip.className = `tutorial-tooltip ${step.position}`;
+
+            // Use the same viewportRect from above
+
+            // Calculate tooltip position with viewport bounds checking
+            const tooltipPadding = 20;
+            const edgePadding = 20; // Increased minimum distance from window edges for mobile
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            // On mobile, use smaller tooltip with more aggressive bounds checking
+            const isMobile = viewportWidth <= 768;
+            const mobileTooltipWidth = Math.min(
+              280,
+              viewportWidth - edgePadding * 2 - 10 // Extra padding for mobile
+            );
+            const desktopTooltipWidth = Math.min(
+              320,
+              viewportWidth - edgePadding * 2
+            );
+            const actualTooltipWidth = isMobile
+              ? mobileTooltipWidth
+              : desktopTooltipWidth;
+
+            // On mobile, prefer positioning tooltip below or inside element to avoid overflow
+            const mobilePrefersBelow =
+              isMobile &&
+              (step.position === "top" ||
+                step.position === "left" ||
+                step.position === "right");
+
+            // Set tooltip width first to get accurate height measurement
+            refs.tutorialTooltip.style.maxWidth = `${actualTooltipWidth}px`;
+            refs.tutorialTooltip.style.width = `${actualTooltipWidth}px`;
+            const tooltipHeight = refs.tutorialTooltip.offsetHeight || 150;
+
+            let tooltipX, tooltipY;
+
+            // On mobile, prefer bottom positioning to avoid overflow
+            if (isMobile && mobilePrefersBelow) {
+              // Force bottom positioning on mobile for left/right/top positions
+              tooltipX = viewportRect.left + viewportRect.width / 2;
+              tooltipY = viewportRect.bottom + tooltipPadding;
+              refs.tutorialTooltip.className = `tutorial-tooltip bottom`;
+              refs.tutorialTooltip.style.transform = "translateX(-50%)";
+
+              // Ensure tooltip stays in viewport horizontally
+              const minX = actualTooltipWidth / 2 + edgePadding;
+              const maxX = viewportWidth - actualTooltipWidth / 2 - edgePadding;
+              tooltipX = Math.max(minX, Math.min(tooltipX, maxX));
+
+              // If it would go off bottom, position it above
+              if (tooltipY + tooltipHeight > viewportHeight - edgePadding) {
+                tooltipY = viewportRect.top - tooltipPadding - tooltipHeight;
+                refs.tutorialTooltip.className = `tutorial-tooltip top`;
+                refs.tutorialTooltip.style.transform =
+                  "translateX(-50%) translateY(-100%)";
+                if (tooltipY < edgePadding) {
+                  // If still off screen, center it vertically within the element
+                  tooltipY =
+                    viewportRect.top +
+                    viewportRect.height / 2 -
+                    tooltipHeight / 2;
+                  refs.tutorialTooltip.className = `tutorial-tooltip bottom`;
+                  refs.tutorialTooltip.style.transform =
+                    "translateX(-50%) translateY(-50%)";
+                }
+              }
+
+              // Final bounds check
+              tooltipX = Math.max(
+                edgePadding + actualTooltipWidth / 2,
+                Math.min(
+                  tooltipX,
+                  viewportWidth - edgePadding - actualTooltipWidth / 2
+                )
+              );
+              tooltipY = Math.max(
+                edgePadding,
+                Math.min(tooltipY, viewportHeight - tooltipHeight - edgePadding)
+              );
+            } else if (step.position === "bottom") {
+              tooltipX = viewportRect.left + viewportRect.width / 2;
+              tooltipY = viewportRect.bottom + tooltipPadding;
+              // Ensure tooltip stays in viewport with edge padding - more aggressive on mobile
+              const minX = actualTooltipWidth / 2 + edgePadding;
+              const maxX = viewportWidth - actualTooltipWidth / 2 - edgePadding;
+              tooltipX = Math.max(minX, Math.min(tooltipX, maxX));
+
+              // Check if tooltip would go off bottom
+              if (tooltipY + tooltipHeight > viewportHeight - edgePadding) {
+                // Position it above instead
+                tooltipY = viewportRect.top - tooltipPadding - tooltipHeight;
+                refs.tutorialTooltip.className = `tutorial-tooltip top`;
+                refs.tutorialTooltip.style.transform =
+                  "translateX(-50%) translateY(-100%)";
+                // Ensure it doesn't go off top
+                if (tooltipY < edgePadding) {
+                  tooltipY = edgePadding;
+                }
+              } else {
+                refs.tutorialTooltip.className = `tutorial-tooltip bottom`;
+                refs.tutorialTooltip.style.transform = "translateX(-50%)";
+                // Ensure it doesn't go off bottom
+                if (tooltipY + tooltipHeight > viewportHeight - edgePadding) {
+                  tooltipY = viewportHeight - edgePadding - tooltipHeight;
+                }
+              }
+              // Final bounds check for Y
+              tooltipY = Math.max(
+                edgePadding,
+                Math.min(tooltipY, viewportHeight - tooltipHeight - edgePadding)
+              );
+            } else if (step.position === "top") {
+              tooltipX = viewportRect.left + viewportRect.width / 2;
+              tooltipY = viewportRect.top - tooltipPadding - tooltipHeight;
+              const minX = actualTooltipWidth / 2 + edgePadding;
+              const maxX = viewportWidth - actualTooltipWidth / 2 - edgePadding;
+              tooltipX = Math.max(minX, Math.min(tooltipX, maxX));
+
+              if (tooltipY < edgePadding) {
+                // If tooltip would go off top, position it below instead
+                tooltipY = viewportRect.bottom + tooltipPadding;
+                refs.tutorialTooltip.className = `tutorial-tooltip bottom`;
+                refs.tutorialTooltip.style.transform = "translateX(-50%)";
+                // Ensure it doesn't go off bottom
+                if (tooltipY + tooltipHeight > viewportHeight - edgePadding) {
+                  tooltipY = viewportHeight - edgePadding - tooltipHeight;
+                }
+              } else {
+                refs.tutorialTooltip.className = `tutorial-tooltip top`;
+                refs.tutorialTooltip.style.transform =
+                  "translateX(-50%) translateY(-100%)";
+              }
+              // Final bounds check for Y
+              tooltipY = Math.max(
+                edgePadding,
+                Math.min(tooltipY, viewportHeight - tooltipHeight - edgePadding)
+              );
+            } else if (step.position === "left") {
+              // On mobile, prefer bottom positioning
+              if (isMobile) {
+                tooltipX = viewportRect.left + viewportRect.width / 2;
+                tooltipY = viewportRect.bottom + tooltipPadding;
+                refs.tutorialTooltip.className = `tutorial-tooltip bottom`;
+                refs.tutorialTooltip.style.transform = "translateX(-50%)";
+
+                const minX = actualTooltipWidth / 2 + edgePadding;
+                const maxX =
+                  viewportWidth - actualTooltipWidth / 2 - edgePadding;
+                tooltipX = Math.max(minX, Math.min(tooltipX, maxX));
+
+                if (tooltipY + tooltipHeight > viewportHeight - edgePadding) {
+                  tooltipY = viewportRect.top - tooltipPadding - tooltipHeight;
+                  refs.tutorialTooltip.className = `tutorial-tooltip top`;
+                  refs.tutorialTooltip.style.transform =
+                    "translateX(-50%) translateY(-100%)";
+                }
+
+                tooltipY = Math.max(
+                  edgePadding,
+                  Math.min(
+                    tooltipY,
+                    viewportHeight - tooltipHeight - edgePadding
+                  )
+                );
+              } else {
+                tooltipX =
+                  viewportRect.left - tooltipPadding - actualTooltipWidth;
+                tooltipY = viewportRect.top + viewportRect.height / 2;
+                if (tooltipX < edgePadding) {
+                  // If tooltip would go off left, position it to the right instead
+                  tooltipX = viewportRect.right + tooltipPadding;
+                  refs.tutorialTooltip.className = `tutorial-tooltip right`;
+                  refs.tutorialTooltip.style.transform = "translateY(-50%)";
+                  // Ensure it doesn't go off right
+                  if (
+                    tooltipX + actualTooltipWidth >
+                    viewportWidth - edgePadding
+                  ) {
+                    tooltipX = viewportWidth - edgePadding - actualTooltipWidth;
+                  }
+                } else {
+                  refs.tutorialTooltip.className = `tutorial-tooltip left`;
+                  refs.tutorialTooltip.style.transform =
+                    "translateX(-100%) translateY(-50%)";
+                }
+                // Ensure tooltip doesn't go off left edge
+                tooltipX = Math.max(edgePadding, tooltipX);
+                // Ensure tooltip doesn't go off top/bottom
+                tooltipY = Math.max(
+                  edgePadding + tooltipHeight / 2,
+                  Math.min(
+                    tooltipY,
+                    viewportHeight - edgePadding - tooltipHeight / 2
+                  )
+                );
+              }
+            } else if (step.position === "right") {
+              // On mobile, prefer bottom positioning
+              if (isMobile) {
+                tooltipX = viewportRect.left + viewportRect.width / 2;
+                tooltipY = viewportRect.bottom + tooltipPadding;
+                refs.tutorialTooltip.className = `tutorial-tooltip bottom`;
+                refs.tutorialTooltip.style.transform = "translateX(-50%)";
+
+                const minX = actualTooltipWidth / 2 + edgePadding;
+                const maxX =
+                  viewportWidth - actualTooltipWidth / 2 - edgePadding;
+                tooltipX = Math.max(minX, Math.min(tooltipX, maxX));
+
+                if (tooltipY + tooltipHeight > viewportHeight - edgePadding) {
+                  tooltipY = viewportRect.top - tooltipPadding - tooltipHeight;
+                  refs.tutorialTooltip.className = `tutorial-tooltip top`;
+                  refs.tutorialTooltip.style.transform =
+                    "translateX(-50%) translateY(-100%)";
+                }
+
+                tooltipY = Math.max(
+                  edgePadding,
+                  Math.min(
+                    tooltipY,
+                    viewportHeight - tooltipHeight - edgePadding
+                  )
+                );
+              } else {
+                tooltipX = viewportRect.right + tooltipPadding;
+                tooltipY = viewportRect.top + viewportRect.height / 2;
+                if (
+                  tooltipX + actualTooltipWidth >
+                  viewportWidth - edgePadding
+                ) {
+                  // If tooltip would go off right, position it to the left instead
+                  tooltipX =
+                    viewportRect.left - tooltipPadding - actualTooltipWidth;
+                  refs.tutorialTooltip.className = `tutorial-tooltip left`;
+                  refs.tutorialTooltip.style.transform =
+                    "translateX(-100%) translateY(-50%)";
+                  // Ensure it doesn't go off left
+                  if (tooltipX < edgePadding) {
+                    tooltipX = edgePadding;
+                  }
+                } else {
+                  refs.tutorialTooltip.className = `tutorial-tooltip right`;
+                  refs.tutorialTooltip.style.transform = "translateY(-50%)";
+                }
+                // Ensure tooltip doesn't go off right edge
+                tooltipX = Math.min(
+                  viewportWidth - edgePadding - actualTooltipWidth,
+                  tooltipX
+                );
+                // Ensure tooltip doesn't go off top/bottom
+                tooltipY = Math.max(
+                  edgePadding + tooltipHeight / 2,
+                  Math.min(
+                    tooltipY,
+                    viewportHeight - edgePadding - tooltipHeight / 2
+                  )
+                );
+              }
+            }
+            refs.tutorialTooltip.style.left = `${tooltipX}px`;
+            refs.tutorialTooltip.style.top = `${tooltipY}px`;
+            refs.tutorialTooltip.style.display = "block";
+          }
+        } else {
+          // Element not found
+          if (refs.tutorialHighlight)
+            refs.tutorialHighlight.style.display = "none";
+          if (refs.tutorialTooltip) refs.tutorialTooltip.style.display = "none";
+        }
+      }
+    }
+  }
+
+  function startTutorialSimDemo() {
+    // Stop any existing demo
+    if (tutorialDemoTimeout) {
+      clearTimeout(tutorialDemoTimeout);
+    }
+    if (tutorialDemoInterval) {
+      clearInterval(tutorialDemoInterval);
+    }
+
+    // Start sim and heating for demo - let it run for real!
+    if (sim && !sim.running) {
+      sim.start();
+    }
+    if (sim && !sim.heatingOn) {
+      sim.heatingOn = true;
+      sim.gasStart = performance.now();
+      sim.trialEnded = false; // Reset trial ended flag
+      if (refs.tHeat) {
+        refs.tHeat.classList.add("is-active");
+      }
+      if (refs.sim) refs.sim.classList.add("is-heating");
+    }
+
+    // Auto-stop after 3 seconds
+    const maxDemoTime = 3000; // 3 seconds in milliseconds
+    tutorialDemoTimeout = setTimeout(() => {
+      if (sim) {
+        sim.stop();
+        sim.heatingOn = false;
+        if (refs.tHeat) {
+          refs.tHeat.classList.remove("is-active");
+        }
+        if (refs.sim) refs.sim.classList.remove("is-heating");
+      }
+    }, maxDemoTime);
+  }
+
+  function startTutorialGraphDemo() {
+    // Stop any existing demo
+    if (tutorialDemoTimeout) {
+      clearTimeout(tutorialDemoTimeout);
+    }
+    if (tutorialDemoInterval) {
+      clearInterval(tutorialDemoInterval);
+    }
+
+    // Record mock data for graph
+    let demoTime = 0;
+    const maxDemoTime = 3; // 3 seconds of demo
+    const demoScenario = sim.currentScenario || "honey";
+
+    // Clear any existing data for this scenario
+    if (sim && sim.gasHistory) {
+      sim.gasHistory = sim.gasHistory.filter(
+        (p) => p.scenario !== demoScenario
+      );
+    }
+
+    tutorialDemoInterval = setInterval(() => {
+      if (demoTime >= maxDemoTime) {
+        clearInterval(tutorialDemoInterval);
+        tutorialDemoInterval = null;
+        return;
+      }
+
+      // Record mock data point
+      if (sim && sim.gasHistory) {
+        const mockGasCount = Math.min(50, Math.floor(demoTime * 15));
+        const mockEscapedCount = Math.min(30, Math.floor(demoTime * 10));
+        sim.gasHistory.push({
+          t: demoTime,
+          gasCount: mockGasCount,
+          escapedCount: mockEscapedCount,
+          scenario: demoScenario,
+        });
+        // Keep reasonable history
+        if (sim.gasHistory.length > 10000) sim.gasHistory.shift();
+      }
+
+      demoTime += 0.1;
+    }, 100);
+
+    // Auto-stop after maxDemoTime
+    tutorialDemoTimeout = setTimeout(() => {
+      if (tutorialDemoInterval) {
+        clearInterval(tutorialDemoInterval);
+        tutorialDemoInterval = null;
+      }
+    }, maxDemoTime * 1000);
+  }
+
+  function closeTutorial() {
+    // Stop any running demo
+    if (tutorialDemoTimeout) {
+      clearTimeout(tutorialDemoTimeout);
+      tutorialDemoTimeout = null;
+    }
+    if (tutorialDemoInterval) {
+      clearInterval(tutorialDemoInterval);
+      tutorialDemoInterval = null;
+    }
+    // Clear any pending scroll timeout
+    if (tutorialScrollTimeout) {
+      clearTimeout(tutorialScrollTimeout);
+      tutorialScrollTimeout = null;
+    }
+
+    // Reset entire scene - remove all traces of tutorial
+    if (sim) {
+      sim.stop();
+      sim.heatingOn = false;
+      sim.trialEnded = false;
+      // Clear all gas history
+      sim.gasHistory = [];
+      sim.gasCount = 0;
+      sim.escapedCount = 0;
+      sim.escapedParticles = [];
+      sim.completedTrials.clear();
+      // Reset gas start time
+      sim.gasStart = performance.now();
+      // Redraw to clear graph immediately
+      sim.draw();
+      // Explicitly redraw the gas graph to ensure it's cleared
+      if (typeof sim.drawGasGraph === "function") {
+        sim.drawGasGraph();
+      }
+    }
+
+    // Reset UI buttons
+    if (refs.tHeat) {
+      refs.tHeat.classList.remove("is-active");
+    }
+    if (refs.sim) refs.sim.classList.remove("is-heating");
+
+    // Hide tutorial overlay
+    if (refs.tutorialOverlay) {
+      refs.tutorialOverlay.classList.add("hidden");
+    }
+
+    // CRITICAL: Remove scroll prevention event listeners
+    window.removeEventListener("wheel", preventScrollDuringTutorial);
+    window.removeEventListener("touchmove", preventScrollDuringTutorial);
+
+    // Re-enable scrolling
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
+
+    // Save completion to localStorage
+    try {
+      localStorage.setItem(TUTORIAL_STORAGE_KEY, "true");
+    } catch (_) {}
+  }
+
+  function startTutorial() {
+    if (refs.tutorialOverlay) {
+      refs.tutorialOverlay.classList.remove("hidden");
+      // Disable scrolling while tutorial is active
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+
+      // Add scroll prevention event listeners
+      window.addEventListener("wheel", preventScrollDuringTutorial, {
+        passive: false,
+      });
+      window.addEventListener("touchmove", preventScrollDuringTutorial, {
+        passive: false,
+      });
+
+      // Scroll to top to ensure tutorial modal is visible
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      // Immediately set correct positioning to prevent visual glitch
+      const tutorialContent =
+        refs.tutorialOverlay.querySelector(".tutorial-content");
+      if (tutorialContent) {
+        tutorialContent.style.position = "fixed";
+        tutorialContent.style.left = "50%";
+        tutorialContent.style.bottom = "20px";
+        tutorialContent.style.top = "auto";
+        tutorialContent.style.right = "auto";
+        tutorialContent.style.transform = "translateX(-50%)";
+        tutorialContent.style.display = "flex";
+        tutorialContent.style.visibility = "visible";
+        tutorialContent.style.opacity = "1";
+        tutorialContent.style.margin = "0";
+      }
+      setTimeout(() => {
+        showTutorialStep(0);
+      }, 50);
+    }
+  }
+
+  // Check if tutorial should be shown
+  try {
+    const tutorialCompleted =
+      localStorage.getItem(TUTORIAL_STORAGE_KEY) === "true";
+    if (!tutorialCompleted) {
+      // Show tutorial after a short delay to let page load
+      setTimeout(() => {
+        startTutorial();
+      }, 500);
+    }
+  } catch (_) {
+    // If localStorage fails, show tutorial anyway
+    setTimeout(() => {
+      startTutorial();
+    }, 500);
+  }
+
+  // Tutorial button handlers
+  if (refs.tutorialNext) {
+    refs.tutorialNext.addEventListener("click", () => {
+      // Stop any running demo
+      if (tutorialDemoTimeout) {
+        clearTimeout(tutorialDemoTimeout);
+        tutorialDemoTimeout = null;
+      }
+      if (tutorialDemoInterval) {
+        clearInterval(tutorialDemoInterval);
+        tutorialDemoInterval = null;
+      }
+      if (sim) {
+        sim.stop();
+        sim.heatingOn = false;
+        if (refs.tHeat) {
+          refs.tHeat.classList.remove("is-active");
+        }
+        if (refs.sim) refs.sim.classList.remove("is-heating");
+      }
+
+      if (currentTutorialStep < tutorialSteps.length - 1) {
+        showTutorialStep(currentTutorialStep + 1);
+      } else {
+        closeTutorial();
+      }
+    });
+  }
+
+  if (refs.tutorialPrev) {
+    refs.tutorialPrev.addEventListener("click", () => {
+      // Don't do anything if button is disabled (step 1)
+      if (refs.tutorialPrev.disabled) {
+        return;
+      }
+
+      // Stop any running demo
+      if (tutorialDemoTimeout) {
+        clearTimeout(tutorialDemoTimeout);
+        tutorialDemoTimeout = null;
+      }
+      if (tutorialDemoInterval) {
+        clearInterval(tutorialDemoInterval);
+        tutorialDemoInterval = null;
+      }
+      if (sim) {
+        sim.stop();
+        sim.heatingOn = false;
+        if (refs.tHeat) {
+          refs.tHeat.classList.remove("is-active");
+        }
+        if (refs.sim) refs.sim.classList.remove("is-heating");
+      }
+
+      if (currentTutorialStep > 0) {
+        showTutorialStep(currentTutorialStep - 1);
+      }
+    });
+  }
+
+  if (refs.tutorialSkip) {
+    refs.tutorialSkip.addEventListener("click", () => {
+      // Stop any running demo
+      if (tutorialDemoTimeout) {
+        clearTimeout(tutorialDemoTimeout);
+        tutorialDemoTimeout = null;
+      }
+      if (tutorialDemoInterval) {
+        clearInterval(tutorialDemoInterval);
+        tutorialDemoInterval = null;
+      }
+      if (sim) {
+        sim.stop();
+        sim.heatingOn = false;
+        if (refs.tHeat) {
+          refs.tHeat.classList.remove("is-active");
+        }
+        if (refs.sim) refs.sim.classList.remove("is-heating");
+      }
+      closeTutorial();
+    });
+  }
+
+  // Replay tutorial button
+  if (refs.replayTutorialBtn) {
+    refs.replayTutorialBtn.addEventListener("click", () => {
+      // Clear the tutorial completion flag
+      try {
+        localStorage.removeItem(TUTORIAL_STORAGE_KEY);
+      } catch (_) {}
+      // Start tutorial
+      startTutorial();
+    });
+  }
+
+  // Prevent user scrolling while tutorial is active
+  function preventScrollDuringTutorial(e) {
+    if (
+      refs.tutorialOverlay &&
+      !refs.tutorialOverlay.classList.contains("hidden")
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  }
+
+  // Update tutorial highlight position on resize
+  let tutorialUpdateTimeout = null;
+  function updateTutorialPosition() {
+    if (
+      refs.tutorialOverlay &&
+      !refs.tutorialOverlay.classList.contains("hidden")
+    ) {
+      showTutorialStep(currentTutorialStep);
+    }
+  }
+  window.addEventListener(
+    "scroll",
+    () => {
+      clearTimeout(tutorialUpdateTimeout);
+      tutorialUpdateTimeout = setTimeout(updateTutorialPosition, 100);
+    },
+    true
+  );
+  window.addEventListener("resize", () => {
+    clearTimeout(tutorialUpdateTimeout);
+    tutorialUpdateTimeout = setTimeout(updateTutorialPosition, 100);
+  });
 
   return () => {
     sim.destroy();
