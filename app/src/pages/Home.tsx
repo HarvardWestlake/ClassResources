@@ -1,10 +1,37 @@
 import { Link } from 'react-router-dom'
+import { enqueueHeatmapEvent, flushHeatmapEventsNow } from '../heatmap/tracker'
+import { getDeviceType } from '../heatmap/utils'
+
+async function sendHeatmapTrackerTestEvent() {
+  enqueueHeatmapEvent({
+    type: 'click',
+    moduleType: 'app',
+    widgetId: 'home-test-button',
+    path: window.location.pathname,
+    deviceType: getDeviceType(),
+    xNorm: 0.5,
+    yNorm: 0.5,
+  })
+  await flushHeatmapEventsNow()
+  // eslint-disable-next-line no-console
+  console.log('[heatmap-test] Wrote events document via tracker')
+}
 
 export default function Home() {
   return (
     <main className="page">
       <div className="container widgets-page">
         <h1 className="h1">Class Resources</h1>
+
+        <section className="panel" style={{ marginBottom: '1.5rem' }}>
+          <div className="eyebrow">Development Only</div>
+          <p className="muted" style={{ marginBottom: '.35rem' }}>
+            This button enqueues a test heatmap event and writes it to the Firestore <code>events</code> collection.
+          </p>
+          <button className="btn" type="button" onClick={sendHeatmapTrackerTestEvent}>
+            Send Heatmap Tracker Test Event
+          </button>
+        </section>
 
         <h2>Subjects</h2>
         <div className="widgets-grid">

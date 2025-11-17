@@ -5,6 +5,7 @@ import WorldGlobe from './history/WorldGlobe.tsx'
 import LectureViewer from './history/LectureViewer.tsx'
 import StyleGuide from './admin/StyleGuide.tsx'
 import MobileFullscreen from './pages/MobileFullscreen.tsx'
+import { GlobalHeatmapTracker } from './heatmap/GlobalHeatmapTracker'
 
 function TopNav() {
   return (
@@ -25,6 +26,7 @@ function TopNav() {
 export default function App() {
   return (
     <>
+      <GlobalHeatmapTracker />
       <TopNav />
       <Routes>
         <Route path="/" element={<Home />} />
