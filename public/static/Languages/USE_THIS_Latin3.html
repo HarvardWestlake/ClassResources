@@ -1098,11 +1098,21 @@ function tokenHoverOut() {
         // Determine validation type for feedback
         const validationType = result.validationType || 'structural';
         translationFeedback.textContent = result.isCorrect ?
-            `Correct (${validationType} match) ✔` :
-            `Not quite — ${result.reason} ✘`;
+    `Correct (${validationType} match) ✔` :
+    (result.reason.includes('Cannot verify translation') ? 
+        `Sorry - ${result.reason}` : 
+        `Not quite — ${result.reason} ✘`);
     });
 
     function advancedTranslationCheck(latinTokens, englishText) {
+
+        // Check for unknown words first
+    if (latinTokens.some(t => !t.definition || t.definition === 'unknown')) {
+        return {
+            isCorrect: false,
+            reason: 'Cannot verify translation - some Latin words are unknown'
+        };
+    }
         // Parse Latin sentence structure
         const latinStructure = parseLatinStructure(latinTokens);
        
@@ -4190,7 +4200,7 @@ for (let i = 0; i < tokens.length; i++) {
         'uoco': { pos: 'verb', def: 'call' }, 'uocas': { pos: 'verb', def: 'call' }, 'uocat': { pos: 'verb', def: 'call' }, 'uocamus': { pos: 'verb', def: 'call' }, 'uocant': { pos: 'verb', def: 'call' }, 'uocare': { pos: 'verb', def: 'call' },
         'laudo': { pos: 'verb', def: 'praise' }, 'laudas': { pos: 'verb', def: 'praise' }, 'laudat': { pos: 'verb', def: 'praise' }, 'laudamus': { pos: 'verb', def: 'praise' }, 'laudant': { pos: 'verb', def: 'praise' }, 'laudare': { pos: 'verb', def: 'praise' },
         'puto': { pos: 'verb', def: 'think' }, 'putas': { pos: 'verb', def: 'think' }, 'putat': { pos: 'verb', def: 'think' }, 'putamus': { pos: 'verb', def: 'think' }, 'putant': { pos: 'verb', def: 'think' }, 'putare': { pos: 'verb', def: 'think' },
-        'sum': { pos: 'verb', def: 'be' }, 'es': { pos: 'verb', def: 'be' }, 'est': { pos: 'verb', def: 'be' }, 'sumus': { pos: 'verb', def: 'be' }, 'estis': { pos: 'verb', def: 'be' }, 'sunt': { pos: 'verb', def: 'be' }, 'esse': { pos: 'verb', def: 'be' },
+'sum': { pos: 'verb', def: 'be, am' }, 'es': { pos: 'verb', def: 'be, are' }, 'est': { pos: 'verb', def: 'be, is' }, 'sumus': { pos: 'verb', def: 'be, are' }, 'estis': { pos: 'verb', def: 'be, are' }, 'sunt': { pos: 'verb', def: 'be, are' }, 'esse': { pos: 'verb', def: 'be' },
         'video': { pos: 'verb', def: 'see' }, 'vides': { pos: 'verb', def: 'see' }, 'videt': { pos: 'verb', def: 'see' }, 'videmus': { pos: 'verb', def: 'see' }, 'videtis': { pos: 'verb', def: 'see' }, 'vident': { pos: 'verb', def: 'see' }, 'vidi': { pos: 'verb', def: 'see' }, 'visum': { pos: 'verb', def: 'see' }, 'videre': { pos: 'verb', def: 'see' },
         'videor': { pos: 'verb', def: 'am seen, seem' }, 'videris': { pos: 'verb', def: 'are seen, seem' }, 'videtur': { pos: 'verb', def: 'is seen, seems' }, 'videmur': { pos: 'verb', def: 'are seen, seem' }, 'videmini': { pos: 'verb', def: 'are seen' }, 'videntur': { pos: 'verb', def: 'are seen, seem' },
         'uideo': { pos: 'verb', def: 'see' }, 'uides': { pos: 'verb', def: 'see' }, 'uidet': { pos: 'verb', def: 'see' }, 'uidemus': { pos: 'verb', def: 'see' }, 'uidetis': { pos: 'verb', def: 'see' }, 'uident': { pos: 'verb', def: 'see' }, 'uidi': { pos: 'verb', def: 'see' }, 'uisum': { pos: 'verb', def: 'see' }, 'uidere': { pos: 'verb', def: 'see' },
