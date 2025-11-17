@@ -6,7 +6,7 @@
     <title>Multivariable Integration Visualizer</title>
     <link rel="stylesheet" href="../shared/styles.css">
     <link rel="stylesheet" href="integration.css">
-    <!-- External libraries -->
+    <!-- External libraries (UMD for file:// compatibility) -->
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mathjs@11.11.0/lib/browser/math.min.js"></script>
@@ -15,12 +15,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js" defer></script>
     <script src="firebase-config.js" defer></script>
-    <!-- Optional: Desmos (not used by default) -->
-    <script src="https://www.desmos.com/api/v1.11/calculator.js?apiKey=3d3d638df48b41e5a172f056e6e6661d"></script>
 </head>
 <body>
-    <div class="app">
-        <aside class="sidebar">
+    <div class="app" data-drawer="closed">
+        <aside class="sidebar" id="sidebarPanel" role="dialog" aria-label="Controls" aria-modal="true">
             <div class="brand">
                 <h1>Integration Visualizer</h1>
                 <p class="subtitle">Aligned with visualize guidelines (<a href="https://learnhw.web.app/admin" target="_blank" rel="noopener">link</a>)</p>
@@ -223,6 +221,7 @@
         </aside>
 
         <main class="viewport">
+            <button id="controlsToggle" class="controls-toggle" aria-expanded="false" aria-controls="sidebarPanel">Controls</button>
             <div id="canvas3d"></div>
             <div class="legend">
                 <span class="chip chip-surface">Surface/Volume</span>
@@ -249,6 +248,7 @@
                 </div>
             </div>
         </main>
+        <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
     </div>
 
     <script src="integration.js"></script>

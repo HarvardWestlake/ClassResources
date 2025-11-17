@@ -5,6 +5,10 @@
 
     // UI elements
     const canvasHost = $('canvas3d');
+    const appRoot = document.querySelector('.app');
+    const sidebarPanel = document.getElementById('sidebarPanel');
+    const controlsToggle = $('controlsToggle');
+    const drawerBackdrop = $('drawerBackdrop');
     const methodSelect = $('methodSelect');
     const presetSelect = $('presetSelect');
     const equationInput = $('equationInput');
@@ -46,13 +50,48 @@
     // Density level: 0 Off, 1 Light, 2 Medium, 3 Heavy
     let densityLevel = 1;
 
+    function isNarrowScreen() {
+        return (window.innerWidth || document.documentElement.clientWidth || 0) < 768;
+    }
+
+    // Drawer helpers (mobile)
+    let lastFocusedBeforeDrawer = null;
+    function setDrawer(open) {
+        if (!appRoot || !sidebarPanel || !controlsToggle) return;
+        appRoot.setAttribute('data-drawer', open ? 'open' : 'closed');
+        controlsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (drawerBackdrop) drawerBackdrop.hidden = !open;
+        // Manage focus
+        if (open) {
+            lastFocusedBeforeDrawer = document.activeElement;
+            sidebarPanel.setAttribute('aria-hidden', 'false');
+            // Focus first focusable within sidebar
+            const focusables = sidebarPanel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (focusables.length > 0) {
+                focusables[0].focus();
+            } else {
+                sidebarPanel.focus && sidebarPanel.focus();
+            }
+        } else {
+            sidebarPanel.setAttribute('aria-hidden', 'true');
+            if (lastFocusedBeforeDrawer && typeof lastFocusedBeforeDrawer.focus === 'function') {
+                lastFocusedBeforeDrawer.focus();
+            } else {
+                controlsToggle.focus && controlsToggle.focus();
+            }
+        }
+    }
+    function closeDrawer() { setDrawer(false); }
+    function openDrawer() { setDrawer(true); }
+
     function getHostSize() {
         const rect = canvasHost.getBoundingClientRect();
         let w = Math.max(1, Math.floor(rect.width || canvasHost.clientWidth || 1));
         let h = Math.max(1, Math.floor(rect.height || canvasHost.clientHeight || 1));
         if (w < 50 || h < 50) {
             // Fallback if layout hasn't sized yet
-            w = Math.max(300, window.innerWidth - 380);
+            const subtract = isNarrowScreen() ? 0 : 380;
+            w = Math.max(300, (window.innerWidth || 0) - subtract);
             h = Math.max(300, window.innerHeight - 24);
         }
         return { w, h };
@@ -107,12 +146,11 @@
         const { w, h } = getHostSize();
         const ratio = w / h;
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        if (THREE && THREE.sRGBEncoding) {
-            renderer.outputEncoding = THREE.sRGBEncoding;
-        } else if (THREE && THREE.OutputColorSpace) {
+        if ('outputColorSpace' in renderer) {
             renderer.outputColorSpace = THREE.SRGBColorSpace;
         }
-        renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.5));
+        const pxRatio = isNarrowScreen() ? 1 : Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.5);
+        renderer.setPixelRatio(pxRatio);
         renderer.setSize(w, h);
         canvasHost.innerHTML = '';
         canvasHost.appendChild(renderer.domElement);
@@ -305,6 +343,7 @@
         scene.add(contentRoot);
 
         window.addEventListener('resize', onResize);
+        window.addEventListener('orientationchange', onResize);
         onResize();
         animate();
     }
@@ -487,7 +526,7 @@
         const dy = (y1 - y0) / nyp;
         const material = new THREE.MeshStandardMaterial({ color: 0xff7a59, transparent: true, opacity: 0.6 });
         let estimate = 0;
-        const maxCols = 1500;
+        const maxCols = isNarrowScreen() ? 900 : 1500;
         const total = nxp * nyp;
         const stride = total > maxCols ? Math.ceil(total / maxCols) : 1;
         let idx = 0;
@@ -542,7 +581,7 @@
         const dt = (t1 - t0) / nt;
         let estimate = 0;
         const mat = new THREE.MeshStandardMaterial({ color: 0xff7a59, transparent: true, opacity: 0.6 });
-        const maxCols = 1500;
+        const maxCols = isNarrowScreen() ? 900 : 1500;
         const total = nr * nt;
         const stride = total > maxCols ? Math.ceil(total / maxCols) : 1;
         let idx = 0;
@@ -670,7 +709,7 @@
         const dz = (z1 - z0) / nz;
         const mat = new THREE.MeshStandardMaterial({ color: 0xff7a59, transparent: true, opacity: 0.45 });
         let volume = 0;
-        const maxCells = 2500; // guard performance
+        const maxCells = isNarrowScreen() ? 1800 : 2500; // guard performance
         const totalCells = nr * nt * nz;
         const stride = totalCells > maxCells ? Math.ceil(totalCells / maxCells) : 1;
         let idx = 0;
@@ -710,7 +749,7 @@
         const dtheta = (th1 - th0) / nth;
         const mat = new THREE.MeshStandardMaterial({ color: 0xff7a59, transparent: true, opacity: 0.45 });
         let volume = 0;
-        const maxCells = 3000;
+        const maxCells = isNarrowScreen() ? 2200 : 3000;
         const totalCells = nr * nphi * nth;
         const stride = totalCells > maxCells ? Math.ceil(totalCells / maxCells) : 1;
         let idx = 0;
@@ -1006,6 +1045,36 @@
         showOnboardingIfNeeded();
 
         // Events
+        if (controlsToggle) {
+            controlsToggle.addEventListener('click', () => {
+                if (!isNarrowScreen()) return;
+                const open = (appRoot?.getAttribute('data-drawer') !== 'open');
+                setDrawer(open);
+            });
+        }
+        if (drawerBackdrop) {
+            drawerBackdrop.addEventListener('click', () => closeDrawer());
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && appRoot?.getAttribute('data-drawer') === 'open') {
+                closeDrawer();
+            } else if (e.key === 'Tab' && appRoot?.getAttribute('data-drawer') === 'open') {
+                // simple focus trap inside sidebar
+                const focusables = sidebarPanel?.querySelectorAll?.('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                if (!focusables || focusables.length === 0) return;
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+                const active = document.activeElement;
+                if (e.shiftKey && active === first) { last.focus(); e.preventDefault(); }
+                else if (!e.shiftKey && active === last) { first.focus(); e.preventDefault(); }
+            }
+        });
+        window.addEventListener('resize', () => {
+            if (!isNarrowScreen()) {
+                // Ensure drawer closed on desktop
+                setDrawer(false);
+            }
+        });
         methodSelect.addEventListener('change', () => { updatePanelsVisibility(); applyPresetBounds(); render(); });
         presetSelect.addEventListener('change', () => { applyPresetBounds(); render(); });
         [equationInput, xMin, xMax, yMin, yMax, rMin, rMax, thetaMin, thetaMax, nx, ny, nz,

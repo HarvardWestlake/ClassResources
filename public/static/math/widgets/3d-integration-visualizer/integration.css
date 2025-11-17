@@ -72,6 +72,34 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 .chip-region { border-color: rgba(63,143,30,.4); }
 .chip-wedge { border-color: rgba(184,31,83,.4); }
 
+/* Drawer backdrop and mobile controls toggle */
+.drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 200ms ease;
+    z-index: 11;
+}
+.drawer-backdrop[hidden] { display: block; } /* keep layout stable; visibility controls appearance */
+
+.controls-toggle {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    z-index: 13;
+    background: rgba(255,255,255,0.95);
+    color: #000;
+    border: 1px solid var(--hw-border);
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: none; /* show only on small screens */
+}
+
 /* Canvas helpers */
 .watermark { position: absolute; left: 16px; bottom: 16px; font-size: 12px; color: rgba(0,0,0,0.5); }
 
@@ -170,3 +198,39 @@ html.theme-light body { background: var(--bg); }
 
 html.theme-light .theme-toggle { color: #333; background: rgba(255,255,255,0.9); border-color: #ddd; }
 
+/* --- Mobile layout: off-canvas drawer --- */
+@media (max-width: 768px) {
+    .app {
+        display: grid;
+        grid-template-columns: 1fr;
+        min-height: 100svh;
+    }
+    .viewport {
+        min-height: 100svh;
+    }
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100svh;
+        width: min(92vw, 360px);
+        max-width: 360px;
+        transform: translateX(-100%);
+        transition: transform 240ms ease;
+        box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+        z-index: 12;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+    .app[data-drawer="open"] .sidebar {
+        transform: translateX(0);
+    }
+    .app[data-drawer="open"] .drawer-backdrop {
+        opacity: 1;
+        visibility: visible;
+    }
+    .controls-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+}
