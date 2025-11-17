@@ -990,6 +990,25 @@
         $('boundsSpherical').hidden = method !== 'triple_spherical';
     }
 
+    // Choose an appropriate integration method for the given preset so it renders correctly
+    function autoSelectMethodForPreset(preset) {
+        if (!methodSelect) return;
+        let target = null;
+        if (preset === 'sphere') {
+            target = 'triple_spherical';
+        } else if (preset === 'cylinder' || preset === 'cone') {
+            target = 'triple_cylindrical';
+        } else if (preset === 'paraboloid') {
+            // Paraboloid is naturally a surface z = f(x, y); show with double integrals.
+            // Prefer polar to highlight radial symmetry; Cartesian also works.
+            target = 'double_polar';
+        }
+        if (target && methodSelect.value !== target) {
+            methodSelect.value = target;
+            updatePanelsVisibility();
+        }
+    }
+
     function applyPresetBounds() {
         const preset = presetSelect.value;
         if (preset === 'cone') {
@@ -1032,6 +1051,8 @@
         setupThree();
         updatePanelsVisibility();
         applyPresetBounds();
+        // If a stock shape is selected on load, switch to a matching method
+        autoSelectMethodForPreset(presetSelect.value);
         // Beginner-first defaults
         if (showSurface) showSurface.checked = true;
         if (showRegion) showRegion.checked = true;
@@ -1076,7 +1097,12 @@
             }
         });
         methodSelect.addEventListener('change', () => { updatePanelsVisibility(); applyPresetBounds(); render(); });
-        presetSelect.addEventListener('change', () => { applyPresetBounds(); render(); });
+        presetSelect.addEventListener('change', () => {
+            autoSelectMethodForPreset(presetSelect.value);
+            updatePanelsVisibility();
+            applyPresetBounds();
+            render();
+        });
         [equationInput, xMin, xMax, yMin, yMax, rMin, rMax, thetaMin, thetaMax, nx, ny, nz,
          rcMin, rcMax, thetacMin, thetacMax, zMin, zMax, rhoMin, rhoMax, phiMin, phiMax, thetasMin, thetasMax]
             .forEach(el => el.addEventListener('change', render));
