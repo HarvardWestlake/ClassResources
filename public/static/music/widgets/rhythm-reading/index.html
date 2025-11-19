@@ -59,10 +59,11 @@
         <div class="main-content">
             <div class="card">
                 <div class="title">Rhythm Reading</div>
-                <div class="subtitle">Practice sight-reading rhythms</div>
-                <div id="practiceHint" class="practice-hint" style="display:none;">
-                    <span>Press ESC to end practice</span>
-                    <button id="exitPractice">Exit</button>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div class="subtitle" style="margin-bottom: 0;">Practice sight-reading rhythms</div>
+                    <div id="practiceHint" class="practice-hint" style="display:none; margin: 0;">
+                        <button id="exitPractice">Exit</button>
+                    </div>
                 </div>
                 <div class="canvas-wrap">
                     <canvas id="sheet"></canvas>
@@ -105,16 +106,16 @@
                                         </select>
                                         <div id="difficultyGroup" class="pill-group"></div>
                                     </div>
-                                    <div>
+                                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
                                         <label class="switch">
                                             <input id="metronome" type="checkbox" checked />
                                             <span>Metronome</span>
                                         </label>
-                                        <label class="switch" style="margin-left:10px;">
+                                        <label class="switch">
                                             <input id="beatMarker" type="checkbox" checked />
                                             <span>Beat marker</span>
                                         </label>
-                                        <label class="switch" style="margin-left:10px;">
+                                        <label class="switch">
                                             <input id="guideClicks" type="checkbox" checked />
                                             <span>Guide clicks</span>
                                         </label>

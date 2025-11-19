@@ -15,16 +15,18 @@ import './styles.css';
             tripletChance: 0,
             syncopationChance: 0.05,
             avoidRepeatMax: 4,
-            minNotesPerBeat: 1
+            minNotesPerBeat: 1,
+            allowDotted: true
         },
         medium: {
             restChance: 0.12,
             toleranceMs: 120,
             firstBeatBonusMs: 60,
-            tripletChance: 0.25,
+            tripletChance: 0,
             syncopationChance: 0.12,
             avoidRepeatMax: 2,
-            minNotesPerBeat: 1
+            minNotesPerBeat: 1,
+            allowDotted: true
         },
         hard: {
             restChance: 0.06,
@@ -33,7 +35,8 @@ import './styles.css';
             tripletChance: 0.45,
             syncopationChance: 0.2,
             avoidRepeatMax: 2,
-            minNotesPerBeat: 0
+            minNotesPerBeat: 0,
+            allowDotted: true
         }
     };
 
@@ -381,12 +384,14 @@ import './styles.css';
                 // Build allowed durations for this difficulty
                 let allowed = [];
                 if (el.difficulty.value === 'easy') {
-                    allowed = [DUR.whole, DUR.half, DUR.quarter, DUR.eighth];
-                } else if (el.difficulty.value === 'medium') {
+                    // Easy: quarters, eighths, and halves only
                     allowed = [DUR.half, DUR.quarter, DUR.eighth];
+                } else if (el.difficulty.value === 'medium') {
+                    // Medium: easy + dotted notes
+                    allowed = [DUR.half, DUR.quarter, DUR.eighth, DUR.dottedQuarter, DUR.dottedEighth];
                 } else {
-                    // hard: allow dotted values as well
-                    allowed = [DUR.quarter, DUR.eighth, DUR.dottedQuarter, DUR.dottedEighth, DUR.half];
+                    // Hard: medium + triplets (triplets added separately via tripletChance)
+                    allowed = [DUR.half, DUR.quarter, DUR.eighth, DUR.dottedQuarter, DUR.dottedEighth];
                 }
 
                 // Filter to fit remaining measure
@@ -421,7 +426,10 @@ import './styles.css';
                         let w = 1;
                         if (d === DUR.quarter) w = (el.difficulty.value === 'easy') ? 5 : 3;
                         else if (d === DUR.eighth) w = 3;
-                        else if (d === DUR.dottedQuarter || d === DUR.dottedEighth) w = (el.difficulty.value === 'hard') ? 2 : 1;
+                        else if (d === DUR.dottedQuarter || d === DUR.dottedEighth) {
+                            // Medium and hard get dotted notes
+                            w = (el.difficulty.value === 'medium' || el.difficulty.value === 'hard') ? 2 : 0;
+                        }
                         else if (d === DUR.half) w = 2;
                         // prevent zero weight
                         if (w > 0) for (let i = 0; i < w; i++) pool.push(d);
@@ -610,6 +618,10 @@ import './styles.css';
             // Keep context for next play to avoid iOS relock; do not close
         }
 
+        // Clear count-in numbers when stopping (fixes ESC before practice issue)
+        if (el.countInOverlay) el.countInOverlay.style.display = 'none';
+        if (el.countInNumber) el.countInNumber.textContent = '';
+
         if (el.startOverlay) el.startOverlay.style.display = tutorialMode ? 'none' : 'flex';
         if (el.canvasWrap) { el.canvasWrap.scrollTop = 0; el.canvasWrap.style.overflowY = 'hidden'; }
         // Ensure no scheduled sounds remain
@@ -682,7 +694,10 @@ import './styles.css';
     function autoMiss(now) {
         if (tutorialMode) return;
         const diff = difficultyConfig[el.difficulty.value] || difficultyConfig.easy;
-        const tol = diff.toleranceMs / 1000;
+        // Scale tolerance with BPM for consistency
+        const bpm = parseInt(el.bpm.value) || 100;
+        const bpmScale = Math.max(0.5, Math.min(1.5, 100 / bpm));
+        const tol = (diff.toleranceMs * bpmScale) / 1000;
         while (nextEventIdx < pattern.items.length) {
             const it = pattern.items[nextEventIdx];
             if (it.isRest) { nextEventIdx++; continue; }
@@ -711,14 +726,17 @@ import './styles.css';
         if (tutorialMode) return;
         if (!pattern || !schedule) return;
         ensureAudio();
-        // Immediate tactile feedback on any tap
+        // Immediate tactile feedback on any tap (reduced delay for mobile)
         playTapClick();
         const audioRunning = audioCtx && audioCtx.state === 'running';
         const now = audioRunning ? audioCtx.currentTime : (performance.now() / 1000);
         if (now - lastHitAtSec < HIT_COOLDOWN_SEC) return;
         const diff = difficultyConfig[el.difficulty.value] || difficultyConfig.easy;
-        const baseTolMs = diff.toleranceMs;
-        const firstBonusMs = diff.firstBeatBonusMs || 0;
+        // Scale tolerance with BPM - faster tempos need tighter timing
+        const bpm = parseInt(el.bpm.value) || 100;
+        const bpmScale = Math.max(0.5, Math.min(1.5, 100 / bpm)); // Scale: 50 BPM = 1.5x tolerance, 200 BPM = 0.5x tolerance
+        const baseTolMs = diff.toleranceMs * bpmScale;
+        const firstBonusMs = (diff.firstBeatBonusMs || 0) * bpmScale;
         const maxWindowFactor = 2.5;
         const measureTicks = pattern.ticksPerBeat * pattern.timeSig.beatsPerMeasure;
         const startSec = audioRunning ? schedule.startTimeAudio : schedule.startTimeVisual;
@@ -1702,10 +1720,15 @@ import './styles.css';
         if (isVisible(el.summaryOverlay)) return;
         onHitInput(e);
     });
+    // Touch handling with reduced delay for mobile
+    let touchStartTime = 0;
     el.sheet.addEventListener('touchstart', (e) => {
         if (isVisible(el.summaryOverlay)) return;
+        touchStartTime = performance.now();
+        // Immediate feedback for touch
+        e.preventDefault();
         onHitInput(e);
-    }, { passive: true });
+    }, { passive: false });
 
     // Tutorials: definitions and UI
     const tutorials = [
@@ -2466,7 +2489,16 @@ import './styles.css';
     // Exit practice button
     if (el.exitPractice) {
         el.exitPractice.addEventListener('click', () => {
-            stopPlayback();
+            if (isPlaying) {
+                stopPlayback();
+            }
+        });
+        // Also handle touch events for mobile/tablet
+        el.exitPractice.addEventListener('touchend', (e) => {
+            if (isPlaying) {
+                e.preventDefault();
+                stopPlayback();
+            }
         });
     }
 
