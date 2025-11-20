@@ -6,7 +6,7 @@
   <title>Profit Calculation Practice</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../../math/widgets/shared/styles.css">
   <style>
     :root { --hw-border:#e5e7eb; }
@@ -18,13 +18,14 @@
     .cluster { display:flex; gap:8px; align-items:center; }
     .row { display:flex; flex-wrap:wrap; gap:0.75rem; }
     .col-6 { flex:1 1 320px; max-width:100%; }
-    .btn-small, .btn.btn-small, .btn-small.btn { padding:0.35rem 0.7rem; font-size:0.9rem; }
+    .btn-small, .btn.btn-small, .btn-small.btn, .btn-sm { padding:0.35rem 0.7rem; font-size:0.9rem; }
+    .btn-primary { background:#E60000; color:#fff; }
     .btn-ghost { background:transparent; color:#E60000; border:1px solid transparent; }
     .btn-ghost:hover { text-decoration:underline; transform:none; box-shadow:none; }
     .badge { display:inline-block; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.8rem; font-weight:600; background:#e9ecef; color:#000; }
     .badge.green { background:#e6f4ea; color:#0f5132; }
     .badge.red { background:#fdecea; color:#842029; }
-    .alert.info { background:#e7f3ff; color:#084298; border-left:4px solid #0d6efd; }
+    .alert.info { background:#ffe5e5; color:#000; border-left:4px solid #E60000; }
     .stack-16 > * + * { margin-top:16px; }
     .cards-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
     .card-item { border:1px solid var(--hw-border); border-radius:10px; background:#fff; overflow:hidden; display:flex; flex-direction:column; }
@@ -56,6 +57,12 @@
       #field-economic .input { width: 100%; }
     }
     @media (max-width: 768px){ .col-6 { flex:1 1 100%; } }
+    
+    /* Header styling */
+    h2, h3 {
+      color: #000;
+      margin: 0 0 0.75rem 0;
+    }
     
     /* Pokeball cursor */
     * { cursor: none !important; }
