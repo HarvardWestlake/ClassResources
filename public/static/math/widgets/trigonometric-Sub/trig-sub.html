@@ -390,6 +390,12 @@
         stroke: var(--accent);
         stroke-dasharray: 4 3;
       }
+      .tsw-asymptote {
+        stroke: var(--hw-gray-700);
+        stroke-dasharray: 6 5;
+        stroke-width: 1.5;
+        opacity: 0.8;
+      }
       .tsw-handle {
         fill: var(--accent);
         cursor: ew-resize;
@@ -1478,6 +1484,19 @@
           },
         };
 
+        // Vertical asymptotes for each function (x = constant)
+        const asymptotes = {
+          sqrt_minus: (a) => [],
+          sqrt_plus: (a) => [],
+          sqrt_x2_minus: (a) => [],
+          inv_sqrt_minus: (a) => [-a, a],
+          inv_sqrt_plus: (a) => [],
+          inv_sqrt_x2_minus: (a) => [-a, a],
+          inv_minus: (a) => [-a, a],
+          inv_plus: (a) => [],
+          inv_x2_minus: (a) => [-a, a],
+        };
+
         // TeX for the original f(x) shown under the Function select
         const funcTex = {
           sqrt_minus: "\\sqrt{a^2 - x^2}",
@@ -1706,6 +1725,27 @@
           return { xToPx, yToPx };
         }
 
+        function renderAsymptotes(cfg, a, range) {
+          const list = asymptotes[state.funcId]
+            ? asymptotes[state.funcId](a)
+            : [];
+          if (!list || !list.length) return;
+          const { xMin, xMax, yMin, yMax } = range;
+          const { xToPx, yToPx } = range._scales;
+          for (const x0 of list) {
+            if (!Number.isFinite(x0)) continue;
+            if (x0 <= xMin || x0 >= xMax) continue;
+            const line = make("line");
+            const xp = xToPx(x0);
+            line.setAttribute("x1", String(xp));
+            line.setAttribute("x2", String(xp));
+            line.setAttribute("y1", String(yToPx(yMin)));
+            line.setAttribute("y2", String(yToPx(yMax)));
+            line.setAttribute("class", "tsw-asymptote");
+            svg.appendChild(line);
+          }
+        }
+
         function buildCurvePath(cfg, a, range) {
           const { xMin, xMax } = range;
           const n = 400;
@@ -1920,6 +1960,9 @@
             area.setAttribute("class", "tsw-area");
             svg.appendChild(area);
           }
+
+          // Draw vertical asymptotes (on top of area, below bounds/handles)
+          renderAsymptotes(cfg, state.a, range);
 
           const { xToPx, yToPx } = range._scales;
           const y0 = yToPx(0);
