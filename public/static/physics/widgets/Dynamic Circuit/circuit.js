@@ -64,6 +64,8 @@
 
   // Selection state (multi-select)
   const selectedIds = new Set(); // values: 'r1', 'r2'
+  // Use a centralized selection panel instead of inline SVG popups
+  const USE_EXTERNAL_PANEL = true;
 
   // Dynamic resistor list
   const resistors = [];
@@ -332,6 +334,63 @@
   function fmtV(v) { return `${fmt(v, 3)} V`; }
   function fmtP(p) { return `${fmt(p, 3)} W`; }
 
+  // Stable selection ordering and index mapping (r1, r2, r3 …)
+  function sortIds(ids) {
+    return ids.slice().sort((a, b) => {
+      const na = parseInt(String(a).replace(/^\D+/, ""), 10);
+      const nb = parseInt(String(b).replace(/^\D+/, ""), 10);
+      if (!isFinite(na) || !isFinite(nb)) return String(a).localeCompare(String(b));
+      return na - nb;
+    });
+  }
+  function getSelectionIndexMap() {
+    const arr = sortIds(Array.from(selectedIds));
+    const map = {};
+    arr.forEach((id, i) => { map[id] = i + 1; });
+    return map;
+  }
+
+  // Centralized selection panel renderer
+  function updateSelectionPanel(res) {
+    if (!USE_EXTERNAL_PANEL) return;
+    const panel = document.getElementById("selectionPanel");
+    if (!panel) return;
+    const header = '<div class="h3" style="margin:0 0 .25rem;">Selection</div>';
+    if (selectedIds.size === 0) {
+      panel.innerHTML = `${header}<div class="muted">Click a resistor or bulb to see its values here.</div>`;
+      return;
+    }
+    const idxMap = getSelectionIndexMap();
+    const ids = sortIds(Array.from(selectedIds));
+    if (ids.length === 1) {
+      const id = ids[0];
+      const comp = findComponentRef(id);
+      const p = (res && res.per && res.per[id]) ? res.per[id] : { V: 0, I: 0, P: 0 };
+      const rVal = comp && typeof comp.R === "number" ? comp.R : 0;
+      panel.innerHTML =
+        header +
+        `<div class="stat"><span><span class="badge-num">${idxMap[id] || 1}</span>&nbsp;R</span><span>${fmtR(rVal)}</span></div>` +
+        `<div class="stat"><span>&nbsp;</span><span>${fmtV(p.V || 0)}</span></div>` +
+        `<div class="stat"><span>&nbsp;</span><span>${fmtI(p.I || 0)}</span></div>` +
+        `<div class="stat"><span>&nbsp;</span><span>${fmtP(p.P || 0)}</span></div>`;
+      return;
+    }
+    // Multiple selection: show up to first 4 items plus count
+    const lines = [];
+    const maxShow = 4;
+    for (let i = 0; i < Math.min(ids.length, maxShow); i++) {
+      const id = ids[i];
+      const comp = findComponentRef(id);
+      const p = (res && res.per && res.per[id]) ? res.per[id] : { V: 0, I: 0, P: 0 };
+      const rVal = comp && typeof comp.R === "number" ? comp.R : 0;
+      lines.push(
+        `<div class="stat"><span><span class="badge-num">${idxMap[id] || (i+1)}</span>&nbsp;${id}</span><span>${fmtR(rVal)}, ${fmtV(p.V || 0)}, ${fmtI(p.I || 0)}, ${fmtP(p.P || 0)}</span></div>`
+      );
+    }
+    const more = ids.length > maxShow ? `<div class="muted">${ids.length - maxShow} more selected…</div>` : "";
+    panel.innerHTML = header + lines.join("") + more;
+  }
+
   // Physics for N resistors
   function computeSeriesN(V, list) {
     // Support components and parallel groups at the top level
@@ -503,7 +562,7 @@
   }
 
   // Localized parallel group renderers on top/bottom and left/right edges
-  function drawLocalParallelGroupTop(cx, yMain, children, pMax, res, brightnessMap) {
+  function drawLocalParallelGroupTop(cx, yMain, children, pMax, res, brightnessMap, selIndexMap) {
     // Filter out empty branches to avoid blank lanes
     const filtered = (children || []).filter(ch =>
       ch && (
@@ -512,7 +571,7 @@
       )
     );
     const BASE_WIDTH_FOR_TWO = (2 * RES_RENDER_LEN) + 14; // minimal room for two series elements
-    const MIN_SERIES_GAP = 14; // tighter, still comfortable spacing between series elements
+    const MIN_SERIES_GAP = 14; // minimum spacing between series elements
 
     // Longest series run across branches
     let maxSeries = 0;
@@ -562,28 +621,31 @@
       const c = l.comp;
       if (c.kind === "series" && Array.isArray(c.children)) {
         const m = c.children.length;
-        const spacing = m > 1 ? Math.max(((groupLen - RES_RENDER_LEN) / (m - 1)), RES_RENDER_LEN + MIN_SERIES_GAP) : 0;
-        const start = (xL + xR) / 2 - (spacing * (m - 1)) / 2;
         const halfLen = RES_RENDER_LEN / 2;
-        // Precompute centers for connectors
-        const centers = Array.from({ length: m }, (_, k) => start + k * spacing);
+        // Total span we would like (bodies + minimal gaps)
+        const baseSpan = m * RES_RENDER_LEN + (m - 1) * MIN_SERIES_GAP;
+        // Clamp span to fit within groupLen
+        const span = Math.min(baseSpan, groupLen);
+        const availableForGaps = Math.max(span - m * RES_RENDER_LEN, 0);
+        const gap = m > 1 ? availableForGaps / (m - 1) : 0;
+        const centersStart = xL + (groupLen - span) / 2 + halfLen;
+        const centers = Array.from({ length: m }, (_, k) => centersStart + k * (RES_RENDER_LEN + gap));
+
         // Left bus to first element
         if (m > 0) {
           const firstLeft = centers[0] - halfLen;
-          if (firstLeft > xL) svg.appendChild(line(xL, l.y, firstLeft, l.y));
+          svg.appendChild(line(xL, l.y, firstLeft, l.y));
         }
         // Between consecutive elements
         for (let k = 0; k < m - 1; k++) {
           const rightPrev = centers[k] + halfLen;
           const leftNext = centers[k + 1] - halfLen;
-          if (leftNext > rightPrev) {
-            svg.appendChild(line(rightPrev, l.y, leftNext, l.y));
-          }
+          svg.appendChild(line(rightPrev, l.y, leftNext, l.y));
         }
         // Last element to right bus
         if (m > 0) {
           const lastRight = centers[m - 1] + halfLen;
-          if (xR > lastRight) svg.appendChild(line(lastRight, l.y, xR, l.y));
+          svg.appendChild(line(lastRight, l.y, xR, l.y));
         }
         c.children.forEach((cc, k) => {
           const px = centers[k];
@@ -595,7 +657,10 @@
           g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(cc.id); else selectedIds.add(cc.id); update(); });
           g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, cc.id); });
           svg.appendChild(g);
-          if (sel) {
+          if (sel && USE_EXTERNAL_PANEL && selIndexMap && selIndexMap[cc.id] != null) {
+            svg.appendChild(selectionBadge(px, l.y, selIndexMap[cc.id], l.pos === "above" ? "above" : "below"));
+          }
+        if (sel && !USE_EXTERNAL_PANEL) {
             svg.appendChild(popupBox(px, l.y, [
               `R = ${fmtR(cc.R)}`,
               `V = ${fmtV(res.per[cc.id]?.V || 0)}`,
@@ -614,7 +679,10 @@
         g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(c.id); else selectedIds.add(c.id); update(); });
         g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, c.id); });
         svg.appendChild(g);
-        if (sel) {
+        if (sel && USE_EXTERNAL_PANEL && selIndexMap && selIndexMap[c.id] != null) {
+          svg.appendChild(selectionBadge((xL + xR) / 2, l.y, selIndexMap[c.id], l.pos === "above" ? "above" : "below"));
+        }
+        if (sel && !USE_EXTERNAL_PANEL) {
           svg.appendChild(popupBox((xL + xR) / 2, l.y, [
             `R = ${fmtR(c.R)}`,
             `V = ${fmtV(res.per[c.id]?.V || 0)}`,
@@ -626,7 +694,7 @@
     });
   }
 
-  function drawLocalParallelGroupLeft(xMain, cy, children, pMax, res, brightnessMap) {
+  function drawLocalParallelGroupLeft(xMain, cy, children, pMax, res, brightnessMap, selIndexMap) {
     // Filter out empty branches
     const filtered = (children || []).filter(ch =>
       ch && (
@@ -683,28 +751,29 @@
       const c = l.comp;
       if (c.kind === "series" && Array.isArray(c.children)) {
         const m = c.children.length;
-        const spacing = m > 1 ? Math.max(((groupLen - RES_RENDER_LEN) / (m - 1)), RES_RENDER_LEN + MIN_SERIES_GAP) : 0;
-        const start = (yT + yB) / 2 - (spacing * (m - 1)) / 2;
         const halfLen = RES_RENDER_LEN / 2;
-        // Precompute centers for connectors
-        const centers = Array.from({ length: m }, (_, k) => start + k * spacing);
+        const baseSpan = m * RES_RENDER_LEN + (m - 1) * MIN_SERIES_GAP;
+        const span = Math.min(baseSpan, groupLen);
+        const availableForGaps = Math.max(span - m * RES_RENDER_LEN, 0);
+        const gap = m > 1 ? availableForGaps / (m - 1) : 0;
+        const centersStart = yT + (groupLen - span) / 2 + halfLen;
+        const centers = Array.from({ length: m }, (_, k) => centersStart + k * (RES_RENDER_LEN + gap));
+
         // Top bus to first element
         if (m > 0) {
           const firstTop = centers[0] - halfLen;
-          if (firstTop > yT) svg.appendChild(line(l.x, yT, l.x, firstTop));
+          svg.appendChild(line(l.x, yT, l.x, firstTop));
         }
         // Between consecutive elements
         for (let k = 0; k < m - 1; k++) {
           const bottomPrev = centers[k] + halfLen;
           const topNext = centers[k + 1] - halfLen;
-          if (topNext > bottomPrev) {
-            svg.appendChild(line(l.x, bottomPrev, l.x, topNext));
-          }
+          svg.appendChild(line(l.x, bottomPrev, l.x, topNext));
         }
         // Last element to bottom bus
         if (m > 0) {
           const lastBottom = centers[m - 1] + halfLen;
-          if (yB > lastBottom) svg.appendChild(line(l.x, lastBottom, l.x, yB));
+          svg.appendChild(line(l.x, lastBottom, l.x, yB));
         }
         c.children.forEach((cc, k) => {
           const py = centers[k];
@@ -716,7 +785,10 @@
           g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(cc.id); else selectedIds.add(cc.id); update(); });
           g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, cc.id); });
           svg.appendChild(g);
-          if (sel) {
+          if (sel && USE_EXTERNAL_PANEL && selIndexMap && selIndexMap[cc.id] != null) {
+            svg.appendChild(selectionBadge(l.x, py, selIndexMap[cc.id], l.pos === "left" ? "left" : "right"));
+          }
+        if (sel && !USE_EXTERNAL_PANEL) {
             svg.appendChild(popupBox(l.x, py, [
               `R = ${fmtR(cc.R)}`,
               `V = ${fmtV(res.per[cc.id]?.V || 0)}`,
@@ -735,7 +807,10 @@
         g.addEventListener("click", (e) => { e.stopPropagation(); if (sel) selectedIds.delete(c.id); else selectedIds.add(c.id); update(); });
         g.addEventListener("contextmenu", (e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, c.id); });
         svg.appendChild(g);
-        if (sel) {
+        if (sel && USE_EXTERNAL_PANEL && selIndexMap && selIndexMap[c.id] != null) {
+          svg.appendChild(selectionBadge(l.x, (yT + yB) / 2, selIndexMap[c.id], l.pos === "left" ? "left" : "right"));
+        }
+        if (sel && !USE_EXTERNAL_PANEL) {
           svg.appendChild(popupBox(l.x, (yT + yB) / 2, [
             `R = ${fmtR(c.R)}`,
             `V = ${fmtV(res.per[c.id]?.V || 0)}`,
@@ -810,7 +885,7 @@
     }
     path.setAttribute("points", points.join(" "));
     path.setAttribute("fill", "none");
-    path.setAttribute("stroke", selected ? "#0d6efd" : "#111");
+    path.setAttribute("stroke", selected ? "#c8102e" : "#111");
     path.setAttribute("stroke-width", selected ? "3.5" : "2.5");
     g.appendChild(path);
     // Larger, invisible hit area for easy selection
@@ -851,7 +926,7 @@
     }
     path.setAttribute("points", points.join(" "));
     path.setAttribute("fill", "none");
-    path.setAttribute("stroke", selected ? "#0d6efd" : "#111");
+    path.setAttribute("stroke", selected ? "#c8102e" : "#111");
     path.setAttribute("stroke-width", selected ? "3.5" : "2.5");
     g.appendChild(path);
     // Larger, invisible hit area for easy selection
@@ -896,14 +971,16 @@
     // Bulb body
     const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     c.setAttribute("cx", cx); c.setAttribute("cy", cy); c.setAttribute("r", BULB_D / 2);
-    // Color ramp: light yellow (#FFF5B4) at 0W to bright orange (#FF8C00) at ≥1W
-    const r0 = 255, g0 = 245, b0 = 180;
+    // Color ramp: slightly deeper gold at low power so it stands out on white
+    //   low:  #FFD45A  (richer gold)
+    //   high: #FF8C00 (bright orange)
+    const r0 = 255, g0 = 212, b0 = 90;
     const r1 = 255, g1 = 140, b1 = 0;
     const cr = Math.round(r0 + (r1 - r0) * intensity);
     const cg = Math.round(g0 + (g1 - g0) * intensity);
     const cb = Math.round(b0 + (b1 - b0) * intensity);
     c.setAttribute("fill", `rgb(${cr}, ${cg}, ${cb})`);
-    c.setAttribute("stroke", selected ? "#0d6efd" : "#111");
+    c.setAttribute("stroke", selected ? "#c8102e" : "#111");
     c.setAttribute("stroke-width", selected ? "3" : "2");
     g.appendChild(c);
     // Larger, invisible hit area for easy selection
@@ -947,14 +1024,16 @@
     // Bulb body
     const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     c.setAttribute("cx", cx); c.setAttribute("cy", cy); c.setAttribute("r", BULB_D / 2);
-    // Color ramp: light yellow (#FFF5B4) at 0W to bright orange (#FF8C00) at ≥1W
-    const r0 = 255, g0 = 245, b0 = 180;
+    // Color ramp: slightly deeper gold at low power so it stands out on white
+    //   low:  #FFD45A
+    //   high: #FF8C00
+    const r0 = 255, g0 = 212, b0 = 90;
     const r1 = 255, g1 = 140, b1 = 0;
     const cr = Math.round(r0 + (r1 - r0) * intensity);
     const cg = Math.round(g0 + (g1 - g0) * intensity);
     const cb = Math.round(b0 + (b1 - b0) * intensity);
     c.setAttribute("fill", `rgb(${cr}, ${cg}, ${cb})`);
-    c.setAttribute("stroke", selected ? "#0d6efd" : "#111");
+    c.setAttribute("stroke", selected ? "#c8102e" : "#111");
     c.setAttribute("stroke-width", selected ? "3" : "2");
     g.appendChild(c);
     // Larger, invisible hit area for easy selection
@@ -1014,7 +1093,7 @@
     rect.setAttribute("width", width); rect.setAttribute("height", height);
     rect.setAttribute("rx", "6"); rect.setAttribute("ry", "6");
     rect.setAttribute("fill", "#ffffff");
-    rect.setAttribute("stroke", "#0d6efd");
+    rect.setAttribute("stroke", "#c8102e");
     rect.setAttribute("stroke-width", "1.5");
     g.appendChild(rect);
 
@@ -1044,6 +1123,37 @@
     return g;
   }
 
+  // Small numeric badge to link selected item to the panel list
+  function selectionBadge(x, y, label, position = "above") {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    const padX = 6, padY = 3;
+    const fontSize = 12;
+    let px = x, py = y;
+    const dx = 0, dy = 0;
+    const offset = 16;
+    if (position === "above") { py = y - offset; }
+    else if (position === "below") { py = y + offset; }
+    else if (position === "left") { px = x - offset; }
+    else if (position === "right") { px = x + offset; }
+    // Background rect sized to text: approximate width for 2 chars
+    const w = 16, h = 16;
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", px - w / 2); rect.setAttribute("y", py - h / 2);
+    rect.setAttribute("width", w); rect.setAttribute("height", h);
+    rect.setAttribute("rx", "8"); rect.setAttribute("ry", "8");
+    rect.setAttribute("fill", "#c8102e");
+    g.appendChild(rect);
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", px); t.setAttribute("y", py + 4); // baseline tweak
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("font-size", String(fontSize));
+    t.setAttribute("font-family", "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif");
+    t.setAttribute("fill", "#fff");
+    t.textContent = String(label);
+    g.appendChild(t);
+    g.setAttribute("pointer-events", "none");
+    return g;
+  }
   function drawRectangleLoop(opts = {}) {
     const topGap = opts.topGap || null; // [x1, x2] to skip drawing top segment
     // Top
@@ -1102,28 +1212,10 @@
       }
     }
 
-    // Global brightness transform based on circuit power distribution:
-    // - If all powers are low (max <= 1.0W), apply cbrt to expand differences
-    // - Else if the highest individual power <= 1.5W, square values to exaggerate differences
-    // - Else if the lowest individual power >= 4W, apply sqrt to compress range
-    // - Otherwise, identity (no change)
-    let pMaxAll = 0;
-    let pMinAll = Infinity;
-    for (const k in res.per) {
-      if (Object.prototype.hasOwnProperty.call(res.per, k)) {
-        const p = Math.max(0, res.per[k].P);
-        pMaxAll = Math.max(pMaxAll, p);
-        pMinAll = Math.min(pMinAll, p);
-      }
-    }
+    // Use a consistent, monotonic brightness transform so intensity increases
+    // smoothly with power as voltage rises.
     let brightnessMap = (p) => p;
-    if (pMaxAll <= 1.0) {
-      brightnessMap = (p) => Math.cbrt(p);
-    } else if (pMaxAll <= 1.5) {
-      brightnessMap = (p) => p * p;
-    } else if (pMinAll >= 4) {
-      brightnessMap = (p) => Math.sqrt(p);
-    }
+    const selIndexMap = getSelectionIndexMap();
 
     if (mode === "series") {
       drawRectangleLoop();
@@ -1183,7 +1275,7 @@
           const x2 = px + half;
           if (item && item.kind === "parallel" && Array.isArray(item.children)) {
             // Localized parallel group on top/bottom edge
-            drawLocalParallelGroupTop(px, y, item.children, pMax, res, brightnessMap);
+            drawLocalParallelGroupTop(px, y, item.children, pMax, res, brightnessMap, selIndexMap);
           } else {
             const r = item;
             const sel = selectedIds.has(r.id);
@@ -1203,7 +1295,11 @@
               showContextMenu(e.clientX, e.clientY, r.id);
             });
             svg.appendChild(g);
-            if (sel) {
+            if (sel && USE_EXTERNAL_PANEL && selIndexMap && selIndexMap[r.id] != null) {
+              const badgePos = pos.edge === "top" ? "below" : "above";
+              svg.appendChild(selectionBadge(px, y, selIndexMap[r.id], badgePos));
+            }
+            if (sel && !USE_EXTERNAL_PANEL) {
               const popupPos = pos.edge === "top" ? "below" : "above";
               svg.appendChild(popupBox(px, y, [
                 `R = ${fmtR(r.R)}`,
@@ -1237,7 +1333,7 @@
           const y1 = py - half;
           const y2 = py + half;
           if (item && item.kind === "parallel" && Array.isArray(item.children)) {
-            drawLocalParallelGroupLeft(x, py, item.children, pMax, res, brightnessMap);
+            drawLocalParallelGroupLeft(x, py, item.children, pMax, res, brightnessMap, selIndexMap);
           } else {
             const r = item;
             const sel = selectedIds.has(r.id);
@@ -1257,7 +1353,11 @@
               showContextMenu(e.clientX, e.clientY, r.id);
             });
             svg.appendChild(g);
-            if (sel) {
+            if (sel && USE_EXTERNAL_PANEL && selIndexMap && selIndexMap[r.id] != null) {
+              const badgePos = pos.edge === "right" ? "right" : "left";
+              svg.appendChild(selectionBadge(x, py, selIndexMap[r.id], badgePos));
+            }
+            if (sel && !USE_EXTERNAL_PANEL) {
               const popupPos = pos.edge === "right" ? "right" : "left";
               svg.appendChild(popupBox(x, py, [
                 `R = ${fmtR(r.R)}`,
@@ -1334,7 +1434,7 @@
         });
         svg.appendChild(g);
 
-        if (sel) {
+        if (sel && !USE_EXTERNAL_PANEL) {
           svg.appendChild(popupBox((xL + xR) / 2, l.y, [
             `R = ${fmtR(comp?.R ?? 0)}`,
             `V = ${fmtV(res.per[rId].V)}`,
@@ -1397,6 +1497,7 @@
     // R1/R2 side cards removed
 
     render(mode, V, resistors, res);
+    updateSelectionPanel(res);
     // Toggle remove button availability
     if (elRemove) {
       elRemove.disabled = selectedIds.size === 0;
