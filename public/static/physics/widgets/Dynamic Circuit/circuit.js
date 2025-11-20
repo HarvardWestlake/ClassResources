@@ -369,10 +369,10 @@
       const rVal = comp && typeof comp.R === "number" ? comp.R : 0;
       panel.innerHTML =
         header +
-        `<div class="stat"><span><span class="badge-num">${idxMap[id] || 1}</span>&nbsp;R</span><span>${fmtR(rVal)}</span></div>` +
-        `<div class="stat"><span>&nbsp;</span><span>${fmtV(p.V || 0)}</span></div>` +
-        `<div class="stat"><span>&nbsp;</span><span>${fmtI(p.I || 0)}</span></div>` +
-        `<div class="stat"><span>&nbsp;</span><span>${fmtP(p.P || 0)}</span></div>`;
+        `<div class="stat"><span><span class="badge-num">${idxMap[id] || 1}</span>&nbsp;Resistance</span><span>${fmtR(rVal)}</span></div>` +
+        `<div class="stat"><span>Voltage</span><span>${fmtV(p.V || 0)}</span></div>` +
+        `<div class="stat"><span>Current</span><span>${fmtI(p.I || 0)}</span></div>` +
+        `<div class="stat"><span>Power</span><span>${fmtP(p.P || 0)}</span></div>`;
       return;
     }
     // Multiple selection: show up to first 4 items plus count
@@ -384,7 +384,7 @@
       const p = (res && res.per && res.per[id]) ? res.per[id] : { V: 0, I: 0, P: 0 };
       const rVal = comp && typeof comp.R === "number" ? comp.R : 0;
       lines.push(
-        `<div class="stat"><span><span class="badge-num">${idxMap[id] || (i+1)}</span>&nbsp;${id}</span><span>${fmtR(rVal)}, ${fmtV(p.V || 0)}, ${fmtI(p.I || 0)}, ${fmtP(p.P || 0)}</span></div>`
+        `<div class="stat"><span><span class="badge-num">${idxMap[id] || (i+1)}</span>&nbsp;${id}</span><span>R: ${fmtR(rVal)}, V: ${fmtV(p.V || 0)}, I: ${fmtI(p.I || 0)}, P: ${fmtP(p.P || 0)}</span></div>`
       );
     }
     const more = ids.length > maxShow ? `<div class="muted">${ids.length - maxShow} more selected…</div>` : "";
@@ -1481,11 +1481,14 @@
     // Update SVG viewBox and height only when threshold reached (avoid initial shift)
     if (svg && extraRows > 0) {
       svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-      // Preserve original CSS height-to-viewBox ratio if available
-      const baseViewH = 460;
-      const baseCssH = parseFloat(svg.getAttribute("height") || "420");
-      const ratio = baseCssH > 0 ? (baseCssH / baseViewH) : 0.913; // fallback to ~420/460
-      const newCssH = Math.max(420, Math.round(H * ratio));
+      // Use a stable base ratio so height growth is linear (no compounding)
+      const baseViewH = BASE_H;
+      let baseCssH = parseFloat(svg.dataset.baseCssH || svg.getAttribute("height") || "436");
+      if (!svg.dataset.baseCssH) {
+        svg.dataset.baseCssH = String(baseCssH);
+      }
+      const ratio = baseCssH / baseViewH;
+      const newCssH = Math.max(baseCssH, Math.round(H * ratio));
       svg.setAttribute("height", String(newCssH));
     }
     recalcLayout();
