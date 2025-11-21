@@ -27,7 +27,13 @@
     .badge.red { background:#fdecea; color:#842029; }
     .alert.info { background:#ffe5e5; color:#000; border-left:4px solid #E60000; }
     .stack-16 > * + * { margin-top:16px; }
-    .cards-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+    .cards-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; }
+    @media (max-width: 768px) {
+      .cards-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    }
     .card-item { border:1px solid var(--hw-border); border-radius:10px; background:#fff; overflow:hidden; display:flex; flex-direction:column; }
     .card-item .thumb { background:#fafafa; display:block; padding:8px; border-bottom:1px solid var(--hw-border); position:static; }
     .card-item .thumb img { width:100%; height:auto; object-fit:contain; display:block; }
