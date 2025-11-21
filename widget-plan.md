@@ -1,0 +1,5 @@
+You are a senior web developer.
+
+Make a canvas based widget (widget.html) for learning to sight read and count musical rythms. The format should almost resemble a typing test, like MonkeyType or something where you can pick options for difficulty, time signature, tempo, etc before pressing start to practice live. There should be a beat marker that moves smoothly through the measures and shows clearly what beat you are on, as well as nicely notated procedural rhythms to play by clicking or pressing space. Finally at the end it shows you a graph with information about how late and early you were for notes, as well as accuracy and number of hits/misses, etc. Also, there should be another page that you can navigate to that allows you to scroll through a sort of library of common rythms with a similar live playback (although not interactable) that shows you the playback for listening to. 
+
+Before generating, ask my any questions you have, and list all the assumptions you are making in order to create this app. We need to be connected every step of the way to ensure your product exactly matches my vision.
