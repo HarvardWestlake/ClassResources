@@ -1340,7 +1340,9 @@ class IMFSim {
       ctx.fillStyle = "#0e1116";
     }
     ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto";
-    ctx.fillText(this.params.label, 10, 18);
+    if (this.currentScenario !== "playground" && this.params.label) {
+      ctx.fillText(this.params.label, 10, 18);
+    }
     // Right-side overlay: KE only
     try {
       let keSum = 0;
@@ -3836,6 +3838,9 @@ M  END
       applyPlaygroundParams();
       sim.spawnParticles();
       sim.draw();
+      try {
+        renderNarration(true);
+      } catch (_) {}
     } else {
       // Reset to education edition mode - fully reset
       setScenario("honey");
@@ -4266,26 +4271,35 @@ M  END
     const heating = sim.heatingOn ? "on" : "off";
     const gravity = sim.gravityOn ? "on" : "off";
 
-    const scenarioName = scenario.charAt(0).toUpperCase() + scenario.slice(1);
-    const imfType =
+    let scenarioName = scenario.charAt(0).toUpperCase() + scenario.slice(1);
+    let imfType =
       scenario === "honey"
         ? "Hydrogen bonding"
         : scenario === "dmso"
         ? "Dipole–dipole"
         : "London dispersion";
-    const imfStrength =
+    let imfStrength =
       scenario === "honey"
         ? "strongest"
         : scenario === "dmso"
         ? "medium"
         : "weakest";
 
-    const explanation =
+    let explanation =
       scenario === "honey"
         ? 'Strong <span class="narrator-emphasis">hydrogen bonds</span> keep particles tightly clustered together. This makes evaporation very difficult—particles need significant thermal energy to break free.'
         : scenario === "dmso"
         ? '<span class="narrator-emphasis">Dipole–dipole</span> interactions align molecules anti-parallel, creating moderate cohesion. Evaporation requires moderate thermal energy—more than hexane but less than honey.'
         : 'Weak <span class="narrator-emphasis">London dispersion forces</span> provide minimal attraction between particles. With little holding them together, particles evaporate easily even at low temperatures.';
+
+    const isPlayground = playgroundMode || scenario === "playground";
+    if (isPlayground) {
+      scenarioName = "Playground";
+      imfType = "Custom IMFs";
+      imfStrength = "custom";
+      explanation =
+        'You are exploring a custom mix of intermolecular forces. Increasing viscosity, H‑bond, dipole, or ε strengthens cohesion and reduces evaporation; decreasing them does the opposite.';
+    }
 
     // Check if narrator content already exists - if so, update only the changing parts
     const existingContent = refs.narrator.querySelector(".narrator-content");
@@ -4304,8 +4318,8 @@ M  END
       const statusLine = existingContent.querySelector(
         ".narrator-section:nth-child(1) .line:nth-child(3)"
       );
-      const boilingDiv = existingContent.querySelector(
-        ".narrator-section:nth-child(3) .narrator-highlight[style*='background']"
+      let boilingDiv = existingContent.querySelector(
+        ".narrator-section .narrator-highlight[style*='background']"
       );
 
       // Update gas particles count and percentage
@@ -4332,9 +4346,26 @@ M  END
       // Handle boiling behavior div (appears/disappears based on heating)
       if (heating === "on" && !boilingDiv) {
         // Need to add the boiling div
-        const whatHappeningSection = existingContent.querySelector(
-          ".narrator-section:nth-child(3)"
+        let whatHappeningSection = existingContent.querySelector(
+          isPlayground
+            ? "[data-section=\"happening\"]"
+            : ".narrator-section:nth-child(3)"
         );
+        // In playground, create a dedicated section after Current State if missing
+        if (isPlayground && !whatHappeningSection) {
+          const newSection = document.createElement("div");
+          newSection.className = "narrator-section";
+          newSection.setAttribute("data-section", "happening");
+          const currentState = existingContent.querySelector(
+            ".narrator-section:nth-child(2)"
+          );
+          if (currentState && currentState.parentNode) {
+            currentState.parentNode.insertBefore(newSection, currentState.nextSibling);
+          } else {
+            existingContent.appendChild(newSection);
+          }
+          whatHappeningSection = newSection;
+        }
         if (whatHappeningSection) {
           const boilingDiv = document.createElement("div");
           boilingDiv.className = "line narrator-highlight";
@@ -4347,6 +4378,12 @@ M  END
       } else if (heating === "off" && boilingDiv) {
         // Remove the boiling div
         boilingDiv.remove();
+        if (isPlayground) {
+          const happeningSection = existingContent.querySelector("[data-section=\"happening\"]");
+          if (happeningSection && !happeningSection.querySelector(".line")) {
+            happeningSection.remove();
+          }
+        }
       }
 
       // Scroll position is automatically preserved since we're not replacing innerHTML
@@ -4366,19 +4403,25 @@ M  END
           <div class="line">Gas particles: <span class="narrator-highlight">${gas}</span> (<span class="narrator-highlight">${gasPct}%</span>)</div>
           <div class="line">Escaped total: <span class="narrator-highlight">${escaped}</span> (<span class="narrator-highlight">${escapedPct}%</span>)</div>
         </div>
-        <div class="narrator-section">
-          <div class="line"><strong>What's Happening:</strong></div>
-          <div class="line">${explanation}</div>
-          ${
-            heating === "on"
-              ? '<div class="line narrator-highlight" style="margin-top: 8px; padding: 8px; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 4px;"><strong>🔥 Real Boiling Behavior:</strong> Notice how molecules at the bottom heat up first and push unheated molecules upward! This creates convection currents—just like real boiling water on a stovetop. The heated particles gain thermal energy and kinetic energy, rising while cooler particles sink to replace them.</div>'
-              : ""
-          }
-        </div>
+        ${
+          isPlayground
+            ? (heating === "on"
+                ? `<div class="narrator-section" data-section="happening"><div class="line narrator-highlight" style="margin-top: 8px; padding: 8px; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 4px;"><strong>🔥 Real Boiling Behavior:</strong> Notice how molecules at the bottom heat up first and push unheated molecules upward! This creates convection currents—just like real boiling water on a stovetop. The heated particles gain thermal energy and kinetic energy, rising while cooler particles sink to replace them.</div></div>`
+                : ``)
+            : `<div class="narrator-section">
+                <div class="line"><strong>What's Happening:</strong></div>
+                <div class="line">${explanation}</div>
+                ${
+                  heating === "on"
+                    ? '<div class="line narrator-highlight" style="margin-top: 8px; padding: 8px; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 4px;"><strong>🔥 Real Boiling Behavior:</strong> Notice how molecules at the bottom heat up first and push unheated molecules upward! This creates convection currents—just like real boiling water on a stovetop. The heated particles gain thermal energy and kinetic energy, rising while cooler particles sink to replace them.</div>'
+                    : ""
+                }
+              </div>`
+        }
         <div class="narrator-section">
           <div class="line"><strong>IMF Hierarchy:</strong></div>
           <div class="line"><span class="narrator-emphasis">Hydrogen bonds</span> > <span class="narrator-emphasis">Dipole–dipole</span> > <span class="narrator-emphasis">London dispersion</span></div>
-          <div class="line">Evaporation order: Honey (hardest) < DMSO (medium) < Hexane (easiest)</div>
+          ${isPlayground ? "" : '<div class="line">Evaporation order: Honey (hardest) < DMSO (medium) < Hexane (easiest)</div>'}
         </div>
         <div class="narrator-section">
           <div class="line narrator-tip"><strong>💡 Tip:</strong> Turn heat on to add thermal energy. Surface particles evaporate first because they have fewer neighbors holding them back!</div>
