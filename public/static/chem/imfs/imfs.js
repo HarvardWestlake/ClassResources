@@ -3066,6 +3066,18 @@ export function mountIMFs(root) {
     .playground-goal.success { background: #f0fdf4; border-color: #059669; }
     .playground-goal.success h4 { color: #059669; }
     .playground-goal.failure { background: #fef2f2; border-color: #dc2626; }
+    .playground-goal.attention { animation: goalPulse 1.8s ease-in-out infinite; }
+    @keyframes goalPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.2); }
+      50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.2); }
+    }
+    /* Toasts (lightweight notifications) */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 10005; display: grid; gap: 8px; pointer-events: none; }
+    .toast { pointer-events: auto; background: #ffffff; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 10px 12px; font-size: 14px; color: #111827; display: flex; align-items: center; gap: 8px; transform: translateY(-12px); opacity: 0; animation: toastIn 120ms ease-out forwards; }
+    .toast-success { border-left: 4px solid #059669; }
+    .toast-failure { border-left: 4px solid #dc2626; }
+    .toast .toast-close { background: transparent; border: none; color: #6b7280; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px; margin-left: auto; }
+    @keyframes toastIn { to { transform: translateY(0); opacity: 1; } }
     .parameter-explanation { font-size: 11px; color: #6b7280; margin-top: 4px; font-style: italic; }
     .imf-checkbox-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
     .imf-checkbox { display: flex; align-items: center; gap: 8px; }
@@ -3211,6 +3223,7 @@ export function mountIMFs(root) {
                   </div>
                 </div>
                 <div class="playground-goal" id="playground-goal" style="padding: 8px; margin-bottom: 0;">
+                  <h4>🎯 Goal</h4>
                   <div class="goal-text" id="goal-text" style="font-size: 12px; margin-bottom: 4px;">Loading...</div>
                   <div class="goal-progress" id="goal-progress" style="font-size: 11px;">Ready</div>
                 </div>
@@ -3817,6 +3830,9 @@ M  END
       sim.currentScenario = "playground";
       updateParameterLimits();
       generateRandomGoal();
+      if (refs.playgroundGoal) {
+        refs.playgroundGoal.classList.add("attention");
+      }
       applyPlaygroundParams();
       sim.spawnParticles();
       sim.draw();
@@ -4085,30 +4101,35 @@ M  END
   }
 
   function showCelebration(success, escapedPct, goal = null) {
-    // Remove any existing overlay
-    const existing = document.querySelector(".celebration-overlay");
-    if (existing) existing.remove();
-
-    const overlay = document.createElement("div");
-    overlay.className = "celebration-overlay";
+    // Create or reuse toast container within the component
+    const host = shadow || document;
+    let container = host.querySelector(".toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "toast-container";
+      host.appendChild(container);
+    }
     const targetText = goal ? ` (target: ${goal.min}-${goal.max}%)` : "";
-    overlay.innerHTML = `
-      <div class="celebration-content ${success ? "success" : "failure"}">
-        <h2>${success ? "🎉 Success!" : "😢 Not Quite"}</h2>
-        <p>${
-          success
-            ? `You reached ${escapedPct}% evaporated! Great job understanding how IMFs affect evaporation!`
-            : `You reached ${escapedPct}% evaporated${targetText}. Try adjusting the parameters (viscosity, IMF types, etc.) and try again!`
-        }</p>
-        <button class="btn" style="margin-top: 20px; width: auto; padding: 8px 24px;" onclick="this.closest('.celebration-overlay').remove()">Close</button>
-      </div>
+    const toast = document.createElement("div");
+    toast.className = `toast ${success ? "toast-success" : "toast-failure"}`;
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    toast.innerHTML = `
+      <span>${success ? "✅ Success!" : "❌ Try again."}</span>
+      <span style="opacity:.9;">${
+        success
+          ? `Reached ${escapedPct}% evaporated.`
+          : `Reached ${escapedPct}%${targetText}.`
+      }</span>
+      <button class="toast-close" aria-label="Close">×</button>
     `;
-    document.body.appendChild(overlay);
-
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (overlay.parentNode) overlay.remove();
-    }, 5000);
+    container.appendChild(toast);
+    const close = () => {
+      if (toast.parentNode) toast.remove();
+    };
+    const btn = toast.querySelector(".toast-close");
+    if (btn) btn.addEventListener("click", close);
+    setTimeout(close, 5000);
   }
 
   // Make functions accessible to simulation loop
@@ -4186,6 +4207,9 @@ M  END
       sim.heatingOn = !sim.heatingOn;
       refs.tHeat.classList.toggle("is-active", sim.heatingOn);
       if (refs.sim) refs.sim.classList.toggle("is-heating", sim.heatingOn);
+      if (!wasHeating && sim.heatingOn && refs.playgroundGoal) {
+        refs.playgroundGoal.classList.remove("attention");
+      }
       // When turning heat on, reset timer and escaped count for new trial
       if (!wasHeating && sim.heatingOn) {
         sim.gasStart = performance.now();
