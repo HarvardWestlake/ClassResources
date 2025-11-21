@@ -54,6 +54,9 @@ body {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0;
+    background:
+        url('/app/assets/lion-olive.webp') right center / min(45vw, 700px) auto no-repeat,
+        var(--bg);
 }
 
 .container.no-sidebar {
@@ -71,9 +74,18 @@ body {
 .main-content {
     padding: 20px;
     overflow: hidden;
+    width: 100%;
+    max-width: min(1200px, 100% - 2rem);
+    margin: 0 auto;
 }
 
 /* Responsive padding for different screen sizes */
+@media (max-width: 768px) {
+    .main-content {
+        max-width: min(100%, 100% - 1rem);
+    }
+}
+
 @media (max-width: 480px) {
     .main-content {
         padding: 12px 8px;
@@ -88,17 +100,17 @@ body {
 
 .card {
     background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--hw-radius);
+    border: none;
+    border-radius: 0;
     padding: 16px;
     margin-bottom: 16px;
-    box-shadow: var(--hw-shadow);
+    box-shadow: none;
 }
 
 .main-content>.card {
-    max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
 }
 
 .title {
@@ -160,7 +172,7 @@ input[type="range"] {
     width: 100%;
     background: #fff;
     border: 1px solid var(--hw-border);
-    border-radius: var(--hw-radius-sm);
+    border-radius: 0;
     padding: 8px 10px;
     color: #000;
     font-size: 14px;
@@ -236,8 +248,8 @@ input:focus {
 
 button {
     background: var(--accent);
-    border: 1px solid transparent;
-    border-radius: var(--hw-radius-sm);
+    border: none;
+    border-radius: 0;
     padding: 8px 14px;
     color: #fff;
     cursor: pointer;
@@ -253,7 +265,7 @@ button {
 button:hover {
     filter: brightness(.96);
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, .1);
+    box-shadow: none;
 }
 
 button.primary {
@@ -358,11 +370,11 @@ input[type="range"]::-moz-range-thumb {
 
 .stat {
     background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--hw-radius-sm);
+    border: none;
+    border-radius: 0;
     padding: 10px;
     text-align: center;
-    box-shadow: var(--hw-shadow);
+    box-shadow: none;
 }
 
 .stat .label {
@@ -410,10 +422,10 @@ input[type="range"]::-moz-range-thumb {
 
 .canvas-wrap {
     position: relative;
-    border-radius: 10px;
+    border-radius: 0;
     overflow-x: hidden;
     overflow-y: auto;
-    border: 1px solid var(--panel-border);
+    border: none;
     background: #fff;
     /* Performance: hint for smooth scrolling without breaking fixed positioning */
     will-change: scroll-position;
@@ -435,8 +447,8 @@ canvas {
     inset: 0;
     display: none;
     background: transparent;
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
     backdrop-filter: blur(36px);
     -webkit-backdrop-filter: blur(36px);
     display: grid;
@@ -453,21 +465,21 @@ canvas {
 
 .big-start {
     background: var(--accent);
-    border: 1px solid var(--accent);
+    border: none;
     color: #fff;
     font-weight: 700;
     font-size: 18px;
     letter-spacing: 0.3px;
     padding: 12px 22px;
-    border-radius: var(--hw-radius);
+    border-radius: 0;
     cursor: pointer;
     transition: transform 0.05s ease, box-shadow 0.15s ease;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: none;
 }
 
 .big-start:hover {
     transform: translateY(-1px);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+    box-shadow: none;
 }
 
 .hint {
@@ -482,7 +494,7 @@ canvas {
     gap: 24px;
     padding: 12px 18px;
     width: 100%;
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     justify-content: space-between;
     flex-wrap: wrap;
@@ -577,8 +589,8 @@ canvas {
     align-items: center;
     justify-content: center;
     background: transparent;
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
     backdrop-filter: blur(36px);
     -webkit-backdrop-filter: blur(36px);
     z-index: 20;
@@ -589,11 +601,11 @@ canvas {
 
 .summary-card {
     background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--hw-radius);
+    border: none;
+    border-radius: 0;
     padding: 16px;
     width: min(680px, 92%);
-    box-shadow: var(--hw-shadow);
+    box-shadow: none;
 }
 
 /* Mobile-friendly layout tweaks removed: settings bar stays single-line */
@@ -609,11 +621,11 @@ canvas {
 
 .summary-stat {
     background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--hw-radius-sm);
+    border: none;
+    border-radius: 0;
     padding: 10px;
     text-align: center;
-    box-shadow: var(--hw-shadow);
+    box-shadow: none;
 }
 
 .summary-actions {
@@ -636,7 +648,7 @@ canvas {
 
 #tutorialsOverlay .summary-card {
     width: 100%;
-    max-width: 1200px;
+    max-width: min(1200px, 100% - 2rem);
     /* match main content width */
     height: auto;
     max-height: none;
@@ -668,10 +680,10 @@ canvas {
     flex-direction: column;
     gap: 8px;
     background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--hw-radius-sm);
+    border: none;
+    border-radius: 0;
     padding: 12px;
-    box-shadow: var(--hw-shadow);
+    box-shadow: none;
 }
 
 .tutorial-card .title {
@@ -867,17 +879,15 @@ canvas {
 
 /* Tablet landscape and small laptops */
 @media (min-width: 769px) and (max-width: 1024px) {
-    .main-content>.card {
-        max-width: 100%;
-        margin-left: 0;
-        margin-right: 0;
+    .main-content {
+        max-width: min(1200px, 100% - 1rem);
     }
 }
 
 /* Ultra-wide and tall aspect ratios */
 @media (min-aspect-ratio: 21/9) {
-    .main-content>.card {
-        max-width: 1400px;
+    .main-content {
+        max-width: min(1200px, 100% - 2rem);
     }
 }
 
