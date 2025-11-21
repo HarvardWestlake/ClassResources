@@ -16,20 +16,8 @@
     <style>
       body {
         background-color: #f8f9fa;
-        margin: 0;
-        padding: 0;
         font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto,
           sans-serif;
-      }
-      .back-link {
-        display: inline-block;
-        margin: 1rem;
-        color: #666;
-        text-decoration: none;
-        font-weight: 500;
-      }
-      .back-link:hover {
-        color: #e60000;
       }
       #imfs-container {
         width: 100%;
@@ -38,8 +26,10 @@
     </style>
   </head>
   <body>
-    <a class="back-link" href="../index.html">← Back to Chemistry Widgets</a>
-    <div id="imfs-container"></div>
+    <div class="container">
+      <a class="back-link" href="../index.html">← Back to Chemistry Widgets</a>
+      <div id="imfs-container"></div>
+    </div>
     <script type="module">
       import { mountIMFs } from "./imfs.js";
       const container = document.getElementById("imfs-container");
