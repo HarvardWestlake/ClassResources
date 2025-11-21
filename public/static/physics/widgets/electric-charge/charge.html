@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Electric Charge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div id="ui">
+      <div class="panel controls">
+        <span class="groupLabel">Mouse Mode:</span>
+        <label id="lblModeDrag" class="mode-option" title="Move objects">
+          <input type="radio" name="mode" id="modeDrag" checked /> Drag
+        </label>
+        <label id="lblModePaintPos" class="mode-option" title="Add positive charge to objects">
+          <input type="radio" name="mode" id="modePaintPos" /> Add Positive Charge
+        </label>
+        <label id="lblModePaintNeg" class="mode-option" title="Add negative charge to objects">
+          <input type="radio" name="mode" id="modePaintNeg" /> Add Negative Charge
+        </label>
+        <label id="lblModeDelete" class="mode-option" title="Remove an object">
+          <input type="radio" name="mode" id="modeDelete" /> Delete
+        </label>
+      </div>
+      <div class="panel controls controls--actions">
+        <span class="groupLabel">Scene Actions:</span>
+        <button id="btnAddConductor">Add Conductor</button>
+        <button id="btnAddInsulator">Add Insulator</button>
+        <button id="btnClearAll">Clear All</button>
+      </div>
+    </div>
+    <!-- Intro Modal -->
+    <div id="introModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+      <div class="modal__backdrop"></div>
+      <div class="modal__dialog">
+        <div class="modal__body">
+          <div id="introStep1" class="modal__step">
+            <div id="introTitle" class="modal__title">What you’ll explore</div>
+            <div class="modal__text">
+              This activity is about how electric charge moves on objects:
+              <ul>
+                <li><b>Conduction</b>: when conductors touch, net charge shares in proportion to size.</li>
+                <li><b>Induction</b>: a nearby charged object can pull charges apart on a neutral conductor; grounding lets net charge flow.</li>
+              </ul>
+            </div>
+          </div>
+          <div id="introStep2" class="modal__step" hidden>
+            <div class="modal__title">What the colors mean</div>
+            <div class="modal__text" style="margin-bottom:10px;">
+              On conductors, the ring shows <b>surface charge</b>:
+              <span style="color:#ff6a6a;font-weight:600;">red = positive</span>,
+              <span style="color:#59a6ff;font-weight:600;">blue = negative</span>.
+              If everything is neutral, the ring appears white.
+            </div>
+            <div class="modal__graphic">
+              <canvas id="introCanvas" width="220" height="220" aria-hidden="true"></canvas>
+            </div>
+          </div>
+          <div id="introStep3" class="modal__step" hidden>
+            <div class="modal__title">How to use this</div>
+            <div class="modal__text">
+              <ol>
+                <li>Add a conductor or insulator with “Add Conductor” or “Add Insulator”.</li>
+                <li>Select “Add Positive Charge” or “Add Negative Charge” to place charge on an object.</li>
+                <li>Switch back to “Drag” and move objects to see how they interact.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        <div class="modal__buttons">
+          <button id="introBack" class="btn-secondary" hidden>Back</button>
+          <div class="spacer"></div>
+          <button id="introNext" class="btn-primary">Next</button>
+          <button id="introFinish" class="btn-primary" hidden>Start</button>
+        </div>
+      </div>
+    </div>
+    <div id="steppers">
+      <div id="stepper0" class="stepper">
+        <button id="s0Dec" class="btn neg">−</button>
+        <div id="s0Val" class="val">0</div>
+        <button id="s0Inc" class="btn pos">+</button>
+      </div>
+      <div id="stepper1" class="stepper">
+        <button id="s1Dec" class="btn neg">−</button>
+        <div id="s1Val" class="val">0</div>
+        <button id="s1Inc" class="btn pos">+</button>
+      </div>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+  </html>
+
+

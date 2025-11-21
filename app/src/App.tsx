@@ -5,6 +5,8 @@ import WorldGlobe from './history/WorldGlobe.tsx'
 import LectureViewer from './history/LectureViewer.tsx'
 import StyleGuide from './admin/StyleGuide.tsx'
 import MobileFullscreen from './pages/MobileFullscreen.tsx'
+import PhysicsCharge from './physics/Charge.tsx'
+import PhysicsIndex from './physics/PhysicsIndex.tsx'
 
 function TopNav() {
   return (
@@ -30,9 +32,11 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="admin" element={<StyleGuide />} />
         <Route path="mobile" element={<MobileFullscreen />} />
+        <Route path="physics" element={<PhysicsIndex />} />
         <Route path="history" element={<History />} />
         <Route path="history/world" element={<WorldGlobe />} />
         <Route path="history/lecture" element={<LectureViewer />} />
+        <Route path="physics/electric-charge" element={<PhysicsCharge />} />
         <Route path="*" element={<Home />} />
       </Routes>
       <footer className="hw-footer">
