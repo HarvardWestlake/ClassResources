@@ -9,7 +9,6 @@ const K = 1 / (4 * Math.PI * EPSILON_0);
 
 // Performance settings - auto-detected
 let performanceMode = false;
-let lastUpdateTime = 0;
 const UPDATE_THROTTLE = 16; // ms (60 fps max)
 
 // Auto-detect device performance
@@ -49,13 +48,75 @@ function throttle(func, limit) {
 const nanoCoulombToCoulomb = (nC) => nC * 1e-9;
 const cmToM = (cm) => cm * 1e-2;
 
+// Unused functions removed - preset distributions don't need expression evaluation
+
 // Physics calculations - magnitude only (always positive for graphs)
 const E_sphere_outside = (Q_C, r_m) => Math.abs(K * Q_C / (r_m * r_m));
 const E_sphere_inside = () => 0;
 const E_sphere_insulator = (Q_C, R_m, r_m) => Math.abs(K * Q_C * r_m / (R_m * R_m * R_m));
+const E_sphere_insulator_custom = (Q_C, R_m, r_m, distType) => {
+  // Preset charge distributions with known solutions
+  // For ρ ∝ r^n: Q_enc ∝ r^(n+3), E = Q_enc/(4πε₀r²) ∝ r^(n+1)
+  
+  if (r_m === 0) return 0;
+  
+  let ratio = r_m / R_m;
+  let E_inside;
+  
+  switch(distType) {
+    case 'uniform': // ρ = constant → Q_enc ∝ r³ → E ∝ r
+      // E(r) = (Q/R³) * r / (4πε₀) = kQ*r/R³
+      E_inside = Math.abs(K * Q_C * r_m / (R_m * R_m * R_m));
+      break;
+    case 'linear': // ρ ∝ r → Q_enc ∝ r⁴ → E ∝ r²
+      // E(r) = (Q/R⁴) * r² / (4πε₀) = kQ*r²/R⁴
+      E_inside = Math.abs(K * Q_C * ratio * ratio / (R_m * R_m));
+      break;
+    case 'quadratic': // ρ ∝ r² → Q_enc ∝ r⁵ → E ∝ r³
+      // E(r) = (Q/R⁵) * r³ / (4πε₀) = kQ*r³/R⁵
+      E_inside = Math.abs(K * Q_C * ratio * ratio * ratio / R_m);
+      break;
+    case 'cubic': // ρ ∝ r³ → Q_enc ∝ r⁶ → E ∝ r⁴
+      // E(r) = (Q/R⁶) * r⁴ / (4πε₀) = kQ*r⁴/R⁶
+      E_inside = Math.abs(K * Q_C * ratio * ratio * ratio * ratio / (R_m / (R_m * R_m)));
+      break;
+    default:
+      E_inside = E_sphere_insulator(Q_C, R_m, r_m);
+  }
+  
+  return E_inside;
+};
 const E_cylinder_outside = (lambda_Cm, r_m) => Math.abs(lambda_Cm / (2 * Math.PI * EPSILON_0 * r_m));
 const E_cylinder_inside = () => 0;
 const E_cylinder_insulator = (lambda_Cm, a_m, r_m) => Math.abs(lambda_Cm * r_m / (2 * Math.PI * EPSILON_0 * a_m * a_m));
+const E_cylinder_insulator_custom = (lambda_Cm, a_m, r_m, distType) => {
+  // Preset charge distributions with known solutions
+  // For λ ∝ r^n: Q_enc/L ∝ r^(n+2), E = (Q_enc/L)/(2πε₀r) ∝ r^(n+1)
+  
+  if (r_m === 0) return 0;
+  
+  let ratio = r_m / a_m;
+  let E_inside;
+  
+  switch(distType) {
+    case 'uniform': // λ = constant → Q_enc ∝ r² → E ∝ r
+      // E(r) = (λ/a²) * r / (2πε₀) = λ*r/(2πε₀a²)
+      E_inside = Math.abs(lambda_Cm * r_m / (2 * Math.PI * EPSILON_0 * a_m * a_m));
+      break;
+    case 'linear': // λ ∝ r → Q_enc ∝ r³ → E ∝ r²
+      // E(r) = (λ/a³) * r² / (2πε₀) = λ*r²/(2πε₀a³)
+      E_inside = Math.abs(lambda_Cm * ratio * ratio / (2 * Math.PI * EPSILON_0 * a_m));
+      break;
+    case 'quadratic': // λ ∝ r² → Q_enc ∝ r⁴ → E ∝ r³
+      // E(r) = (λ/a⁴) * r³ / (2πε₀) = λ*r³/(2πε₀a⁴)
+      E_inside = Math.abs(lambda_Cm * ratio * ratio * ratio / (2 * Math.PI * EPSILON_0 * a_m / a_m));
+      break;
+    default:
+      E_inside = E_cylinder_insulator(lambda_Cm, a_m, r_m);
+  }
+  
+  return E_inside;
+};
 const E_plane_single = (sigma_Cm2) => Math.abs(sigma_Cm2 / (2 * EPSILON_0));
 const E_plane_double = (sigma_Cm2) => Math.abs(sigma_Cm2 / EPSILON_0);
 
@@ -822,9 +883,7 @@ function initSphereChart() {
   
   Plotly.newPlot('sphereChart', [], layout, {
     responsive: true,
-    displayModeBar: true,
-    displaylogo: false,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    displayModeBar: false // Hide all Plotly UI controls
   });
 }
 
@@ -852,9 +911,7 @@ function initCylinderChart() {
   
   Plotly.newPlot('cylinderChart', [], layout, {
     responsive: true,
-    displayModeBar: true,
-    displaylogo: false,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    displayModeBar: false
   });
 }
 
@@ -882,9 +939,7 @@ function initPlaneChart() {
   
   Plotly.newPlot('planeChart', [], layout, {
     responsive: true,
-    displayModeBar: true,
-    displaylogo: false,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    displayModeBar: false
   });
 }
 
@@ -917,7 +972,13 @@ function updateSphereViz() {
   // Calculate field at Gaussian surface
   let fieldAtSurface;
   if (r_m < R_m) {
-    fieldAtSurface = isConductor ? 0 : E_sphere_insulator(Q_C, R_m, r_m);
+    if (isConductor) {
+      fieldAtSurface = 0;
+    } else {
+      // Check for custom charge distribution
+      const customDist = document.getElementById('sphereChargeDist').value;
+      fieldAtSurface = (customDist && customDist !== 'linear') ? E_sphere_insulator_custom(Q_C, R_m, r_m, customDist) : E_sphere_insulator(Q_C, R_m, r_m);
+    }
   } else {
     fieldAtSurface = E_sphere_outside(Q_C, r_m);
   }
@@ -1022,14 +1083,30 @@ function updateSphereChart(Q_nC, R_cm, r_cm, isConductor) {
   // Reduce data points in performance mode
   const points = performanceMode ? 200 : 400;
   const rVals = Array.from({ length: points }, (_, i) => rMin + (rMax - rMin) * i / (points - 1));
+  
+  // IMPORTANT: Add point exactly at R_m to capture peak for insulators
+  if (!isConductor && !rVals.includes(R_m)) {
+    rVals.push(R_m);
+    rVals.sort((a, b) => a - b);
+  }
 
   const xData = [];
   const yData = [];
   
+  // Get custom charge distribution if insulator
+  const customDist = isConductor ? '' : (document.getElementById('sphereChargeDist').value);
+  
   rVals.forEach((r) => {
     let E;
     if (r < R_m) {
-      E = isConductor ? 0 : E_sphere_insulator(Q_C, R_m, r);
+      if (isConductor) {
+        E = 0;
+      } else {
+        E = customDist ? E_sphere_insulator_custom(Q_C, R_m, r, customDist) : E_sphere_insulator(Q_C, R_m, r);
+      }
+    } else if (Math.abs(r - R_m) < 0.0001) {
+      // Exactly at surface - use either inside or outside value (should be continuous for insulator)
+      E = customDist ? E_sphere_insulator_custom(Q_C, R_m, R_m, customDist) : E_sphere_insulator(Q_C, R_m, R_m);
     } else {
       E = E_sphere_outside(Q_C, r);
     }
@@ -1037,14 +1114,22 @@ function updateSphereChart(Q_nC, R_cm, r_cm, isConductor) {
     yData.push(E);
   });
 
-  // Calculate marker position
-  let markerE = r_m < R_m 
-    ? (isConductor ? 0 : E_sphere_insulator(Q_C, R_m, r_m))
-    : E_sphere_outside(Q_C, r_m);
+  // Calculate marker position with custom distribution
+  let markerE;
+  if (r_m < R_m) {
+    if (isConductor) {
+      markerE = 0;
+    } else {
+      markerE = customDist ? E_sphere_insulator_custom(Q_C, R_m, r_m, customDist) : E_sphere_insulator(Q_C, R_m, r_m);
+    }
+  } else {
+    markerE = E_sphere_outside(Q_C, r_m);
+  }
 
-  // Find max E for setting y-axis range (magnitude is always positive)
-  const maxE = Math.max(...yData);
-  const yMax = maxE * 1.1;
+  // Find max E for setting y-axis range - filter out invalid values
+  const validData = yData.filter(e => isFinite(e) && !isNaN(e));
+  const maxE = validData.length > 0 ? Math.max(...validData) : 1000;
+  const yMax = maxE * 1.15; // 15% padding for better visibility
 
   const traces = [
     {
@@ -1069,8 +1154,9 @@ function updateSphereChart(Q_nC, R_cm, r_cm, isConductor) {
 
   const config = {
     responsive: true,
-    displayModeBar: !performanceMode,
-    staticPlot: performanceMode
+    displayModeBar: false, // Hide toolbar completely
+    staticPlot: false,
+    scrollZoom: false
   };
 
   Plotly.react('sphereChart', traces, {
@@ -1115,10 +1201,17 @@ function updateCylinderChart(lambda_nC, a_cm, r_cm, L_m, isConductor) {
   const xData = [];
   const yData = [];
   
+  // Get custom charge distribution if insulator
+  const customDist = isConductor ? '' : (document.getElementById('cylinderChargeDist').value);
+  
   rVals.forEach((r) => {
     let E;
     if (r < a_m) {
-      E = isConductor ? 0 : E_cylinder_insulator(lambda_Cm, a_m, r);
+      if (isConductor) {
+        E = 0;
+      } else {
+        E = customDist ? E_cylinder_insulator_custom(lambda_Cm, a_m, r, customDist) : E_cylinder_insulator(lambda_Cm, a_m, r);
+      }
     } else {
       E = E_cylinder_outside(lambda_Cm, r);
     }
@@ -1126,10 +1219,17 @@ function updateCylinderChart(lambda_nC, a_cm, r_cm, L_m, isConductor) {
     yData.push(E);
   });
 
-  // Calculate marker position
-  let markerE = r_m < a_m 
-    ? (isConductor ? 0 : E_cylinder_insulator(lambda_Cm, a_m, r_m))
-    : E_cylinder_outside(lambda_Cm, r_m);
+  // Calculate marker position with custom distribution
+  let markerE;
+  if (r_m < a_m) {
+    if (isConductor) {
+      markerE = 0;
+    } else {
+      markerE = customDist ? E_cylinder_insulator_custom(lambda_Cm, a_m, r_m, customDist) : E_cylinder_insulator(lambda_Cm, a_m, r_m);
+    }
+  } else {
+    markerE = E_cylinder_outside(lambda_Cm, r_m);
+  }
 
   // Find max E for setting y-axis range
   const maxE = Math.max(...yData);
@@ -1419,8 +1519,9 @@ function updatePlaneChart(sigma_nC, d_cm, twoPlanes) {
 
   const config = {
     responsive: true,
-    displayModeBar: !performanceMode,
-    staticPlot: performanceMode
+    displayModeBar: false, // Hide toolbar completely
+    staticPlot: false,
+    scrollZoom: false
   };
 
   // Add plate boundary lines for two-plane mode
@@ -1508,9 +1609,42 @@ function init() {
   cylinderScene = new Scene3D('cylinderCanvas');
   planeScene = new Scene3D('planeCanvas');
 
-  initSphereChart();
-  initCylinderChart();
-  initPlaneChart();
+  // Lazy load charts - only initialize when scrolled near
+  const observerOptions = {
+    root: null,
+    rootMargin: '200px',
+    threshold: 0.01
+  };
+  
+  let chartsInitialized = {
+    sphere: false,
+    cylinder: false,
+    plane: false
+  };
+  
+  const chartObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const chartId = entry.target.id;
+        if (chartId === 'sphereChart' && !chartsInitialized.sphere) {
+          initSphereChart();
+          chartsInitialized.sphere = true;
+        } else if (chartId === 'cylinderChart' && !chartsInitialized.cylinder) {
+          initCylinderChart();
+          chartsInitialized.cylinder = true;
+        } else if (chartId === 'planeChart' && !chartsInitialized.plane) {
+          initPlaneChart();
+          chartsInitialized.plane = true;
+        }
+      }
+    });
+  }, observerOptions);
+  
+  // Observe charts for lazy loading
+  ['sphereChart', 'cylinderChart', 'planeChart'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) chartObserver.observe(el);
+  });
   
   // Render LaTeX math with KaTeX after everything loads
   setTimeout(() => {
@@ -1547,10 +1681,147 @@ function init() {
   document.querySelectorAll('.sphere-control').forEach((input) => {
     input.addEventListener('input', throttledSphereUpdate);
   });
+  
+  // Toggle sphere charge distribution input
+  document.getElementById('sphereConductor').addEventListener('change', (e) => {
+    const distGroup = document.getElementById('sphereChargeDistGroup');
+    const isConductor = e.target.checked;
+    distGroup.style.display = isConductor ? 'none' : 'block';
+    
+    // When switching to insulator, set reasonable defaults for visualization
+    if (!isConductor) {
+      const gaussianSlider = document.getElementById('sphereGaussian');
+      const radiusSlider = document.getElementById('sphereRadius');
+      const chargeSlider = document.getElementById('sphereCharge');
+      
+      // Ensure Gaussian surface is outside charged sphere for clear visualization
+      const currentRadius = parseFloat(radiusSlider.value);
+      const currentGaussian = parseFloat(gaussianSlider.value);
+      
+      if (currentGaussian <= currentRadius) {
+        gaussianSlider.value = currentRadius + 3; // 3cm beyond
+        document.getElementById('sphereGaussianVal').textContent = gaussianSlider.value;
+      }
+      
+      // Set charge to a moderate value for clear curves
+      chargeSlider.value = 5;
+      document.getElementById('sphereChargeVal').textContent = '5.0';
+      
+      // Set sphere radius to 5cm for standard visualization
+      radiusSlider.value = 5;
+      document.getElementById('sphereRadiusVal').textContent = '5.0';
+      
+      // Set Gaussian surface well outside (12cm)
+      gaussianSlider.value = 12;
+      document.getElementById('sphereGaussianVal').textContent = '12.0';
+    }
+    
+    throttledSphereUpdate();
+  });
+  
+  // Update sphere charge distribution preview
+  document.getElementById('sphereChargeDist').addEventListener('change', (e) => {
+    const preview = document.getElementById('sphereChargeDistPreview');
+    const distType = e.target.value;
+    
+    let latex = '';
+    switch(distType) {
+      case 'uniform':
+        latex = '\\rho(r) = \\rho_0 \\text{ (constant)}';
+        break;
+      case 'linear':
+        latex = '\\rho(r) = \\rho_0 \\frac{r}{R}';
+        break;
+      case 'quadratic':
+        latex = '\\rho(r) = \\rho_0 \\left(\\frac{r}{R}\\right)^2';
+        break;
+      case 'cubic':
+        latex = '\\rho(r) = \\rho_0 \\left(\\frac{r}{R}\\right)^3';
+        break;
+    }
+    
+    preview.innerHTML = `$$${latex}$$`;
+    
+    if (window.renderMathInElement) {
+      renderMathInElement(preview, {
+        delimiters: [{left: '$$', right: '$$', display: true}],
+        throwOnError: false
+      });
+    }
+    
+    throttledSphereUpdate();
+  });
 
   // Cylinder controls - only update cylinder
   document.querySelectorAll('.cylinder-control').forEach((input) => {
     input.addEventListener('input', throttledCylinderUpdate);
+  });
+  
+  // Toggle cylinder charge distribution input
+  document.getElementById('cylinderConductor').addEventListener('change', (e) => {
+    const distGroup = document.getElementById('cylinderChargeDistGroup');
+    const isConductor = e.target.checked;
+    distGroup.style.display = isConductor ? 'none' : 'block';
+    
+    // When switching to insulator, set reasonable defaults
+    if (!isConductor) {
+      const gaussianSlider = document.getElementById('cylinderGaussian');
+      const radiusSlider = document.getElementById('cylinderRadius');
+      const chargeSlider = document.getElementById('cylinderLambda');
+      
+      // Ensure Gaussian surface is outside charged cylinder
+      const currentRadius = parseFloat(radiusSlider.value);
+      const currentGaussian = parseFloat(gaussianSlider.value);
+      
+      if (currentGaussian <= currentRadius) {
+        gaussianSlider.value = currentRadius + 3;
+        document.getElementById('cylinderGaussianVal').textContent = gaussianSlider.value;
+      }
+      
+      // Set charge to moderate value
+      chargeSlider.value = 8;
+      document.getElementById('cylinderLambdaVal').textContent = '8.0';
+      
+      // Set cylinder radius to 3cm
+      radiusSlider.value = 3;
+      document.getElementById('cylinderRadiusVal').textContent = '3.0';
+      
+      // Set Gaussian surface outside (8cm)
+      gaussianSlider.value = 8;
+      document.getElementById('cylinderGaussianVal').textContent = '8.0';
+    }
+    
+    throttledCylinderUpdate();
+  });
+  
+  // Update cylinder charge distribution preview
+  document.getElementById('cylinderChargeDist').addEventListener('change', (e) => {
+    const preview = document.getElementById('cylinderChargeDistPreview');
+    const distType = e.target.value;
+    
+    let latex = '';
+    switch(distType) {
+      case 'uniform':
+        latex = '\\lambda(r) = \\lambda_0 \\text{ (constant)}';
+        break;
+      case 'linear':
+        latex = '\\lambda(r) = \\lambda_0 \\frac{r}{a}';
+        break;
+      case 'quadratic':
+        latex = '\\lambda(r) = \\lambda_0 \\left(\\frac{r}{a}\\right)^2';
+        break;
+    }
+    
+    preview.innerHTML = `$$${latex}$$`;
+    
+    if (window.renderMathInElement) {
+      renderMathInElement(preview, {
+        delimiters: [{left: '$$', right: '$$', display: true}],
+        throwOnError: false
+      });
+    }
+    
+    throttledCylinderUpdate();
   });
 
   const throttledPlaneUpdate = throttle(() => {
@@ -1582,6 +1853,31 @@ function init() {
     cylinderScene.resize();
     planeScene.resize();
   });
+
+  // Initialize charge distribution previews with default (linear)
+  setTimeout(() => {
+    const spherePreview = document.getElementById('sphereChargeDistPreview');
+    if (spherePreview) {
+      spherePreview.innerHTML = '$$\\rho(r) = \\rho_0 \\frac{r}{R}$$';
+      if (window.renderMathInElement) {
+        renderMathInElement(spherePreview, {
+          delimiters: [{left: '$$', right: '$$', display: true}],
+          throwOnError: false
+        });
+      }
+    }
+    
+    const cylinderPreview = document.getElementById('cylinderChargeDistPreview');
+    if (cylinderPreview) {
+      cylinderPreview.innerHTML = '$$\\lambda(r) = \\lambda_0 \\frac{r}{a}$$';
+      if (window.renderMathInElement) {
+        renderMathInElement(cylinderPreview, {
+          delimiters: [{left: '$$', right: '$$', display: true}],
+          throwOnError: false
+        });
+      }
+    }
+  }, 600);
 
   // Initial render
   updateSphereReadouts();

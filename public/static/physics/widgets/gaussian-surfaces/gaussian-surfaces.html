@@ -60,14 +60,9 @@
           <p class="muted" style="margin-top: 0.5rem; font-size: 0.9rem;">↑ Auto-rotating preview • Scroll down for interactive controls</p>
         </div>
 
-        <section class="panel">
-          <h2 class="h5 eyebrow">Quick Start</h2>
-          <p><strong>Gauss's Law</strong> provides an elegant shortcut for calculating electric fields when charge distributions have <strong>symmetry</strong>. Instead of tedious integration, we use:</p>
-          <div class="formula">
-            $$\oint \vec{E} \cdot d\vec{A} = \frac{Q_{\text{enclosed}}}{\varepsilon_0}$$
-          </div>
-          <p><strong>Use the interactive 3D visualizations below</strong> to explore all three symmetries: spherical, cylindrical, and planar.</p>
-        </section>
+        <div class="alert alert--info" style="margin-bottom: 1.5rem;">
+          <strong>Gauss's Law:</strong> \(\oint \vec{E} \cdot d\vec{A} = Q_{\text{enc}}/\varepsilon_0\) — Calculates E-fields using symmetry instead of tedious integration. Explore all three symmetries below!
+        </div>
 
         <!-- Collapsible Background Knowledge -->
         <details class="panel" style="cursor: pointer; border-left: 4px solid var(--hw-gold);">
@@ -193,17 +188,13 @@
             <div class="card viewer-card">
               <div class="viewer" id="sphereCanvas"></div>
               <button id="resetSphereView" class="reset-btn" title="Reset camera view">↺ Reset View</button>
-              <div class="controls-hint">🎮 WASD/QE to move • Mouse to rotate/pan • Scroll to zoom</div>
+              <div class="controls-hint">🖱️ Drag to rotate • Scroll to zoom • WASD to move</div>
               <div class="mobile-controls" id="sphereMobileControls">
                 <button class="mobile-btn" data-key="w" title="Move Forward">▲</button>
                 <div class="mobile-controls-row">
                   <button class="mobile-btn" data-key="a" title="Move Left">◀</button>
                   <button class="mobile-btn" data-key="s" title="Move Back">▼</button>
                   <button class="mobile-btn" data-key="d" title="Move Right">▶</button>
-                </div>
-                <div class="mobile-controls-row">
-                  <button class="mobile-btn" data-key="q" title="Move Up">Q</button>
-                  <button class="mobile-btn" data-key="e" title="Move Down">E</button>
                 </div>
               </div>
             </div>
@@ -235,6 +226,20 @@
                 <input type="checkbox" id="sphereConductor" class="sphere-control" checked />
                 <span>Conductor (E=0 inside)</span>
               </label>
+              
+              <div id="sphereChargeDistGroup" style="display: none; margin: 0.75rem 0; padding: 0.75rem; background: white; border-radius: 6px; border: 1px solid var(--hw-border);">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--hw-gray-800);">
+                  Charge Distribution ρ(r):
+                </label>
+                <select id="sphereChargeDist" class="sphere-control" style="width: 100%; padding: 0.5rem; border: 1px solid var(--hw-border); border-radius: 4px; font-family: monospace; font-size: 0.95rem;">
+                  <option value="uniform">Uniform (ρ = constant) → E ∝ r</option>
+                  <option value="linear" selected>Linear (ρ ∝ r) → E ∝ r²</option>
+                  <option value="quadratic">Quadratic (ρ ∝ r²) → E ∝ r³</option>
+                  <option value="cubic">Cubic (ρ ∝ r³) → E ∝ r⁴</option>
+                </select>
+                <div id="sphereChargeDistPreview" style="margin-top: 0.5rem; padding: 0.5rem; background: var(--hw-gray-100); border-radius: 4px; min-height: 2rem; font-size: 1.1rem; text-align: center;"></div>
+              </div>
+              
               <label class="checkbox-label">
                 <input type="checkbox" id="sphereShowField" class="sphere-control" />
                 <span>Show E-field vectors (from charge)</span>
@@ -260,17 +265,13 @@
             <div class="card viewer-card">
               <div class="viewer" id="cylinderCanvas"></div>
               <button id="resetCylinderView" class="reset-btn" title="Reset camera view">↺ Reset View</button>
-              <div class="controls-hint">🎮 WASD/QE to move • Mouse to rotate/pan • Scroll to zoom</div>
+              <div class="controls-hint">🖱️ Drag to rotate • Scroll to zoom • WASD to move</div>
               <div class="mobile-controls" id="cylinderMobileControls">
                 <button class="mobile-btn" data-key="w" title="Move Forward">▲</button>
                 <div class="mobile-controls-row">
                   <button class="mobile-btn" data-key="a" title="Move Left">◀</button>
                   <button class="mobile-btn" data-key="s" title="Move Back">▼</button>
                   <button class="mobile-btn" data-key="d" title="Move Right">▶</button>
-                </div>
-                <div class="mobile-controls-row">
-                  <button class="mobile-btn" data-key="q" title="Move Up">Q</button>
-                  <button class="mobile-btn" data-key="e" title="Move Down">E</button>
                 </div>
               </div>
             </div>
@@ -306,6 +307,19 @@
                 <input type="checkbox" id="cylinderConductor" class="cylinder-control" checked />
                 <span>Conductor (E=0 inside)</span>
               </label>
+              
+              <div id="cylinderChargeDistGroup" style="display: none; margin: 0.75rem 0; padding: 0.75rem; background: white; border-radius: 6px; border: 1px solid var(--hw-border);">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--hw-gray-800);">
+                  Charge Distribution λ(r):
+                </label>
+                <select id="cylinderChargeDist" class="cylinder-control" style="width: 100%; padding: 0.5rem; border: 1px solid var(--hw-border); border-radius: 4px; font-family: monospace; font-size: 0.95rem;">
+                  <option value="uniform">Uniform (λ = constant) → E ∝ r</option>
+                  <option value="linear" selected>Linear (λ ∝ r) → E ∝ r²</option>
+                  <option value="quadratic">Quadratic (λ ∝ r²) → E ∝ r³</option>
+                </select>
+                <div id="cylinderChargeDistPreview" style="margin-top: 0.5rem; padding: 0.5rem; background: var(--hw-gray-100); border-radius: 4px; min-height: 2rem; font-size: 1.1rem; text-align: center;"></div>
+              </div>
+              
               <label class="checkbox-label">
                 <input type="checkbox" id="cylinderShowField" class="cylinder-control" />
                 <span>Show E-field vectors (from charge)</span>
@@ -337,17 +351,13 @@
             <div class="card viewer-card">
               <div class="viewer" id="planeCanvas"></div>
               <button id="resetPlaneView" class="reset-btn" title="Reset camera view">↺ Reset View</button>
-              <div class="controls-hint">🎮 WASD/QE to move • Mouse to rotate/pan • Scroll to zoom</div>
+              <div class="controls-hint">🖱️ Drag to rotate • Scroll to zoom • WASD to move</div>
               <div class="mobile-controls" id="planeMobileControls">
                 <button class="mobile-btn" data-key="w" title="Move Forward">▲</button>
                 <div class="mobile-controls-row">
                   <button class="mobile-btn" data-key="a" title="Move Left">◀</button>
                   <button class="mobile-btn" data-key="s" title="Move Back">▼</button>
                   <button class="mobile-btn" data-key="d" title="Move Right">▶</button>
-                </div>
-                <div class="mobile-controls-row">
-                  <button class="mobile-btn" data-key="q" title="Move Up">Q</button>
-                  <button class="mobile-btn" data-key="e" title="Move Down">E</button>
                 </div>
               </div>
             </div>
