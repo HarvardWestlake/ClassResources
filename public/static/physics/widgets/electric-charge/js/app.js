@@ -68,18 +68,20 @@ renderModeUI();
 const introModal = document.getElementById('introModal');
 const introStep1 = document.getElementById('introStep1');
 const introStep2 = document.getElementById('introStep2');
+const introStep3 = document.getElementById('introStep3');
 const introBack = document.getElementById('introBack');
 const introNext = document.getElementById('introNext');
 const introFinish = document.getElementById('introFinish');
-let introStepIndex = 0; // 0 or 1
+let introStepIndex = 0; // 0,1,2
 let simulationPaused = false;
 function renderIntroStep() {
   if (!introModal) return;
   if (introStep1) introStep1.hidden = (introStepIndex !== 0);
   if (introStep2) introStep2.hidden = (introStepIndex !== 1);
+  if (introStep3) introStep3.hidden = (introStepIndex !== 2);
   if (introBack) introBack.hidden = (introStepIndex === 0);
-  if (introNext) introNext.hidden = (introStepIndex !== 0);
-  if (introFinish) introFinish.hidden = (introStepIndex !== 1);
+  if (introNext) introNext.hidden = (introStepIndex === 2);
+  if (introFinish) introFinish.hidden = (introStepIndex !== 2);
 }
 function showIntro() {
   if (!introModal) return;
@@ -108,10 +110,10 @@ if (introBack) {
 if (introNext) {
   introNext.addEventListener('click', (e) => {
     e.stopPropagation();
-    introStepIndex = Math.min(1, introStepIndex + 1);
+    introStepIndex = Math.min(2, introStepIndex + 1);
     renderIntroStep();
-    if (introStepIndex === 1 && introFinish) introFinish.focus();
     if (introStepIndex === 1) drawIntroGraphic();
+    if (introStepIndex === 2 && introFinish) introFinish.focus();
   });
 }
 if (introFinish) {
@@ -125,11 +127,8 @@ window.addEventListener('keydown', (e) => {
   if (!introModal || introModal.style.display === 'none') return;
   if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault();
-    if (introStepIndex === 0 && introNext) {
-      introNext.click();
-    } else if (introStepIndex === 1 && introFinish) {
-      introFinish.click();
-    }
+    if (introStepIndex < 2 && introNext) introNext.click();
+    else if (introStepIndex === 2 && introFinish) introFinish.click();
   } else if (e.key === 'Escape') {
     e.preventDefault();
     hideIntro();
@@ -138,9 +137,7 @@ window.addEventListener('keydown', (e) => {
     introBack.click();
   } else if (e.key === 'ArrowRight') {
     e.preventDefault();
-    if (introStepIndex === 0 && introNext) {
-      introNext.click();
-    }
+    if (introStepIndex < 2 && introNext) introNext.click();
   }
 });
 

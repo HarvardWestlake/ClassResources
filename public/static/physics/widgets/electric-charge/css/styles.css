@@ -4,12 +4,12 @@
   --panel-border: #e5e7eb;
   --text: #0f172a;
   --muted: #475569;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
+  --primary: #c8102e;
+  --primary-hover: #a50d25;
   --success: #10b981;
   --danger: #ef4444;
   --danger-hover: #dc2626;
-  --ring: rgba(37, 99, 235, 0.35);
+  --ring: rgba(200, 16, 46, 0.35);
   --ring-success: rgba(16, 185, 129, 0.35);
 }
 html, body {
@@ -77,10 +77,10 @@ html, body {
   background: #eef2f7;
 }
 .controls .mode-option.active {
-  background: var(--success);
+  background: var(--primary);
   color: #ffffff;
-  border-color: var(--success);
-  box-shadow: 0 0 0 2px var(--ring-success);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 .controls .mode-option input[type="radio"] {
   position: absolute;
@@ -254,9 +254,9 @@ input[type="range"] { vertical-align: middle; }
 .stepper .btn:hover { background: #e2e8f0; }
 .stepper .btn.gnd { width: auto; padding: 0 8px; white-space: nowrap; }
 .stepper .btn.gnd.active {
-  background: var(--success);
+  background: var(--primary);
   color: #ffffff;
-  border-color: var(--success);
+  border-color: var(--primary);
 }
 .stepper .val {
   min-width: 32px;
