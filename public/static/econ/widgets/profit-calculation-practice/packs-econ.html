@@ -36,6 +36,7 @@
     .card-item .muted { position:static; display:inline-block; white-space:nowrap; flex:0 0 auto; }
     .pack { border: 1px solid var(--hw-border); border-radius: 10px; padding: 10px; background: #fff; }
     .pack-title { font-weight: 700; margin-bottom: 6px; }
+    .pack-total { font-weight: 600; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--hw-border); color: #000; }
     .fade-in { animation: fade .25s ease both; }
     @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
     .tip { font-size: 12px; color: var(--hw-muted); }
@@ -253,12 +254,6 @@
     </div>
   </div>
 
-  <!-- Firebase (optional, for global stats) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <!-- Provide your config via public/firebase-config.js which sets window.__FIREBASE_CONFIG__ -->
-  <script src="./firebase-config.js"></script>
-
   <script>
     const JOBS = [
       { name: "McDonald’s Crew Member", wage: 16.00 },
@@ -297,7 +292,6 @@
     let packsOpened = 0;
     let isRevealing = false;
     let runRecorded = false;
-    let firebaseDb = null;
     let clientId = null;
 
     const jobBadge = document.getElementById("job-badge");
@@ -488,7 +482,7 @@
       const info = SETS[selectedSetId];
       if (!info || isRevealing) return;
       if (location.protocol === 'file:') {
-        alert('This page needs to be opened via a web server to load sets. Tip: use "firebase emulators:start" or a simple static server in the public/ folder.');
+        alert('This page needs to be opened via a web server to load sets. Tip: use a simple static server in the public/ folder.');
         return;
       }
       openBtn.disabled = true;
@@ -540,6 +534,7 @@
         });
         submitBtn.disabled = false;
         revealBtn.disabled = false;
+        openAllBtn.textContent = 'All packs opened';
         openAllBtn.disabled = true;
         // Record outcome once per completed run
         const correct = computeCorrect();
@@ -642,43 +637,6 @@
       answersBox.classList.remove('hidden');
     });
 
-    // Firebase + Global stats (optional)
-    function setupFirebase() {
-      try {
-        if (window.__FIREBASE_CONFIG__ && (!window.firebase.apps || window.firebase.apps.length === 0)) {
-          window.firebase.initializeApp(window.__FIREBASE_CONFIG__);
-        }
-        if (window.firebase && window.firebase.apps && window.firebase.apps.length > 0) {
-          firebaseDb = window.firebase.firestore();
-        }
-      } catch (e) {
-        console.warn('Firebase init failed', e);
-      }
-    }
-
-    function listenToGlobalStats() {
-      if (!firebaseDb || !lossStatsEl) return;
-      const docRef = firebaseDb.collection('packProfitStats').doc('global');
-      docRef.onSnapshot(
-        (snap) => {
-          const d = snap.exists ? (snap.data() || { total: 0 }) : { total: 0 };
-          const wins = typeof d.wins === 'number' ? d.wins : Math.max(0, (d.total || 0) - (d.losses || 0));
-          const pct = d.total > 0 ? Math.round((wins / d.total) * 100) : 0;
-          lossStatsEl.textContent = 'Global win rate: ' + pct + '% (' + wins + ' of ' + (d.total || 0) + ' runs)';
-        },
-        (e) => console.warn('Global stats listen failed', e)
-      );
-      // Per-set stats
-      const setsRef = firebaseDb.collection('packSetStats');
-      setsRef.onSnapshot(
-        (snap) => {
-          const map = {};
-          snap.forEach(doc => map[doc.id] = doc.data());
-          renderSetStats(map);
-        },
-        (e) => console.warn('Set stats listen failed', e)
-      );
-    }
 
     function renderSetStats(map) {
       if (!setStatsBody) return;
@@ -696,17 +654,8 @@
     }
 
     if (refreshSetStatsBtn) {
-      refreshSetStatsBtn.addEventListener('click', async () => {
-        if (!firebaseDb) { renderSetStats(null); return; }
-        try {
-          const snap = await firebaseDb.collection('packSetStats').get();
-          const map = {};
-          snap.forEach(doc => map[doc.id] = doc.data());
-          renderSetStats(map);
-        } catch (e) {
-          console.warn('Manual set stats refresh failed', e);
-          renderSetStats(null);
-        }
+      refreshSetStatsBtn.addEventListener('click', () => {
+        renderSetStats(null);
       });
     }
 
@@ -759,18 +708,6 @@
 
     function recordRunOutcome(isLoss) {
       if (runRecorded) return;
-      if (firebaseDb) {
-        const inc = window.firebase.firestore.FieldValue.increment;
-        const statsRef = firebaseDb.collection('packProfitStats').doc('global');
-        const clientRef = firebaseDb.collection('packClients').doc(getClientId());
-        statsRef.set({ total: inc(1), wins: inc(isLoss ? 0 : 1), losses: inc(isLoss ? 1 : 0) }, { merge: true }).catch(() => {});
-        clientRef.set({ runs: inc(1), losses: inc(isLoss ? 1 : 0), updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(() => {});
-        // Per-set stats
-        if (selectedSetId) {
-          const setRef = firebaseDb.collection('packSetStats').doc(selectedSetId);
-          setRef.set({ total: inc(1), wins: inc(isLoss ? 0 : 1) }, { merge: true }).catch(() => {});
-        }
-      }
       // Update and reflect personal cookie stats immediately
       try {
         const raw = getCookie('pack_user_win_stats_v1');
@@ -801,6 +738,7 @@
       pack.appendChild(title);
       pack.appendChild(grid);
       packsArea.insertBefore(pack, packsArea.firstChild);
+      let packTotal = 0;
       for (const c of cards) {
         const item = document.createElement('div');
         item.className = 'card-item fade-in';
@@ -825,10 +763,15 @@
         item.appendChild(thumb);
         item.appendChild(meta);
         grid.appendChild(item);
+        packTotal += priceNum;
         revenueTotal += priceNum;
         updateStats();
         await delay(150);
       }
+      const totalDiv = document.createElement('div');
+      totalDiv.className = 'pack-total';
+      totalDiv.textContent = 'Total value of these cards: ' + fmt(packTotal);
+      pack.appendChild(totalDiv);
     }
 
     function renderPackQuick(cards, index) {
@@ -871,6 +814,10 @@
         frag.appendChild(item);
       }
       grid.appendChild(frag);
+      const totalDiv = document.createElement('div');
+      totalDiv.className = 'pack-total';
+      totalDiv.textContent = 'Total value of these cards: ' + fmt(inc);
+      pack.appendChild(totalDiv);
       revenueTotal += inc;
       updateStats();
     }
@@ -939,7 +886,7 @@
       const info = SETS[selectedSetId];
       if (!info || isRevealing) return;
       if (location.protocol === 'file:') {
-        alert('This page needs to be opened via a web server to load sets. Tip: use "firebase emulators:start" or a simple static server in the public/ folder.');
+        alert('This page needs to be opened via a web server to load sets. Tip: use a simple static server in the public/ folder.');
         return;
       }
       openBtn.disabled = true;
@@ -978,6 +925,7 @@
 
       openBtn.textContent = 'All packs opened';
       openBtn.disabled = true;
+      openAllBtn.textContent = 'All packs opened';
       openAllBtn.disabled = true;
       resetBtn.disabled = false;
       resetTopBtn.disabled = false;
@@ -1024,8 +972,6 @@
       document.getElementById('packs-opened-badge').textContent = 'Packs opened: 0 / ' + PACKS_TO_OPEN;
       document.getElementById('cards-count-badge').textContent = 'Cards: 0';
       document.getElementById('revenue-total').textContent = fmt(0);
-      setupFirebase();
-      listenToGlobalStats();
       refreshPersonalLossUI();
       // Always show rows for all sets even before Firestore responds
       renderSetStats(null);
