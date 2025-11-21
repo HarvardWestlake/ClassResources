@@ -40,6 +40,14 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
+          <a className="widget-card" href="/static/physics/index.html">
+            <div className="title-row">
+              <h3>Physics</h3>
+            </div>
+            <p>Interactive physics simulations: electric fields, potentials, and electron flow.</p>
+            <span className="button">Open</span>
+          </a>
+
           <a className="widget-card" href="/static/stats/index.html">
             <div className="title-row">
               <h3>Statistics</h3>

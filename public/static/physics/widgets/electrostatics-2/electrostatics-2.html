@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Electrostatics 2 — Equipotentials & Electron Flow</title>
+  
+  <script src="./firebase-config.js"></script>
+  <style>
+    :root {
+      /* Harvard-Westlake Brand Colors */
+      --hw-red: #c8102e;
+      --hw-gold: #f0b323;
+      --hw-black: #231f20;
+      --hw-gray-900: #1f2937;
+      --hw-gray-700: #4b5563;
+      --hw-gray-600: #6b7280;
+      --hw-gray-400: #cbd5e1;
+      --hw-gray-300: #e5e7eb;
+      --hw-gray-200: #edf0f3;
+      --hw-gray-100: #f4f6f8;
+      
+      /* Semantic tokens */
+      --bg: #f2f0ec;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --text: #000000;
+      --muted: #6b7280;
+      --primary: #c8102e;
+      --primary-hover: #a00d25;
+      --danger: #dc3545;
+      --success: #198754;
+      
+      /* Typography */
+      --font-sans: "Source Sans 3", "Source Sans Pro", "Source Sans", Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100vh; }
+    body {
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-weight: 400;
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    header {
+      padding: 12px 16px; 
+      background: var(--surface); 
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { 
+      margin: 0; 
+      font-size: 20px; 
+      font-weight: 700; 
+      line-height: 1.3; 
+      color: var(--hw-black);
+      text-align: center;
+    }
+
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Top Controls Bar */
+    .controls-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    /* Control Sections */
+    .control-sections {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .control-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 16px;
+    }
+    
+    .control-section h2 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--hw-gray-700);
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 8px;
+    }
+
+    /* Control Groups */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+    
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .control-item label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      min-width: 140px;
+    }
+    
+    .control-item input,
+    .control-item select {
+      flex: 1;
+      min-width: 120px;
+    }
+    
+    .note { 
+      font-size: 12px; 
+      color: var(--muted); 
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+
+    .btn { 
+      appearance: none; 
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none; 
+      background: var(--hw-gray-200); 
+      color: var(--text); 
+      border-radius: 0; 
+      padding: 10px 20px; 
+      font-weight: 600; 
+      font-size: 13px; 
+      cursor: pointer; 
+      transition: all .2s ease;
+      white-space: nowrap;
+      min-height: 44px;
+      text-align: center;
+    }
+    .btn:hover { 
+      transform: translateY(-1px); 
+      background: var(--hw-gray-300);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .btn.primary { 
+      background: var(--primary); 
+      color: #ffffff; 
+    }
+    .btn.primary:hover { 
+      background: var(--primary-hover);
+      box-shadow: 0 2px 4px rgba(200,16,46,0.2);
+    }
+    .btn.danger { 
+      background: var(--danger); 
+      color: #ffffff; 
+    }
+    .btn.danger:hover { 
+      background: #b02a30;
+    }
+    .btn.ok { 
+      background: var(--success); 
+      color: #ffffff; 
+    }
+    .btn.ok:hover { 
+      background: #146a49;
+    }
+
+    input[type="number"] { 
+      background: var(--surface); 
+      border: 1px solid var(--border); 
+      color: var(--text); 
+      border-radius: 0; 
+      padding: 4px 6px; 
+      outline: none;
+      font-size: 12px;
+      font-family: var(--font-sans);
+      min-height: 28px;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    input[type="number"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(200,16,46,0.12);
+    }
+    input[type="range"] {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--hw-gray-200);
+      height: 6px;
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      background: var(--primary-hover);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    input[type="range"]::-moz-range-thumb:hover {
+      transform: scale(1.1);
+      background: var(--primary-hover);
+    }
+    .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
+    .toggle input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+
+    /* Canvas Section */
+    .canvas-section {
+      margin: 20px 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 20px;
+    }
+    
+    .canvas-wrap { 
+      position: relative; 
+      background: #ffffff; 
+      border: 1px solid var(--border); 
+      overflow: hidden; 
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+    
+    canvas { 
+      display: block; 
+      width: 100%;
+      height: auto;
+      background: #ffffff; 
+      aspect-ratio: 1100 / 720; 
+      touch-action: none; 
+      user-select: none; 
+      -webkit-user-select: none; 
+      -webkit-tap-highlight-color: transparent; 
+    }
+    
+    /* Bottom Info Grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 16px;
+    }
+    
+    .info-card h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--hw-gray-700);
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .info-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .info-label {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    
+    .info-value {
+      font-size: 13px;
+      color: var(--primary);
+    }
+
+    .legend-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .legend canvas { 
+      width: 80px; 
+      height: 240px; 
+      border: 1px solid var(--border);
+      border-radius: 0;
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .container {
+        padding: 12px;
+      }
+      
+      .controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .controls-bar .btn {
+        width: 100%;
+      }
+      
+      .control-sections {
+        grid-template-columns: 1fr;
+      }
+      
+      .canvas-section {
+        padding: 12px;
+      }
+      
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .control-item {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .control-item label {
+        min-width: auto;
+      }
+    }
+    .kbd { 
+      padding: 2px 4px; 
+      border-radius: 0; 
+      border: 1px solid var(--border); 
+      background: var(--hw-gray-100); 
+      color: var(--text); 
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .mono { 
+      font-variant-numeric: tabular-nums; 
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; 
+      font-size: 11px;
+      font-weight: 500;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    /* Guided tour */
+    .tour-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 10000; }
+    .tour-tooltip { 
+      position: fixed; 
+      max-width: 380px; 
+      background: #ffffff; 
+      color: var(--text); 
+      border: 1px solid var(--border); 
+      border-radius: 0; 
+      box-shadow: 0 10px 30px rgba(0,0,0,.18); 
+      padding: 14px; 
+      z-index: 10003; 
+    }
+    .tour-tooltip h4 { 
+      margin: 0 0 6px; 
+      font-size: 15px; 
+      font-weight: 700;
+      color: var(--hw-black);
+    }
+    .tour-tooltip p { margin: 0 0 10px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .tour-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .tour-btn { 
+      appearance: none; 
+      border: none; 
+      background: var(--hw-gray-200); 
+      color: var(--text); 
+      border-radius: 0; 
+      padding: 6px 12px; 
+      font-weight: 600; 
+      font-size: 12px; 
+      cursor: pointer;
+      transition: all .2s ease;
+      min-height: 32px;
+    }
+    .tour-btn:hover {
+      background: var(--hw-gray-300);
+      transform: translateY(-1px);
+    }
+    .tour-btn.primary { background: var(--primary); color: #ffffff; }
+    .tour-btn.primary:hover { background: var(--primary-hover); }
+    .tour-highlight { 
+      position: relative; 
+      z-index: 10002 !important; 
+      box-shadow: 0 0 0 3px var(--primary), 0 0 0 6px rgba(200,16,46,.2); 
+      border-radius: 0; 
+      transition: box-shadow .2s ease; 
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Electrostatics 2</h1>
+  </header>
+
+  <div class="container">
+    <!-- Top Controls Bar -->
+    <div class="controls-bar">
+      <button id="addPos" class="btn ok" title="Add +1 µC charge">+ Add Positive</button>
+      <button id="addNeg" class="btn danger" title="Add −1 µC charge">+ Add Negative</button>
+      <button id="dipole" class="btn" title="Place dipole (+q and −q)">Dipole</button>
+      <button id="simulate" class="btn primary" title="Simulate electron flow">Simulate Flow</button>
+      <button id="resetSim" class="btn" title="Stop simulation">Reset Simulation</button>
+      <button id="clear" class="btn danger" title="Remove all charges">Clear All</button>
+      <button id="startTour" class="btn" title="Guided tutorial">Tutorial</button>
+    </div>
+
+    <!-- Control Sections -->
+    <div class="control-sections">
+      <div class="control-section">
+        <h2>Charge Settings</h2>
+        <div class="control-group">
+          <div class="control-item">
+            <label for="selectedChargeMag">Selected Charge (µC)</label>
+            <input id="selectedChargeMag" type="number" step="0.1" placeholder="Select a charge" />
+          </div>
+          <div class="note">Click a charge on the canvas to select it, then adjust its magnitude here</div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Display Options</h2>
+        <div class="control-group">
+          <label class="toggle">
+            <input type="checkbox" id="showHeat" checked /> 
+            Show potential heatmap (hot→cool)
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showVectors" /> 
+            Show electric field vectors
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="autoScale" checked /> 
+            Auto color scale
+          </label>
+          <div class="control-item">
+            <label for="displayRangeV2">Display Range (±V)</label>
+            <input id="displayRangeV2" type="number" min="2" step="2" value="40" />
+          </div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h2>Measurement</h2>
+        <div class="control-group">
+          <label class="toggle">
+            <input type="checkbox" id="measureMode" /> 
+            Measure mode (click two charges)
+          </label>
+          <div class="note" id="measureReadout">Pick two charges to see distance, force (∝1/r²), and midpoint values</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Canvas Section -->
+    <div class="canvas-section">
+      <div class="canvas-wrap">
+        <canvas id="canvas" width="1100" height="720" aria-label="Electrostatics simulation"></canvas>
+      </div>
+      <div class="note" style="text-align: center; margin-top: 12px;">
+        💡 <strong>Tip:</strong> Drag charges to move them. Hold <span class="kbd">Shift</span> (or use two fingers on mobile) to duplicate.
+      </div>
+    </div>
+
+    <!-- Bottom Info Grid -->
+    <div class="info-grid">
+      <div class="info-card" id="probeGroup">
+        <h3>Probe Values (at cursor)</h3>
+        <div class="info-row">
+          <span class="info-label" title="E = F/q. Force per unit charge in N/C or V/m">Electric Field |E|</span>
+          <span class="info-value mono" id="E_mag">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label" title="V = W/q. Potential energy per unit charge in Volts">Electric Potential V</span>
+          <span class="info-value mono" id="V">—</span>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>Color Legend</h3>
+        <div class="legend-container">
+          <canvas id="legendCanvas" width="80" height="240" aria-label="Color to potential legend"></canvas>
+          <div class="note" style="text-align: center;">Color represents potential V<br>(uses current display range)</div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>How It Works</h3>
+        <div class="note">
+          <strong>Heatmap:</strong> Red = high potential, Blue = low potential<br><br>
+          <strong>Field Vectors:</strong> Arrows show direction a positive charge would move<br><br>
+          <strong>Electrons:</strong> Move opposite to field arrows (negative charge)<br><br>
+          <strong>Save/Load:</strong> 
+          <button id="saveCloud" class="btn" style="margin: 8px 4px 0 0;">Save</button>
+          <button id="loadCloud" class="btn" style="margin: 8px 0 0 4px;">Load</button>
+          <span id="cloudStatus" class="note" style="display: block; margin-top: 4px;">Idle</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cookie/Storage consent banner -->
+  <div id="cookie-consent" style="position:fixed;left:0;right:0;bottom:0;padding:12px 16px;background:#111827;color:#ffffff;display:none;z-index:9999;border-top:1px solid rgba(255,255,255,.1)">
+    This site uses cookies and local storage to remember preferences.
+    <button id="cookie-accept" class="btn" style="margin-left:8px;background:#16a34a;color:#fff;border-color:#16a34a">Accept</button>
+    <button id="cookie-decline" class="btn" style="margin-left:6px">Decline</button>
+  </div>
+
+  <script>
+    // -------- Storage helpers --------
+    const storage = {
+      get(key, fallback = null) {
+        try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
+      },
+      set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+      remove(key) { try { localStorage.removeItem(key); } catch {} }
+    };
+
+    // -------- Cookie helpers --------
+    function setCookie(name, value, days = 365) {
+      const expires = new Date(Date.now() + days*864e5).toUTCString();
+      const secure = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = encodeURIComponent(name) + '=' + encodeURIComponent(value) + '; Expires=' + expires + '; Path=/; SameSite=Lax' + secure;
+    }
+    function getCookie(name) {
+      const row = document.cookie.split('; ').find(r => r.startsWith(encodeURIComponent(name) + '='));
+      return row ? decodeURIComponent(row.split('=')[1]) : undefined;
+    }
+    function deleteCookie(name) {
+      const secure = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = encodeURIComponent(name) + '=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax' + secure;
+    }
+
+    // Physics constants
+    const k = 8.9875517923e9; // N m^2 / C^2
+    const meterPerPixel = 0.01; // 1 px = 1 cm
+    const soften = 0.01; // m — avoid singularities
+
+    // Elements
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const addPosBtn = document.getElementById('addPos');
+    const addNegBtn = document.getElementById('addNeg');
+    const clearBtn = document.getElementById('clear');
+    const selectedChargeMagEl = document.getElementById('selectedChargeMag');
+    const dipoleBtn = document.getElementById('dipole');
+    const simulateBtn = document.getElementById('simulate');
+    const resetSimBtn = document.getElementById('resetSim');
+    const saveCloudBtn = document.getElementById('saveCloud');
+    const loadCloudBtn = document.getElementById('loadCloud');
+    const showHeatEl = document.getElementById('showHeat');
+    const showVectorsEl = document.getElementById('showVectors');
+    const displayRangeEl2 = document.getElementById('displayRangeV2');
+    const autoScaleEl = document.getElementById('autoScale');
+    const E_magEl = document.getElementById('E_mag');
+    const VEl = document.getElementById('V');
+    const startTourBtn = document.getElementById('startTour');
+    const consentBar = document.getElementById('cookie-consent');
+    const consentAccept = document.getElementById('cookie-accept');
+    const consentDecline = document.getElementById('cookie-decline');
+    const cloudStatusEl = document.getElementById('cloudStatus');
+    const measureModeEl = document.getElementById('measureMode');
+    const measureReadoutEl = document.getElementById('measureReadout');
+
+    // State
+    const charges = []; // {id,x,y,qMicroC,locked}
+    let selectedId = null;
+    let draggingId = null; let dragOffset = {x:0,y:0}; let dupOnDrag = false;
+    let heatCache = null; let heatDirty = true;
+    let simRunning = false;
+    let electrons = []; // {x,y,life}
+    let lastVmin = 0, lastVmax = 0, lastVclip = 40, lastAmp = 40;
+    // Electron emission control (steady flow)
+    const ELECTRON_TARGET_COUNT = 280; // desired on-screen particles
+    const ELECTRON_SPAWN_RATE_PER_SEC = 180; // constant spawn rate (particles/sec)
+    let spawnAccumulator = 0; // fractional spawn budget
+    let lastFrameTimeMs = performance.now();
+    // Measurement state
+    let measureActive = false;
+    let measureA = null, measureB = null; // charge ids
+
+    // Helpers
+    function toMeters(dxPx, dyPx){ return { dx: dxPx * meterPerPixel, dy: dyPx * meterPerPixel }; }
+    function E_and_V_at(x, y){
+      let Ex = 0, Ey = 0, V = 0;
+      for (const c of charges){
+        const dxPx = x - c.x, dyPx = y - c.y;
+        const {dx, dy} = toMeters(dxPx, dyPx);
+        const r2 = dx*dx + dy*dy + soften*soften; const r = Math.sqrt(r2);
+        const qC = c.qMicroC * 1e-6;
+        const coeff = k * qC / (r2 * r);
+        Ex += coeff * dx; Ey += coeff * dy; V += k * qC / r;
+      }
+      return {Ex, Ey, V};
+    }
+    function fmt(x, unit){ if(!isFinite(x)) return '—'; const ax=Math.abs(x); let v=x, p=''; if(ax>=1e6){v=x/1e6;p='M';} else if(ax>=1e3){v=x/1e3;p='k';} else if(ax<1e-6){v=x*1e9;p='n';} else if(ax<1e-3){v=x*1e6;p='µ';} else if(ax<1){v=x*1e3;p='m';} return v.toFixed(3).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1')+ ' ' + p + unit; }
+
+    // Heatmap: deep blue (low) → cyan → green → yellow → orange → red (high)
+    const HEAT_GAMMA = 0.75; // <1 increases contrast between adjacent color levels
+    const AUTO_PERCENTILE = 0.90; // robust clip for auto color scale (90th percentile of |V|)
+    const HEATMAP_RES_PX = 480; // fixed high detail resolution (previous slider max)
+    function niceClipValue(v){
+      const base = Math.max(2, Math.abs(v) || 2);
+      const exp = Math.floor(Math.log10(base));
+      const pow = Math.pow(10, exp);
+      const scaled = base / pow;
+      const candidates = [1, 2, 5, 10];
+      let best = candidates[0], bestDiff = Infinity;
+      for(const c of candidates){
+        const val = c * pow;
+        const diff = Math.abs(val - base);
+        if (diff < bestDiff){ bestDiff = diff; best = val; }
+      }
+      return Math.max(2, Math.round(best));
+    }
+    function applyGammaSymmetric(t, gamma){ // t in [-1,1]
+      const s = (t + 1) * 0.5; // [0,1]
+      const sg = Math.pow(s, gamma);
+      return sg * 2 - 1; // back to [-1,1]
+    }
+    function colorHotCool(t){ // t in [-1,1]
+      const clamp=(v,min,max)=>Math.max(min,Math.min(max,v)); t=clamp(t,-1,1);
+      const stops = [
+        { t:-1.0, c:[0  , 56 ,168, 185] }, // deep blue
+        { t:-0.6, c:[0  ,160,255, 185] }, // cyan
+        { t:-0.2, c:[0  ,153,  0, 185] }, // green
+        { t: 0.2, c:[255,235, 59, 185] }, // yellow
+        { t: 0.6, c:[255,152,  0, 185] }, // orange
+        { t: 1.0, c:[211, 47, 47, 185] }  // red
+      ];
+      for(let i=0;i<stops.length-1;i++){
+        const a=stops[i], b=stops[i+1];
+        if(t>=a.t && t<=b.t){
+          const u=(t-a.t)/(b.t-a.t);
+          const lerp=(x,y,p)=>Math.round(x+(y-x)*p);
+          return [ lerp(a.c[0],b.c[0],u), lerp(a.c[1],b.c[1],u), lerp(a.c[2],b.c[2],u), lerp(a.c[3],b.c[3],u) ];
+        }
+      }
+      return stops[t<0?0:stops.length-1].c;
+    }
+    function drawLegend(){
+      const el = document.getElementById('legendCanvas');
+      if(!el) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = 80, cssH = 240;
+      if (el.width !== Math.round(cssW*dpr)) {
+        el.width = Math.round(cssW*dpr);
+        el.height = Math.round(cssH*dpr);
+        el.style.width = cssW + 'px';
+        el.style.height = cssH + 'px';
+      }
+      const lctx = el.getContext('2d');
+      lctx.save(); lctx.scale(dpr,dpr);
+      lctx.clearRect(0,0,cssW,cssH);
+      // gradient bar
+      const barX = 8, barW = 18, barY = 8, barH = cssH - 16;
+      for(let y=0; y<barH; y++){
+        const tt = 1 - y/(barH-1); // 1..0 (top to bottom)
+        const t = tt*2 - 1;
+        const tAdj = applyGammaSymmetric(t, HEAT_GAMMA);
+        const [r,g,b,a8] = colorHotCool(tAdj);
+        lctx.fillStyle = `rgba(${r},${g},${b},${(a8/255).toFixed(3)})`;
+        lctx.fillRect(barX, barY + y, barW, 1);
+      }
+      lctx.strokeStyle = 'rgba(15,23,42,0.6)'; lctx.lineWidth = 1;
+      lctx.strokeRect(barX+0.5, barY+0.5, barW-1, barH-1);
+      // ticks and labels
+      lctx.fillStyle = '#0f172a';
+      lctx.font = '11px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+      lctx.textBaseline = 'middle';
+      const tickVals = [ lastVclip, lastVclip*0.5, 0, -lastVclip*0.5, -lastVclip ];
+      for(const v of tickVals){
+        const tt = 1 - ((v + lastVclip) / (2*lastVclip)); // 0..1 bottom to top inverted
+        const y = barY + tt * barH;
+        lctx.beginPath();
+        lctx.moveTo(barX + barW + 4, y);
+        lctx.lineTo(barX + barW + 10, y);
+        lctx.stroke();
+        lctx.fillText(fmt(v,'V'), barX + barW + 14, y);
+      }
+      lctx.restore();
+    }
+    function computeHeatmap(){
+      const w = HEATMAP_RES_PX; const h = Math.round(w * canvas.height / canvas.width);
+      const off = document.createElement('canvas'); off.width = w; off.height = h; const ictx = off.getContext('2d');
+      const img = ictx.createImageData(w,h); const Vs = new Float32Array(w*h);
+      let vmin=Infinity, vmax=-Infinity, i=0;
+      for(let j=0;j<h;j++){
+        for(let i2=0;i2<w;i2++){
+          const x = (i2+0.5) * canvas.width / w; const y = (j+0.5) * canvas.height / h;
+          const {V} = E_and_V_at(x,y); Vs[i]=V; if(V<vmin) vmin=V; if(V>vmax) vmax=V; i++;
+        }
+      }
+      lastVmin = vmin; lastVmax = vmax; lastAmp = Math.max(Math.abs(vmin), Math.abs(vmax)) || 1;
+      const userRange = Math.max(2, Math.abs(parseFloat(displayRangeEl2.value)||40));
+      let Vclip;
+      if (autoScaleEl && autoScaleEl.checked) {
+        // robust auto clip by percentile of |V|
+        const absArr = Array.from(Vs, v => Math.abs(v));
+        absArr.sort((a,b)=>a-b);
+        const idx = Math.max(0, Math.min(absArr.length - 1, Math.floor((absArr.length - 1) * AUTO_PERCENTILE)));
+        Vclip = Math.max(2, absArr[idx] || userRange);
+        Vclip = niceClipValue(Vclip);
+      } else {
+        // User's manual choice should be respected without capping
+        Vclip = userRange;
+      }
+      lastVclip = Vclip;
+      if (autoScaleEl && autoScaleEl.checked && displayRangeEl2) {
+        displayRangeEl2.value = String(Vclip);
+      }
+      const totalBands = Math.max(1, Math.floor((2 * Vclip) / 2)); // 2V per band
+      i=0; for(let j=0;j<h;j++){
+        for(let i2=0;i2<w;i2++){
+          const Vraw = Vs[i++];
+          const Vc = Math.max(-Vclip, Math.min(Vraw, Vclip));
+          const bandIndex = Math.floor((Vc + Vclip) / 2);
+          const tBand = totalBands > 0 ? (bandIndex / totalBands) : 0.5;
+          const t = tBand * 2 - 1;
+          const tAdj = applyGammaSymmetric(t, HEAT_GAMMA);
+          const [r,g,b,a8] = colorHotCool(tAdj); const k = (j*w + i2) * 4;
+          img.data[k]=r; img.data[k+1]=g; img.data[k+2]=b; img.data[k+3]=a8;
+        }
+      }
+      ictx.putImageData(img,0,0); heatCache = off; heatDirty=false;
+      drawLegend();
+    }
+
+    // Field vectors (optional)
+    function drawVectors(){
+      const step = 50; // fixed density for clarity
+      ctx.save(); ctx.strokeStyle = 'rgba(15,23,42,.7)'; ctx.lineWidth = 1;
+      for(let y=step/2; y<canvas.height; y+=step){
+        for(let x=step/2; x<canvas.width; x+=step){
+          const {Ex,Ey} = E_and_V_at(x,y); const m = Math.hypot(Ex,Ey); if(m<=0) continue;
+          const nx=Ex/m, ny=Ey/m; const len = Math.min(26, 6 + 8*Math.log10(1+m*1e6));
+          const x2 = x + nx*len; const y2 = y + ny*len;
+          ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x2,y2); ctx.stroke();
+          const tx=-ny, ty=nx; ctx.beginPath(); ctx.moveTo(x2,y2);
+          ctx.lineTo(x2 - nx*6 + tx*3, y2 - ny*6 + ty*3);
+          ctx.lineTo(x2 - nx*6 - tx*3, y2 - ny*6 - ty*3);
+          ctx.closePath(); ctx.fillStyle='rgba(15,23,42,.7)'; ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    // Field lines (shown during simulation)
+    function drawFieldLines(){
+      const seedsPer = 10, stepLen=6, maxSteps=1200;
+      ctx.save(); ctx.strokeStyle='rgba(15,23,42,.35)'; ctx.lineWidth=1;
+      for(const c of charges){
+        const r0=16; for(let k=0;k<seedsPer;k++){
+          const ang = (k/seedsPer)*Math.PI*2; let x=c.x+Math.cos(ang)*r0; let y=c.y+Math.sin(ang)*r0;
+          ctx.beginPath(); ctx.moveTo(x,y);
+          for(let s=0;s<maxSteps;s++){
+            const {Ex,Ey}=E_and_V_at(x,y); const m=Math.hypot(Ex,Ey); if(m<1e-7) break;
+            const nx=Ex/m, ny=Ey/m; x+=nx*stepLen; y+=ny*stepLen; ctx.lineTo(x,y);
+            if(x<0||y<0||x>canvas.width||y>canvas.height) break;
+          }
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    // Electron flow (particles move opposite to E)
+    function stepElectrons(){
+      const speedBase = 0.5; // slower base speed for clear observation
+      for(let i=electrons.length-1;i>=0;i--){
+        const e = electrons[i];
+        const {Ex,Ey} = E_and_V_at(e.x,e.y); const m = Math.hypot(Ex,Ey);
+        if(m>0){ const nx=Ex/m, ny=Ey/m; // E direction
+          // move opposite to E (electron, q<0), speed scales with field (log for stability) but capped
+          const v = Math.min(1.2, speedBase * (1 + Math.log10(1+m*1e6)));
+          e.x -= nx * v; e.y -= ny * v;
+        }
+        e.life -= 1;
+        if(e.life<=0 || e.x<0||e.y<0||e.x>canvas.width||e.y>canvas.height){ electrons.splice(i,1); }
+      }
+    }
+    function spawnOneElectron(){
+      electrons.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, life: Math.random()*800+400 });
+    }
+    function maintainElectronPopulation(dtSec){
+      spawnAccumulator += ELECTRON_SPAWN_RATE_PER_SEC * dtSec;
+      const need = Math.max(0, ELECTRON_TARGET_COUNT - electrons.length);
+      const toSpawn = Math.min(need, Math.floor(spawnAccumulator));
+      for(let i=0;i<toSpawn;i++){ spawnOneElectron(); }
+      spawnAccumulator -= toSpawn;
+    }
+    function drawElectrons(){
+      ctx.save();
+      for(const e of electrons){
+        // white circle with black border and 'e' inside
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, 4, 0, Math.PI*2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = '#000000';
+        ctx.stroke();
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 7px system-ui, -apple-system, Segoe UI';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('e', e.x, e.y+0.3);
+      }
+      ctx.restore();
+    }
+
+    // Charges drawing & interaction
+    function drawCharges(){
+      for(const c of charges){
+        const r=12;
+        // Draw selection highlight for selected charge (especially useful on mobile)
+        if (c.id === selectedId) {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, r + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = '#f59e0b'; // Orange highlight
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+        // Draw charge circle
+        ctx.beginPath();
+        ctx.fillStyle = c.qMicroC >= 0 ? '#ef4444' : '#3b82f6';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1;
+        ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Draw charge symbol
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(c.qMicroC >= 0 ? '+' : '−', c.x, c.y);
+      }
+    }
+    function pickCharge(x, y) {
+      // Larger hit radius on touch devices for better accessibility
+      const hitRadius = ('ontouchstart' in window) ? 20 : 14;
+      for (let i = charges.length - 1; i >= 0; i--) {
+        const c = charges[i];
+        if (Math.hypot(x - c.x, y - c.y) <= hitRadius) return c.id;
+      }
+      return null;
+    }
+    // --- Measure helpers ---
+    function handleMeasureClick(x, y){
+      const id = pickCharge(x, y);
+      if (!id) return;
+      if (!measureA || (measureA && measureB)) { measureA = id; measureB = null; }
+      else if (id !== measureA) { measureB = id; }
+      updateMeasureReadout();
+    }
+    function updateMeasureReadout(){
+      if (!measureReadoutEl) return;
+      if (!measureActive || !measureA || !measureB) {
+        measureReadoutEl.textContent = 'Pick two charges to see distance, pair force (∝1/r²), and midpoint V/|E| (∝1/r).';
+        return;
+      }
+      const cA = charges.find(c=>c.id===measureA);
+      const cB = charges.find(c=>c.id===measureB);
+      if (!cA || !cB) {
+        measureReadoutEl.textContent = 'Pick two charges to see distance, pair force (∝1/r²), and midpoint V/|E| (∝1/r).';
+        return;
+      }
+      const dxPx = cB.x - cA.x, dyPx = cB.y - cA.y;
+      const rPx = Math.hypot(dxPx, dyPx);
+      const r = rPx * meterPerPixel;
+      const q1 = cA.qMicroC * 1e-6, q2 = cB.qMicroC * 1e-6;
+      const F = k * Math.abs(q1 * q2) / Math.max(r*r, 1e-12);
+      const attract = q1 * q2 < 0;
+      const mid = { x: (cA.x + cB.x)/2, y: (cA.y + cB.y)/2 };
+      function pairEVAt(x, y){
+        let Ex = 0, Ey = 0, V = 0;
+        for (const c of [cA, cB]) {
+          const dx = (x - c.x) * meterPerPixel;
+          const dy = (y - c.y) * meterPerPixel;
+          const r2 = dx*dx + dy*dy + soften*soften; const rr = Math.sqrt(r2);
+          const qC = c.qMicroC * 1e-6;
+          const coeff = k * qC / (r2 * rr);
+          Ex += coeff * dx; Ey += coeff * dy; V += k * qC / rr;
+        }
+        return { Ex, Ey, V };
+      }
+      const { Ex, Ey, V } = pairEVAt(mid.x, mid.y);
+      const Emag = Math.hypot(Ex, Ey);
+      measureReadoutEl.textContent =
+        `r ≈ ${fmt(r,'m')} • F ≈ ${fmt(F,'N')} (${attract ? 'attract' : 'repel'}) • midpoint V_pair ≈ ${fmt(V,'V')} • |E|_pair ≈ ${fmt(Emag,'N/C')}`;
+    }
+    function drawMeasure(){
+      if (!measureActive || !measureA || !measureB) return;
+      const cA = charges.find(c=>c.id===measureA);
+      const cB = charges.find(c=>c.id===measureB);
+      if (!cA || !cB) return;
+      const midx = (cA.x + cB.x)/2, midy = (cA.y + cB.y)/2;
+      const dxPx = cB.x - cA.x, dyPx = cB.y - cA.y;
+      const rPx = Math.hypot(dxPx, dyPx);
+      const r = rPx * meterPerPixel;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(37,99,235,0.9)';
+      ctx.fillStyle = 'rgba(37,99,235,0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cA.x, cA.y); ctx.lineTo(cB.x, cB.y); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cA.x, cA.y, 14, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cB.x, cB.y, 14, 0, Math.PI*2); ctx.stroke();
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`r = ${fmt(r, 'm')}`, midx, midy - 8);
+      ctx.restore();
+    }
+    // Unified event handling for both mouse and touch
+    function getCanvasCoords(e, canvas) {
+      const r = canvas.getBoundingClientRect();
+      let clientX, clientY;
+      if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else if (e.changedTouches && e.changedTouches.length > 0) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      const x = (clientX - r.left) * (canvas.width / r.width);
+      const y = (clientY - r.top) * (canvas.height / r.height);
+      return { x, y };
+    }
+
+    function handlePointerDown(e) {
+      const { x, y } = getCanvasCoords(e, canvas);
+      if (measureActive) { 
+        handleMeasureClick(x, y); 
+        e.preventDefault();
+        return; 
+      }
+      const id = pickCharge(x, y);
+      if (id) {
+        const c = charges.find(c => c.id === id);
+        draggingId = id;
+        selectedId = id;
+        dupOnDrag = e.shiftKey || (e.touches && e.touches.length > 1); // Multi-touch = duplicate
+        dragOffset.x = x - c.x;
+        dragOffset.y = y - c.y;
+        if (selectedChargeMagEl) {
+          selectedChargeMagEl.value = String(c.qMicroC);
+          selectedChargeMagEl.disabled = false;
+        }
+        e.preventDefault(); // Prevent scrolling on touch
+      }
+    }
+
+    function handlePointerMove(e) {
+      const { x, y } = getCanvasCoords(e, canvas);
+      const { Ex, Ey, V } = E_and_V_at(x, y);
+      E_magEl.textContent = fmt(Math.hypot(Ex, Ey), 'N/C');
+      VEl.textContent = fmt(V, 'V');
+      if (draggingId) {
+        const i = charges.findIndex(c => c.id === draggingId);
+        if (i >= 0) {
+          if (dupOnDrag) {
+            const c0 = charges[i];
+            const dup = addCharge(c0.x, c0.y, c0.qMicroC);
+            draggingId = dup.id;
+            dupOnDrag = false;
+          }
+          const c = charges.find(c => c.id === draggingId);
+          c.x = x - dragOffset.x;
+          c.y = y - dragOffset.y;
+          heatDirty = true;
+          if (measureActive && measureA && measureB) updateMeasureReadout();
+        }
+        e.preventDefault(); // Prevent scrolling while dragging
+      }
+    }
+
+    function handlePointerUp(e) {
+      draggingId = null;
+    }
+
+    // Mouse events
+    canvas.addEventListener('mousedown', handlePointerDown);
+    canvas.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+
+    // Touch events
+    canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+    canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
+    canvas.addEventListener('touchend', handlePointerUp);
+    canvas.addEventListener('touchcancel', handlePointerUp);
+
+    function addCharge(x,y,qMicroC){ const id=Math.random().toString(36).slice(2); charges.push({id,x,y,qMicroC,locked:false}); selectedId=id; heatDirty=true; return {id}; }
+    function clearCharges(){ charges.length=0; selectedId=null; if(selectedChargeMagEl){ selectedChargeMagEl.value=''; selectedChargeMagEl.disabled=true; } measureA=null; measureB=null; updateMeasureReadout(); heatDirty=true; }
+    function center(){ return {x: canvas.width/2, y: canvas.height/2}; }
+    function presetDipole(){ clearCharges(); const c=center(); addCharge(c.x-90,c.y,+1.0); addCharge(c.x+90,c.y,-1.0); }
+
+    // UI bindings
+    addPosBtn.addEventListener('click',()=>{ const c=center(); addCharge(c.x+(Math.random()*60-30), c.y+(Math.random()*60-30), +1.0); });
+    addNegBtn.addEventListener('click',()=>{ const c=center(); addCharge(c.x+(Math.random()*60-30), c.y+(Math.random()*60-30), -1.0); });
+    clearBtn.addEventListener('click',()=>{ clearCharges(); heatDirty=true; });
+    dipoleBtn.addEventListener('click',()=>{ presetDipole(); updateMeasureReadout(); });
+    showHeatEl.addEventListener('change',()=>{ heatDirty=true; });
+    showVectorsEl.addEventListener('change',()=>{ 
+      const val = !!showVectorsEl.checked;
+      storage.set('e2_showVectors', val);
+      saveUserDisplayPrefs({ showVectors: val }).catch(()=>{});
+    });
+    displayRangeEl2.addEventListener('input',()=>{ storage.set('e2_displayRangeV', Number(displayRangeEl2.value)); heatDirty=true; drawLegend(); });
+    autoScaleEl?.addEventListener('change',()=>{
+      const on = !!autoScaleEl.checked;
+      displayRangeEl2.disabled = on;
+      storage.set('e2_autoScale', on);
+      saveUserDisplayPrefs({ autoScale: on }).catch(()=>{});
+      if (on) {
+        // Update immediately to show auto value in the input and legend
+        heatDirty = true;
+        computeHeatmap();
+      } else {
+        // Restore last manual value to the input without overwriting storage
+        const saved = storage.get('e2_displayRangeV', Number(displayRangeEl2.value) || 40);
+        displayRangeEl2.value = saved;
+        heatDirty = true;
+        drawLegend();
+      }
+    });
+    showHeatEl.addEventListener('change',()=>{ storage.set('e2_showHeat', showHeatEl.checked); saveUserDisplayPrefs({ showHeat: !!showHeatEl.checked }).catch(()=>{}); heatDirty=true; });
+    selectedChargeMagEl?.addEventListener('input',()=>{ const v = parseFloat(selectedChargeMagEl.value); if(!isNaN(v) && selectedId){ const c = charges.find(cc=>cc.id===selectedId); if(c){ c.qMicroC = v; heatDirty=true; } } });
+    measureModeEl?.addEventListener('change', ()=>{ measureActive = !!measureModeEl.checked; if (!measureActive){ measureA = null; measureB = null; } updateMeasureReadout(); });
+
+    // --- Guided Tour ---
+    const tour = {
+      steps: [
+        { selector: null, title: 'Welcome', text: 'This interactive tool visualizes electric potential (colors) and electric field (vectors/flow). Use Next to explore features.' },
+        { selector: '#addPos', title: 'Add a positive charge', text: 'Click + Add +1 µC to place a positive charge near the center.' },
+        { selector: '#addNeg', title: 'Add a negative charge', text: 'Click + Add −1 µC to place a negative charge.' },
+        { selector: '.canvas-wrap', title: 'Move or duplicate charges', text: 'Drag charges on the canvas to reposition. Hold Shift while dragging to duplicate.' },
+        { selector: '#selectedChargeMag', title: 'Edit selected charge', text: 'Click a charge to select it, then change its magnitude here (µC). Use positive for +q and negative for −q. The heatmap and field update immediately.' },
+        { selector: '#dipole', title: 'Dipole preset', text: 'Quickly set up +q and −q facing each other.' },
+        { selector: '#showHeat', title: 'Potential heatmap', text: 'Colors show electric potential V. Red is higher, blue lower. Toggle visibility here.' },
+        { selector: '#autoScale', title: 'Auto color scale', text: 'Automatically chooses a good ±V range to reveal variation. Turn off to set the range manually.' },
+        { selector: '#displayRangeV2', title: 'Manual ±V range', text: 'When Auto is off, set the ±V range to control the color mapping. The legend updates to match.' },
+        { selector: '#showVectors', title: 'Field vectors', text: 'Show electric field arrows E. Arrows point in the direction a positive charge would accelerate.' },
+        { selector: '#simulate', title: 'Simulate Flow', text: 'Start to see field lines and electrons moving opposite to E (since electrons have negative charge).' },
+        { selector: '#resetSim', title: 'Reset', text: 'Stop the simulation and clear electrons. Charges remain.' },
+        { selector: '#probeGroup', title: 'Probe readout', text: 'Move the cursor over the canvas to read Electric Field (N/C) and Electric Potential (V) at the cursor. The readouts update continuously as you move.' },
+        { selector: '#probeGroup', title: 'Electric Field (N/C)', text: 'Electric field is force per unit positive charge. The probe shows |E| (strength) in N/C (same units as V/m). Bigger |E| means a stronger field: it is largest near charges and decreases with distance. The number is magnitude only; to see direction, enable Field vectors or Simulate Flow (arrows show where a + charge would go; electrons move opposite).' },
+        { selector: '#probeGroup', title: 'Electric Potential (V)', text: 'V = W/q (work per charge). It represents the potential energy per unit charge at a point. Electric potential is also called voltage and is measured in volts (V). Analogy: Water at the top of a hill has more potential energy than at the bottom; the height difference is like the voltage (potential difference).' },
+        { selector: '#legendCanvas', title: 'Color legend', text: 'Maps colors to potential V using the current ±V range. Tick marks show approximate values.' },
+        { selector: '#saveCloud', title: 'Save / Load', text: 'Save your scene and settings. If cloud is configured, it saves online; otherwise it saves locally.' },
+        { selector: '#clear', title: 'Clear charges', text: 'Remove all charges to start fresh.' },
+        { selector: null, title: 'You are ready!', text: 'That’s it. You can reopen this tutorial any time using the Tutorial button in the header.' }
+      ],
+      index: 0,
+      overlayEl: null,
+      tooltipEl: null,
+      currentHighlight: null
+    };
+    function tourEnd(){ removeHighlight(); if(tour.overlayEl) tour.overlayEl.remove(); if(tour.tooltipEl) tour.tooltipEl.remove(); tour.overlayEl=null; tour.tooltipEl=null; storage.set('e2_tour_seen', true); window.removeEventListener('resize', tourReposition, { passive: true }); window.removeEventListener('scroll', tourReposition, { passive: true, capture: true }); }
+    function removeHighlight(){ if(tour.currentHighlight){ tour.currentHighlight.classList.remove('tour-highlight'); tour.currentHighlight=null; } }
+    function getTargetForStep(step){
+      if(!step?.selector) return null;
+      let el = document.querySelector(step.selector);
+      if (!el && step.selector === '#E_mag') el = document.getElementById('E_mag');
+      return el;
+    }
+    function ensureOverlay(){ if(!tour.overlayEl){ tour.overlayEl = document.createElement('div'); tour.overlayEl.className='tour-overlay'; document.body.appendChild(tour.overlayEl); } }
+    function ensureTooltip(){ if(!tour.tooltipEl){ const t = document.createElement('div'); t.className='tour-tooltip'; t.setAttribute('role','dialog'); t.innerHTML = '<h4></h4><p></p><div class=\"tour-actions\"><button class=\"tour-btn\" data-action=\"skip\">Skip</button><button class=\"tour-btn\" data-action=\"back\">Back</button><button class=\"tour-btn primary\" data-action=\"next\">Next</button></div>'; document.body.appendChild(t); tour.tooltipEl = t; tour.tooltipEl.addEventListener('click', (e)=>{ const a = e.target?.getAttribute?.('data-action'); if(!a) return; if(a==='skip'){ tourEnd(); } else if(a==='back'){ tourPrev(); } else if(a==='next'){ tourNext(); } }); } }
+    function positionTooltipNear(target){
+      const pad = 10;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const box = target?.getBoundingClientRect?.();
+      const t = tour.tooltipEl;
+      if(!t) return;
+      t.style.left = 'unset'; t.style.top='unset'; t.style.right='unset'; t.style.bottom='unset';
+      if(!box){
+        const tw = Math.min(380, vw - 20), th = t.offsetHeight || 160;
+        t.style.maxWidth = tw + 'px';
+        t.style.left = Math.round((vw - tw)/2) + 'px';
+        t.style.top = Math.round((vh - th)/2) + 'px';
+        return;
+      }
+      const th = t.offsetHeight || 180;
+      const tw = Math.min(380, t.offsetWidth || 340);
+      let left = Math.min(Math.max(10, box.left), vw - tw - 10);
+      let topBelow = box.bottom + pad;
+      let top;
+      if (topBelow + th <= vh - 10) {
+        top = topBelow;
+      } else {
+        let topAbove = box.top - th - pad;
+        if (topAbove >= 10) {
+          top = topAbove;
+        } else {
+          top = Math.max(10, Math.min(vh - th - 10, topBelow));
+        }
+      }
+      t.style.left = Math.round(left) + 'px';
+      t.style.top = Math.round(top) + 'px';
+    }
+    function highlightTarget(target){
+      removeHighlight();
+      if(!target) return;
+      target.classList.add('tour-highlight');
+      tour.currentHighlight = target;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }
+    function showStep(i){
+      tour.index = i;
+      const step = tour.steps[i];
+      ensureOverlay(); ensureTooltip();
+      const titleEl = tour.tooltipEl.querySelector('h4'); const textEl = tour.tooltipEl.querySelector('p');
+      if(titleEl) titleEl.textContent = step.title || '';
+      if(textEl) textEl.textContent = step.text || '';
+      const backBtn = tour.tooltipEl.querySelector('[data-action=\"back\"]');
+      const nextBtn = tour.tooltipEl.querySelector('[data-action=\"next\"]');
+      if(backBtn) backBtn.disabled = (i===0);
+      if(nextBtn) nextBtn.textContent = (i >= tour.steps.length-1) ? 'Done' : 'Next';
+      const target = getTargetForStep(step);
+      highlightTarget(target);
+      positionTooltipNear(target);
+    }
+    function tourNext(){ if(tour.index >= tour.steps.length-1){ tourEnd(); } else { showStep(tour.index+1); } }
+    function tourPrev(){ if(tour.index <= 0){ showStep(0); } else { showStep(tour.index-1); } }
+    function tourStart(fromStep=0){ showStep(fromStep); window.addEventListener('resize', tourReposition, { passive: true }); window.addEventListener('scroll', tourReposition, { passive: true, capture: true }); }
+    function tourReposition(){ const step = tour.steps[tour.index]; const target = getTargetForStep(step); positionTooltipNear(target); }
+    startTourBtn?.addEventListener('click', ()=>{ tourStart(0); });
+
+    // Consent banner (still used for cookies, but not gating Firestore writes)
+    const consentKey = 'e2_cookie_consent';
+    function adjustForBanner(on){
+      const wrap = document.querySelector('.wrap');
+      if (!wrap) return;
+      if (on) {
+        const h = consentBar?.offsetHeight || 0;
+        wrap.style.paddingBottom = (h + 8) + 'px';
+      } else {
+        wrap.style.paddingBottom = '';
+      }
+    }
+    function maybeShowConsent(){ if (!getCookie(consentKey)) { consentBar.style.display = 'block'; setTimeout(()=>adjustForBanner(true), 0); } }
+    consentAccept?.addEventListener('click', ()=>{ setCookie(consentKey,'yes',365); consentBar.style.display='none'; adjustForBanner(false); });
+    consentDecline?.addEventListener('click', ()=>{ setCookie(consentKey,'no',365); consentBar.style.display='none'; adjustForBanner(false); });
+    simulateBtn.addEventListener('click',()=>{ simRunning=!simRunning; simulateBtn.textContent = simRunning? 'Stop' : 'Simulate Flow'; if(simRunning){ spawnAccumulator = 0; } });
+    resetSimBtn.addEventListener('click',()=>{ simRunning=false; simulateBtn.textContent='Simulate Flow'; electrons.length=0; });
+
+    // -------- Firestore (shared defaults) --------
+    let fb = { app:null, db:null, auth:null, uid:null };
+
+    async function maybeInitFirebase(){
+      try {
+        const cfg = window.FIREBASE_CONFIG; // Provided via /firebase-config.js
+        if (!cfg) { if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: not configured'; return; }
+        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js');
+        const { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js');
+        fb.app = initializeApp(cfg);
+        fb.db = getFirestore(fb.app);
+        fb.auth = getAuth(fb.app);
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: configured';
+      } catch (e) {
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: init failed';
+      }
+    }
+
+    async function ensureSignedIn(){
+      if (!fb.auth) await maybeInitFirebase();
+      if (!fb.auth) throw new Error('Firebase not initialized');
+      const { signInAnonymously } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js');
+      if (fb.auth.currentUser) { fb.uid = fb.auth.currentUser.uid; return; }
+      const cred = await signInAnonymously(fb.auth);
+      fb.uid = (cred && cred.user && cred.user.uid) ? cred.user.uid : (fb.auth.currentUser ? fb.auth.currentUser.uid : null);
+    }
+
+    async function saveScene(){
+      const payload = currentPresetPayload();
+      try {
+        if (fb.db) {
+          await ensureSignedIn();
+          const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+          const ref = doc(fb.db, 'users', fb.uid, 'electro_sessions', 'manual');
+          await setDoc(ref, { ...payload, updatedAt: Date.now() }, { merge: true });
+          if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: saved ✔';
+          return;
+        }
+        throw new Error('no-db');
+      } catch (e) {
+        storage.set('e2_last_preset', payload);
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Saved locally';
+      }
+    }
+
+    async function loadScene(){
+      try {
+        if (fb.db) {
+          await ensureSignedIn();
+          const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+          const ref = doc(fb.db, 'users', fb.uid, 'electro_sessions', 'manual');
+          const snap = await getDoc(ref);
+          if (snap.exists()){
+            applyPresetPayload(snap.data());
+            if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: loaded ✔';
+            heatDirty = true;
+            return;
+          }
+          throw new Error('no-cloud-doc');
+        }
+        throw new Error('no-db');
+      } catch (e) {
+        const local = storage.get('e2_last_preset', null);
+        if (local) {
+          applyPresetPayload(local);
+          if (cloudStatusEl) cloudStatusEl.textContent = 'Loaded from local';
+          heatDirty = true;
+        } else {
+          if (cloudStatusEl) cloudStatusEl.textContent = 'Nothing to load';
+        }
+      }
+    }
+
+    function currentPresetPayload(){
+      return {
+        charges: charges.map(c=>({ x: Math.round(c.x), y: Math.round(c.y), qMicroC: c.qMicroC })),
+        display: {
+          showHeat: !!showHeatEl.checked,
+          showVectors: !!showVectorsEl.checked,
+          rangeV: parseFloat(displayRangeEl2.value),
+          autoScale: !!(autoScaleEl && autoScaleEl.checked)
+        }
+      };
+    }
+    function applyPresetPayload(p){
+      if (p?.charges) {
+        clearCharges();
+        for (const c of p.charges) addCharge(c.x, c.y, c.qMicroC);
+      }
+      if (p?.display) {
+        showHeatEl.checked = !!p.display.showHeat;
+        showVectorsEl.checked = !!p.display.showVectors;
+        displayRangeEl2.value = p.display.rangeV ?? displayRangeEl2.value;
+        if (typeof p.display.autoScale === 'boolean' && autoScaleEl) {
+          autoScaleEl.checked = p.display.autoScale;
+          displayRangeEl2.disabled = autoScaleEl.checked;
+          storage.set('e2_autoScale', autoScaleEl.checked);
+        }
+        storage.set('e2_showHeat', showHeatEl.checked);
+        storage.set('e2_showVectors', showVectorsEl.checked);
+        storage.set('e2_displayRangeV', Number(displayRangeEl2.value));
+        heatDirty = true;
+      }
+    }
+
+    // Shared defaults doc: app_config/electro_defaults
+    async function loadDefaultSettings(){
+      if (!fb.db) return;
+      try {
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, 'app_config', 'electro_defaults');
+        const snap = await getDoc(ref);
+        if (snap.exists()){
+          const d = snap.data();
+          if (typeof d.showHeat === 'boolean') showHeatEl.checked = d.showHeat;
+          if (typeof d.showVectors === 'boolean') showVectorsEl.checked = d.showVectors;
+          if (typeof d.rangeV === 'number') displayRangeEl2.value = d.rangeV;
+          if (typeof d.autoScale === 'boolean' && autoScaleEl) { autoScaleEl.checked = d.autoScale; displayRangeEl2.disabled = d.autoScale; }
+          storage.set('e2_showHeat', showHeatEl.checked);
+          storage.set('e2_showVectors', showVectorsEl.checked);
+          storage.set('e2_displayRangeV', Number(displayRangeEl2.value));
+          if (autoScaleEl) storage.set('e2_autoScale', autoScaleEl.checked);
+          heatDirty = true;
+        }
+      } catch {}
+    }
+
+    let saveDefaultsTimer = null;
+    function saveDefaultSettingsDebounced(){
+      if (!fb.db) return;
+      if (saveDefaultsTimer) clearTimeout(saveDefaultsTimer);
+      saveDefaultsTimer = setTimeout(()=>{ saveDefaultSettings().catch(()=>{}); }, 400);
+    }
+    async function saveDefaultSettings(){
+      if (!fb.db) return;
+      try {
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, 'app_config', 'electro_defaults');
+        await setDoc(ref, {
+          showHeat: !!showHeatEl.checked,
+          showVectors: !!showVectorsEl.checked,
+          rangeV: Number(displayRangeEl2.value),
+          autoScale: !!(autoScaleEl && autoScaleEl.checked),
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch {}
+    }
+
+    // --- Super basic collection write/read for vector pref ---
+    async function basicWriteVectorPref(show){
+      if (!fb.db) return;
+      try {
+        const { collection, addDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        await addDoc(collection(fb.db, 'vector_prefs'), { showVectors: !!show, ts: Date.now() });
+      } catch {}
+    }
+    async function basicLoadVectorPref(){
+      if (!fb.db) return;
+      try {
+        const { collection, getDocs, query, orderBy, limit } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const qs = await getDocs(query(collection(fb.db, 'vector_prefs'), orderBy('ts', 'desc'), limit(1)));
+        if (!qs.empty) {
+          const data = qs.docs[0].data();
+          if (typeof data.showVectors === 'boolean') {
+            showVectorsEl.checked = data.showVectors;
+            storage.set('e2_showVectors', data.showVectors);
+          }
+        }
+      } catch {}
+    }
+
+    // -------- Per-user display preferences (Firestore) --------
+    function prefsDocPath(){ return ['users', fb.uid, 'display_prefs', 'electro2']; }
+    async function saveUserDisplayPrefs(partial){
+      if (!fb.db) return;
+      try {
+        await ensureSignedIn();
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, ...prefsDocPath());
+        await setDoc(ref, { ...partial, updatedAt: Date.now() }, { merge: true });
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: prefs saved ✔';
+      } catch (e) {
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: prefs save failed';
+      }
+    }
+    async function loadUserDisplayPrefs(){
+      if (!fb.db) return;
+      try {
+        await ensureSignedIn();
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, ...prefsDocPath());
+        const snap = await getDoc(ref);
+        if (snap.exists()){
+          const d = snap.data() || {};
+          if (typeof d.showHeat === 'boolean') { showHeatEl.checked = d.showHeat; storage.set('e2_showHeat', d.showHeat); }
+          if (typeof d.showVectors === 'boolean') { showVectorsEl.checked = d.showVectors; storage.set('e2_showVectors', d.showVectors); }
+          if (typeof d.autoScale === 'boolean') { autoScaleEl.checked = d.autoScale; displayRangeEl2.disabled = d.autoScale; storage.set('e2_autoScale', d.autoScale); }
+          heatDirty = true; drawLegend();
+        }
+      } catch (e) {
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: prefs load failed';
+      }
+    }
+
+    // -------- Auto-save current scene to a fixed doc --------
+    let autosaveTimer = null;
+    function scheduleAutoSave(){
+      if (autosaveTimer) cancelAnimationFrame(autosaveTimer);
+      autosaveTimer = requestAnimationFrame(()=>{ setTimeout(()=>{ cloudAutoSave().catch(()=>{}); }, 600); });
+    }
+
+    async function cloudAutoSave(){
+      if (!cloudGuard()) return;
+      try {
+        const payload = currentPresetPayload();
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, 'users', fb.uid, 'electro_sessions', 'auto');
+        await setDoc(ref, { ...payload, updatedAt: Date.now() }, { merge: true });
+        cloudStatusEl.textContent = 'Cloud: autosaved ✔';
+      } catch { /* ignore transient errors */ }
+    }
+
+    // Render
+    function render(){
+      const now = performance.now();
+      const dt = Math.min(0.1, Math.max(0, (now - lastFrameTimeMs) / 1000)); // clamp dt for safety
+      lastFrameTimeMs = now;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(showHeatEl.checked){ if(heatDirty) computeHeatmap(); ctx.drawImage(heatCache,0,0,canvas.width,canvas.height); }
+      if(simRunning){
+        stepElectrons();
+        maintainElectronPopulation(dt);
+        drawFieldLines();
+        drawElectrons();
+      }
+      if(showVectorsEl.checked){ drawVectors(); }
+      drawCharges();
+      drawMeasure();
+      requestAnimationFrame(render);
+    }
+
+    // Restore preferences
+    (function restorePrefs(){
+      const savedRange = storage.get('e2_displayRangeV', 40);
+      const savedShowHeat = storage.get('e2_showHeat', true);
+      const savedShowVectors = storage.get('e2_showVectors', false);
+      const savedAutoScale = storage.get('e2_autoScale', true);
+      if (displayRangeEl2) displayRangeEl2.value = savedRange;
+      if (showHeatEl) showHeatEl.checked = !!savedShowHeat;
+      if (showVectorsEl) showVectorsEl.checked = !!savedShowVectors;
+      if (autoScaleEl) { autoScaleEl.checked = !!savedAutoScale; displayRangeEl2.disabled = !!savedAutoScale; }
+      if (selectedChargeMagEl) { selectedChargeMagEl.value = ''; selectedChargeMagEl.disabled = true; }
+      heatDirty = true;
+    })();
+
+    // Init
+    presetDipole();
+    render();
+    maybeShowConsent();
+    // Initialize Firebase, then load user-specific display prefs
+    (async function(){
+      try {
+        await maybeInitFirebase();
+        await loadUserDisplayPrefs();
+        // Ensure per-user docs exist even before any toggle changes
+        await saveUserDisplayPrefs({
+          showHeat: !!showHeatEl?.checked,
+          showVectors: !!showVectorsEl?.checked,
+          autoScale: !!autoScaleEl?.checked
+        }).catch(()=>{});
+      } catch {}
+    })();
+
+    // Manual save/load only on user action
+    saveCloudBtn?.addEventListener('click', ()=>{ saveScene().catch(()=>{ if (cloudStatusEl) cloudStatusEl.textContent = 'Save failed'; }); });
+    loadCloudBtn?.addEventListener('click', ()=>{ loadScene().catch(()=>{ if (cloudStatusEl) cloudStatusEl.textContent = 'Load failed'; }); });
+  </script>
+</body>
+</html>
+

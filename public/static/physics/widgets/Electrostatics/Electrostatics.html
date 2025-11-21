@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Electrostatics 2 — Equipotentials & Electron Flow</title>
+  
+  <script src="./firebase-config.js"></script>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-contrast: #ffffff;
+      --danger: #ef4444;
+      --success: #16a34a;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+    }
+
+    header, footer {
+      padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    footer { border-top: 1px solid var(--border); border-bottom: none; font-size: 12px; color: var(--muted); }
+    header h1 { margin: 0; font-size: 20px; }
+    .sub { font-size: 13px; color: var(--muted); }
+
+    .wrap { display: grid; grid-template-columns: 300px 1fr 300px; gap: 16px; padding: 16px; height: 100%; min-height: 0; }
+    @media (max-width: 1100px){ .wrap { grid-template-columns: 1fr; overflow: auto; } body { overflow: auto; } .canvas-wrap { max-height: 60vh; } }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); display: grid; gap: 12px; align-content: start; }
+    .group { display: grid; gap: 8px; }
+    .group h3 { margin: 2px 0 4px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .2px; }
+    .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+    .note { font-size: 12px; color: var(--muted); }
+
+    .btn { appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 8px 12px; font-weight: 600; font-size: 13px; cursor: pointer; transition: background .15s ease, transform .06s ease; }
+    .btn:hover { transform: translateY(-1px); background: #f1f5f9; }
+    .btn.primary { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+    .btn.primary:hover { filter: brightness(0.95); }
+    .btn.danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+    .btn.ok { background: #dcfce7; color: #065f46; border-color: #bbf7d0; }
+
+    input[type="number"], input[type="range"] { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 8px; outline: none; }
+    .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+
+    .canvas-wrap { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; aspect-ratio: 1100 / 720; }
+    canvas { display: block; width: 100%; height: auto; background: #ffffff; aspect-ratio: 1100 / 720; }
+
+    .legend { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+    .kbd { padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border); background: #f1f5f9; color: #0f172a; }
+
+    .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    a { color: var(--primary); text-decoration: none; }
+    /* Guided tour */
+    .tour-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 10000; }
+    .tour-tooltip { position: fixed; max-width: 380px; background: #ffffff; color: var(--text); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 14px; z-index: 10003; }
+    .tour-tooltip h4 { margin: 0 0 6px; font-size: 15px; }
+    .tour-tooltip p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+    .tour-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .tour-btn { appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 6px 10px; font-weight: 600; font-size: 12px; cursor: pointer; }
+    .tour-btn.primary { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+    .tour-highlight { position: relative; z-index: 10002 !important; box-shadow: 0 0 0 3px rgba(37,99,235,.9), 0 0 0 6px rgba(37,99,235,.2); border-radius: 10px; transition: box-shadow .2s ease; }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h1>⚡ Electrostatics 2 — Equipotentials & Electron Flow</h1>
+        <div class="sub">Hot→cool gradient for potential. Simulate electron flow along field lines.</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="startTour" class="btn" title="Step-by-step guide to the features">Tutorial</button>
+        <button id="simulate" class="btn primary" title="Simulate electron flow (negative charges) and field lines — electrons move opposite to E arrows">Simulate Flow</button>
+        <button id="resetSim" class="btn" title="Stop and clear electrons">Reset</button>
+        <button id="saveCloud" class="btn" title="Save current scene and settings">Save</button>
+        <button id="loadCloud" class="btn" title="Load saved scene and settings">Load</button>
+        <span id="cloudStatus" class="note">Cloud: idle</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <aside class="panel">
+      <div class="group">
+        <h3>Charges</h3>
+        <div class="row"><button id="addPos" class="btn ok" title="Add +1 µC near center">+ Add +1 µC</button><div class="note">Positive charge</div></div>
+        <div class="row"><button id="addNeg" class="btn danger" title="Add −1 µC near center">+ Add −1 µC</button><div class="note">Negative charge</div></div>
+        <div class="row"><label>Selected charge (µC)</label><input id="selectedChargeMag" type="number" step="0.1" placeholder="—" style="width:100px;" /></div>
+        <div class="row"><button id="clear" class="btn danger" title="Remove all charges">Clear All</button><div class="note">Reset scene</div></div>
+      </div>
+
+      <div class="group">
+        <h3>Presets</h3>
+        <div class="row"><button id="dipole" class="btn">Dipole</button><div class="note">+q and −q</div></div>
+      </div>
+
+      <div class="group">
+        <h3>Display</h3>
+        <label class="toggle"><input type="checkbox" id="showHeat" checked /> Show potential heatmap (hot→cool)</label>
+        <label class="toggle"><input type="checkbox" id="showVectors" /> Show field vectors E</label>
+        <label class="toggle"><input type="checkbox" id="autoScale" checked /> Auto color scale</label>
+        <div class="row"><label>Display range (±V)</label><input id="displayRangeV2" type="number" min="2" step="2" value="40" style="width:90px;" /></div>
+      </div>
+
+      
+
+      <div class="group">
+        <h3>Interaction</h3>
+        <div class="legend">
+          <div>Drag charges. Hold <span class="kbd">Shift</span> while dragging to duplicate.</div>
+          <div>Arrows show E: the direction a + charge moves; electrons (−) move opposite.</div>
+          <div><em>Simulate Flow</em> shows electron flow (− charges), so the dots move against the arrows.</div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="canvas-wrap">
+      <canvas id="canvas" width="1100" height="720" aria-label="Electrostatics simulation"></canvas>
+    </section>
+
+    <aside class="panel">
+      <div class="group" id="probeGroup">
+        <h3>Probe (cursor)</h3>
+        <div class="row"><div title="E = F/q. F (force): Newtons (N). q (charge): Coulombs (C). E (electric field): N/C or V/m (force per unit charge).">Electric Field (N/C)</div><div class="mono" id="E_mag">—</div></div>
+        <div class="row"><div title="V = W/q. Work per charge (work divided by charge). Represents potential energy per unit charge. Also called voltage and measured in volts (V).">Electric Potential (V)</div><div class="mono" id="V">—</div></div>
+        <div class="note">Values are at the cursor. |E| is field strength (force per unit charge). V is potential (energy per unit charge).</div>
+      </div>
+      <div class="group">
+        <h3>Color Legend</h3>
+        <div class="note">Color ↔ potential V (uses current display range)</div>
+        <canvas id="legendCanvas" width="80" height="240" aria-label="Color to potential legend" style="border:1px solid var(--border); border-radius:8px; background:#fff;"></canvas>
+      </div>
+      <div class="group">
+        <h3>About</h3>
+        <div class="note">Heatmap shows V: hot (red) for higher V, cool (blue) for lower V. Field lines and electron flow appear when you press <em>Simulate Flow</em>. Electrons are negative, so they move opposite to the E arrows (which show where a + charge would go).</div>
+        <div class="note">Style guided by <a href="https://learnhw.web.app/admin" target="_blank" rel="noopener">admin design</a>.</div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>© 2025 • Electrostatics visualization — equipotentials and electron flow</footer>
+
+  <!-- Cookie/Storage consent banner -->
+  <div id="cookie-consent" style="position:fixed;left:0;right:0;bottom:0;padding:12px 16px;background:#111827;color:#ffffff;display:none;z-index:9999;border-top:1px solid rgba(255,255,255,.1)">
+    This site uses cookies and local storage to remember preferences.
+    <button id="cookie-accept" class="btn" style="margin-left:8px;background:#16a34a;color:#fff;border-color:#16a34a">Accept</button>
+    <button id="cookie-decline" class="btn" style="margin-left:6px">Decline</button>
+  </div>
+
+  <script>
+    // -------- Storage helpers --------
+    const storage = {
+      get(key, fallback = null) {
+        try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
+      },
+      set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+      remove(key) { try { localStorage.removeItem(key); } catch {} }
+    };
+
+    // -------- Cookie helpers --------
+    function setCookie(name, value, days = 365) {
+      const expires = new Date(Date.now() + days*864e5).toUTCString();
+      const secure = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = encodeURIComponent(name) + '=' + encodeURIComponent(value) + '; Expires=' + expires + '; Path=/; SameSite=Lax' + secure;
+    }
+    function getCookie(name) {
+      const row = document.cookie.split('; ').find(r => r.startsWith(encodeURIComponent(name) + '='));
+      return row ? decodeURIComponent(row.split('=')[1]) : undefined;
+    }
+    function deleteCookie(name) {
+      const secure = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = encodeURIComponent(name) + '=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax' + secure;
+    }
+
+    // Physics constants
+    const k = 8.9875517923e9; // N m^2 / C^2
+    const meterPerPixel = 0.01; // 1 px = 1 cm
+    const soften = 0.01; // m — avoid singularities
+
+    // Elements
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const addPosBtn = document.getElementById('addPos');
+    const addNegBtn = document.getElementById('addNeg');
+    const clearBtn = document.getElementById('clear');
+    const selectedChargeMagEl = document.getElementById('selectedChargeMag');
+    const dipoleBtn = document.getElementById('dipole');
+    const simulateBtn = document.getElementById('simulate');
+    const resetSimBtn = document.getElementById('resetSim');
+    const saveCloudBtn = document.getElementById('saveCloud');
+    const loadCloudBtn = document.getElementById('loadCloud');
+    const showHeatEl = document.getElementById('showHeat');
+    const showVectorsEl = document.getElementById('showVectors');
+    const displayRangeEl2 = document.getElementById('displayRangeV2');
+    const autoScaleEl = document.getElementById('autoScale');
+    const E_magEl = document.getElementById('E_mag');
+    const VEl = document.getElementById('V');
+    const startTourBtn = document.getElementById('startTour');
+    const consentBar = document.getElementById('cookie-consent');
+    const consentAccept = document.getElementById('cookie-accept');
+    const consentDecline = document.getElementById('cookie-decline');
+    const cloudStatusEl = document.getElementById('cloudStatus');
+
+    // State
+    const charges = []; // {id,x,y,qMicroC,locked}
+    let selectedId = null;
+    let draggingId = null; let dragOffset = {x:0,y:0}; let dupOnDrag = false;
+    let heatCache = null; let heatDirty = true;
+    let simRunning = false;
+    let electrons = []; // {x,y,life}
+    let lastVmin = 0, lastVmax = 0, lastVclip = 40, lastAmp = 40;
+
+    // Helpers
+    function toMeters(dxPx, dyPx){ return { dx: dxPx * meterPerPixel, dy: dyPx * meterPerPixel }; }
+    function E_and_V_at(x, y){
+      let Ex = 0, Ey = 0, V = 0;
+      for (const c of charges){
+        const dxPx = x - c.x, dyPx = y - c.y;
+        const {dx, dy} = toMeters(dxPx, dyPx);
+        const r2 = dx*dx + dy*dy + soften*soften; const r = Math.sqrt(r2);
+        const qC = c.qMicroC * 1e-6;
+        const coeff = k * qC / (r2 * r);
+        Ex += coeff * dx; Ey += coeff * dy; V += k * qC / r;
+      }
+      return {Ex, Ey, V};
+    }
+    function fmt(x, unit){ if(!isFinite(x)) return '—'; const ax=Math.abs(x); let v=x, p=''; if(ax>=1e6){v=x/1e6;p='M';} else if(ax>=1e3){v=x/1e3;p='k';} else if(ax<1e-6){v=x*1e9;p='n';} else if(ax<1e-3){v=x*1e6;p='µ';} else if(ax<1){v=x*1e3;p='m';} return v.toFixed(3).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1')+ ' ' + p + unit; }
+
+    // Heatmap: deep blue (low) → cyan → green → yellow → orange → red (high)
+    const HEAT_GAMMA = 0.75; // <1 increases contrast between adjacent color levels
+    const AUTO_PERCENTILE = 0.90; // robust clip for auto color scale (90th percentile of |V|)
+    const HEATMAP_RES_PX = 480; // fixed high detail resolution (previous slider max)
+    function niceClipValue(v){
+      const base = Math.max(2, Math.abs(v) || 2);
+      const exp = Math.floor(Math.log10(base));
+      const pow = Math.pow(10, exp);
+      const scaled = base / pow;
+      const candidates = [1, 2, 5, 10];
+      let best = candidates[0], bestDiff = Infinity;
+      for(const c of candidates){
+        const val = c * pow;
+        const diff = Math.abs(val - base);
+        if (diff < bestDiff){ bestDiff = diff; best = val; }
+      }
+      return Math.max(2, Math.round(best));
+    }
+    function applyGammaSymmetric(t, gamma){ // t in [-1,1]
+      const s = (t + 1) * 0.5; // [0,1]
+      const sg = Math.pow(s, gamma);
+      return sg * 2 - 1; // back to [-1,1]
+    }
+    function colorHotCool(t){ // t in [-1,1]
+      const clamp=(v,min,max)=>Math.max(min,Math.min(max,v)); t=clamp(t,-1,1);
+      const stops = [
+        { t:-1.0, c:[0  , 56 ,168, 185] }, // deep blue
+        { t:-0.6, c:[0  ,160,255, 185] }, // cyan
+        { t:-0.2, c:[0  ,153,  0, 185] }, // green
+        { t: 0.2, c:[255,235, 59, 185] }, // yellow
+        { t: 0.6, c:[255,152,  0, 185] }, // orange
+        { t: 1.0, c:[211, 47, 47, 185] }  // red
+      ];
+      for(let i=0;i<stops.length-1;i++){
+        const a=stops[i], b=stops[i+1];
+        if(t>=a.t && t<=b.t){
+          const u=(t-a.t)/(b.t-a.t);
+          const lerp=(x,y,p)=>Math.round(x+(y-x)*p);
+          return [ lerp(a.c[0],b.c[0],u), lerp(a.c[1],b.c[1],u), lerp(a.c[2],b.c[2],u), lerp(a.c[3],b.c[3],u) ];
+        }
+      }
+      return stops[t<0?0:stops.length-1].c;
+    }
+    function drawLegend(){
+      const el = document.getElementById('legendCanvas');
+      if(!el) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = 80, cssH = 240;
+      if (el.width !== Math.round(cssW*dpr)) {
+        el.width = Math.round(cssW*dpr);
+        el.height = Math.round(cssH*dpr);
+        el.style.width = cssW + 'px';
+        el.style.height = cssH + 'px';
+      }
+      const lctx = el.getContext('2d');
+      lctx.save(); lctx.scale(dpr,dpr);
+      lctx.clearRect(0,0,cssW,cssH);
+      // gradient bar
+      const barX = 8, barW = 18, barY = 8, barH = cssH - 16;
+      for(let y=0; y<barH; y++){
+        const tt = 1 - y/(barH-1); // 1..0 (top to bottom)
+        const t = tt*2 - 1;
+        const tAdj = applyGammaSymmetric(t, HEAT_GAMMA);
+        const [r,g,b,a8] = colorHotCool(tAdj);
+        lctx.fillStyle = `rgba(${r},${g},${b},${(a8/255).toFixed(3)})`;
+        lctx.fillRect(barX, barY + y, barW, 1);
+      }
+      lctx.strokeStyle = 'rgba(15,23,42,0.6)'; lctx.lineWidth = 1;
+      lctx.strokeRect(barX+0.5, barY+0.5, barW-1, barH-1);
+      // ticks and labels
+      lctx.fillStyle = '#0f172a';
+      lctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+      lctx.textBaseline = 'middle';
+      const tickVals = [ lastVclip, lastVclip*0.5, 0, -lastVclip*0.5, -lastVclip ];
+      for(const v of tickVals){
+        const tt = 1 - ((v + lastVclip) / (2*lastVclip)); // 0..1 bottom to top inverted
+        const y = barY + tt * barH;
+        lctx.beginPath();
+        lctx.moveTo(barX + barW + 4, y);
+        lctx.lineTo(barX + barW + 10, y);
+        lctx.stroke();
+        lctx.fillText(fmt(v,'V'), barX + barW + 14, y);
+      }
+      lctx.restore();
+    }
+    function computeHeatmap(){
+      const w = HEATMAP_RES_PX; const h = Math.round(w * canvas.height / canvas.width);
+      const off = document.createElement('canvas'); off.width = w; off.height = h; const ictx = off.getContext('2d');
+      const img = ictx.createImageData(w,h); const Vs = new Float32Array(w*h);
+      let vmin=Infinity, vmax=-Infinity, i=0;
+      for(let j=0;j<h;j++){
+        for(let i2=0;i2<w;i2++){
+          const x = (i2+0.5) * canvas.width / w; const y = (j+0.5) * canvas.height / h;
+          const {V} = E_and_V_at(x,y); Vs[i]=V; if(V<vmin) vmin=V; if(V>vmax) vmax=V; i++;
+        }
+      }
+      lastVmin = vmin; lastVmax = vmax; lastAmp = Math.max(Math.abs(vmin), Math.abs(vmax)) || 1;
+      const userRange = Math.max(2, Math.abs(parseFloat(displayRangeEl2.value)||40));
+      let Vclip;
+      if (autoScaleEl && autoScaleEl.checked) {
+        // robust auto clip by percentile of |V|
+        const absArr = Array.from(Vs, v => Math.abs(v));
+        absArr.sort((a,b)=>a-b);
+        const idx = Math.max(0, Math.min(absArr.length - 1, Math.floor((absArr.length - 1) * AUTO_PERCENTILE)));
+        Vclip = Math.max(2, absArr[idx] || userRange);
+        Vclip = niceClipValue(Vclip);
+      } else {
+        Vclip = Math.min(lastAmp, userRange);
+      }
+      lastVclip = Vclip;
+      if (autoScaleEl && autoScaleEl.checked && displayRangeEl2) {
+        displayRangeEl2.value = String(Vclip);
+      }
+      const totalBands = Math.max(1, Math.floor((2 * Vclip) / 2)); // 2V per band
+      i=0; for(let j=0;j<h;j++){
+        for(let i2=0;i2<w;i2++){
+          const Vraw = Vs[i++];
+          const Vc = Math.max(-Vclip, Math.min(Vraw, Vclip));
+          const bandIndex = Math.floor((Vc + Vclip) / 2);
+          const tBand = totalBands > 0 ? (bandIndex / totalBands) : 0.5;
+          const t = tBand * 2 - 1;
+          const tAdj = applyGammaSymmetric(t, HEAT_GAMMA);
+          const [r,g,b,a8] = colorHotCool(tAdj); const k = (j*w + i2) * 4;
+          img.data[k]=r; img.data[k+1]=g; img.data[k+2]=b; img.data[k+3]=a8;
+        }
+      }
+      ictx.putImageData(img,0,0); heatCache = off; heatDirty=false;
+      drawLegend();
+    }
+
+    // Field vectors (optional)
+    function drawVectors(){
+      const step = 50; // fixed density for clarity
+      ctx.save(); ctx.strokeStyle = 'rgba(15,23,42,.7)'; ctx.lineWidth = 1;
+      for(let y=step/2; y<canvas.height; y+=step){
+        for(let x=step/2; x<canvas.width; x+=step){
+          const {Ex,Ey} = E_and_V_at(x,y); const m = Math.hypot(Ex,Ey); if(m<=0) continue;
+          const nx=Ex/m, ny=Ey/m; const len = Math.min(26, 6 + 8*Math.log10(1+m*1e6));
+          const x2 = x + nx*len; const y2 = y + ny*len;
+          ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x2,y2); ctx.stroke();
+          const tx=-ny, ty=nx; ctx.beginPath(); ctx.moveTo(x2,y2);
+          ctx.lineTo(x2 - nx*6 + tx*3, y2 - ny*6 + ty*3);
+          ctx.lineTo(x2 - nx*6 - tx*3, y2 - ny*6 - ty*3);
+          ctx.closePath(); ctx.fillStyle='rgba(15,23,42,.7)'; ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    // Field lines (shown during simulation)
+    function drawFieldLines(){
+      const seedsPer = 10, stepLen=6, maxSteps=1200;
+      ctx.save(); ctx.strokeStyle='rgba(15,23,42,.35)'; ctx.lineWidth=1;
+      for(const c of charges){
+        const r0=16; for(let k=0;k<seedsPer;k++){
+          const ang = (k/seedsPer)*Math.PI*2; let x=c.x+Math.cos(ang)*r0; let y=c.y+Math.sin(ang)*r0;
+          ctx.beginPath(); ctx.moveTo(x,y);
+          for(let s=0;s<maxSteps;s++){
+            const {Ex,Ey}=E_and_V_at(x,y); const m=Math.hypot(Ex,Ey); if(m<1e-7) break;
+            const nx=Ex/m, ny=Ey/m; x+=nx*stepLen; y+=ny*stepLen; ctx.lineTo(x,y);
+            if(x<0||y<0||x>canvas.width||y>canvas.height) break;
+          }
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    // Electron flow (particles move opposite to E)
+    function seedElectrons(count=280){
+      electrons.length=0; for(let i=0;i<count;i++){
+        electrons.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, life: Math.random()*800+400 });
+      }
+    }
+    function stepElectrons(){
+      const speedBase = 0.5; // slower base speed for clear observation
+      for(const e of electrons){
+        const {Ex,Ey} = E_and_V_at(e.x,e.y); const m = Math.hypot(Ex,Ey);
+        if(m>0){ const nx=Ex/m, ny=Ey/m; // E direction
+          // move opposite to E (electron, q<0), speed scales with field (log for stability) but capped
+          const v = Math.min(1.2, speedBase * (1 + Math.log10(1+m*1e6)));
+          e.x -= nx * v; e.y -= ny * v;
+        }
+        e.life -= 1; if(e.life<=0 || e.x<0||e.y<0||e.x>canvas.width||e.y>canvas.height){
+          e.x = Math.random()*canvas.width; e.y = Math.random()*canvas.height; e.life = Math.random()*800+400;
+        }
+      }
+    }
+    function drawElectrons(){
+      ctx.save();
+      for(const e of electrons){
+        // white circle with black border and 'e' inside
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, 4, 0, Math.PI*2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = '#000000';
+        ctx.stroke();
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 7px system-ui, -apple-system, Segoe UI';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('e', e.x, e.y+0.3);
+      }
+      ctx.restore();
+    }
+
+    // Charges drawing & interaction
+    function drawCharges(){
+      for(const c of charges){
+        const r=12; ctx.beginPath(); ctx.fillStyle = c.qMicroC>=0 ? '#ef4444' : '#3b82f6';
+        ctx.strokeStyle='#0f172a'; ctx.lineWidth=1; ctx.arc(c.x,c.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#ffffff'; ctx.font='bold 12px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(c.qMicroC>=0?'+':'−', c.x, c.y);
+      }
+    }
+    function pickCharge(x,y){ for(let i=charges.length-1;i>=0;i--){ const c=charges[i]; if(Math.hypot(x-c.x,y-c.y)<=14) return c.id; } return null; }
+    canvas.addEventListener('mousedown',(e)=>{
+      const r=canvas.getBoundingClientRect(); const x=(e.clientX-r.left)*(canvas.width/r.width); const y=(e.clientY-r.top)*(canvas.height/r.height);
+      const id=pickCharge(x,y); if(id){ const c=charges.find(c=>c.id===id); draggingId=id; selectedId=id; dupOnDrag=e.shiftKey; dragOffset.x=x-c.x; dragOffset.y=y-c.y; if(selectedChargeMagEl){ selectedChargeMagEl.value = String(c.qMicroC); selectedChargeMagEl.disabled = false; } }
+    });
+    canvas.addEventListener('mousemove',(e)=>{
+      const r=canvas.getBoundingClientRect(); const x=(e.clientX-r.left)*(canvas.width/r.width); const y=(e.clientY-r.top)*(canvas.height/r.height);
+      const {Ex,Ey,V}=E_and_V_at(x,y); E_magEl.textContent=fmt(Math.hypot(Ex,Ey),'N/C'); VEl.textContent=fmt(V,'V');
+      if(draggingId){ const i=charges.findIndex(c=>c.id===draggingId); if(i>=0){ if(dupOnDrag){ const c0=charges[i]; const dup=addCharge(c0.x,c0.y,c0.qMicroC); draggingId=dup.id; dupOnDrag=false; } const c=charges.find(c=>c.id===draggingId); c.x=x-dragOffset.x; c.y=y-dragOffset.y; heatDirty=true; } }
+    });
+    window.addEventListener('mouseup',()=>{ draggingId=null; });
+
+    function addCharge(x,y,qMicroC){ const id=Math.random().toString(36).slice(2); charges.push({id,x,y,qMicroC,locked:false}); selectedId=id; heatDirty=true; return {id}; }
+    function clearCharges(){ charges.length=0; selectedId=null; if(selectedChargeMagEl){ selectedChargeMagEl.value=''; selectedChargeMagEl.disabled=true; } heatDirty=true; }
+    function center(){ return {x: canvas.width/2, y: canvas.height/2}; }
+    function presetDipole(){ clearCharges(); const c=center(); addCharge(c.x-90,c.y,+1.0); addCharge(c.x+90,c.y,-1.0); }
+
+    // UI bindings
+    addPosBtn.addEventListener('click',()=>{ const c=center(); addCharge(c.x+(Math.random()*60-30), c.y+(Math.random()*60-30), +1.0); });
+    addNegBtn.addEventListener('click',()=>{ const c=center(); addCharge(c.x+(Math.random()*60-30), c.y+(Math.random()*60-30), -1.0); });
+    clearBtn.addEventListener('click',()=>{ clearCharges(); heatDirty=true; });
+    dipoleBtn.addEventListener('click',()=>{ presetDipole(); });
+    showHeatEl.addEventListener('change',()=>{ heatDirty=true; });
+    showVectorsEl.addEventListener('change',()=>{ 
+      const val = !!showVectorsEl.checked;
+      storage.set('e2_showVectors', val);
+      saveUserDisplayPrefs({ showVectors: val }).catch(()=>{});
+    });
+    displayRangeEl2.addEventListener('input',()=>{ storage.set('e2_displayRangeV', Number(displayRangeEl2.value)); heatDirty=true; drawLegend(); });
+    autoScaleEl?.addEventListener('change',()=>{
+      const on = !!autoScaleEl.checked;
+      displayRangeEl2.disabled = on;
+      storage.set('e2_autoScale', on);
+      saveUserDisplayPrefs({ autoScale: on }).catch(()=>{});
+      if (on) {
+        // Update immediately to show auto value in the input and legend
+        heatDirty = true;
+        computeHeatmap();
+      } else {
+        // Restore last manual value to the input without overwriting storage
+        const saved = storage.get('e2_displayRangeV', Number(displayRangeEl2.value) || 40);
+        displayRangeEl2.value = saved;
+        heatDirty = true;
+        drawLegend();
+      }
+    });
+    showHeatEl.addEventListener('change',()=>{ storage.set('e2_showHeat', showHeatEl.checked); saveUserDisplayPrefs({ showHeat: !!showHeatEl.checked }).catch(()=>{}); heatDirty=true; });
+    selectedChargeMagEl?.addEventListener('input',()=>{ const v = parseFloat(selectedChargeMagEl.value); if(!isNaN(v) && selectedId){ const c = charges.find(cc=>cc.id===selectedId); if(c){ c.qMicroC = v; heatDirty=true; } } });
+
+    // --- Guided Tour ---
+    const tour = {
+      steps: [
+        { selector: null, title: 'Welcome', text: 'This interactive tool visualizes electric potential (colors) and electric field (vectors/flow). Use Next to explore features.' },
+        { selector: '#addPos', title: 'Add a positive charge', text: 'Click + Add +1 µC to place a positive charge near the center.' },
+        { selector: '#addNeg', title: 'Add a negative charge', text: 'Click + Add −1 µC to place a negative charge.' },
+        { selector: '.canvas-wrap', title: 'Move or duplicate charges', text: 'Drag charges on the canvas to reposition. Hold Shift while dragging to duplicate.' },
+        { selector: '#selectedChargeMag', title: 'Edit selected charge', text: 'Click a charge to select it, then change its magnitude here (µC). Use positive for +q and negative for −q. The heatmap and field update immediately.' },
+        { selector: '#dipole', title: 'Dipole preset', text: 'Quickly set up +q and −q facing each other.' },
+        { selector: '#showHeat', title: 'Potential heatmap', text: 'Colors show electric potential V. Red is higher, blue lower. Toggle visibility here.' },
+        { selector: '#autoScale', title: 'Auto color scale', text: 'Automatically chooses a good ±V range to reveal variation. Turn off to set the range manually.' },
+        { selector: '#displayRangeV2', title: 'Manual ±V range', text: 'When Auto is off, set the ±V range to control the color mapping. The legend updates to match.' },
+        { selector: '#showVectors', title: 'Field vectors', text: 'Show electric field arrows E. Arrows point in the direction a positive charge would accelerate.' },
+        { selector: '#simulate', title: 'Simulate Flow', text: 'Start to see field lines and electrons moving opposite to E (since electrons have negative charge).' },
+        { selector: '#resetSim', title: 'Reset', text: 'Stop the simulation and clear electrons. Charges remain.' },
+        { selector: '#probeGroup', title: 'Probe readout', text: 'Move the cursor over the canvas to read Electric Field (N/C) and Electric Potential (V) at the cursor. The readouts update continuously as you move.' },
+        { selector: '#probeGroup', title: 'Electric Field (N/C)', text: 'Electric field is force per unit positive charge. The probe shows |E| (strength) in N/C (same units as V/m). Bigger |E| means a stronger field: it is largest near charges and decreases with distance. The number is magnitude only; to see direction, enable Field vectors or Simulate Flow (arrows show where a + charge would go; electrons move opposite).' },
+        { selector: '#probeGroup', title: 'Electric Potential (V)', text: 'V = W/q (work per charge). It represents the potential energy per unit charge at a point. Electric potential is also called voltage and is measured in volts (V). Analogy: Water at the top of a hill has more potential energy than at the bottom; the height difference is like the voltage (potential difference).' },
+        { selector: '#legendCanvas', title: 'Color legend', text: 'Maps colors to potential V using the current ±V range. Tick marks show approximate values.' },
+        { selector: '#saveCloud', title: 'Save / Load', text: 'Save your scene and settings. If cloud is configured, it saves online; otherwise it saves locally.' },
+        { selector: '#clear', title: 'Clear charges', text: 'Remove all charges to start fresh.' },
+        { selector: null, title: 'You are ready!', text: 'That’s it. You can reopen this tutorial any time using the Tutorial button in the header.' }
+      ],
+      index: 0,
+      overlayEl: null,
+      tooltipEl: null,
+      currentHighlight: null
+    };
+    function tourEnd(){ removeHighlight(); if(tour.overlayEl) tour.overlayEl.remove(); if(tour.tooltipEl) tour.tooltipEl.remove(); tour.overlayEl=null; tour.tooltipEl=null; storage.set('e2_tour_seen', true); window.removeEventListener('resize', tourReposition, { passive: true }); window.removeEventListener('scroll', tourReposition, { passive: true, capture: true }); }
+    function removeHighlight(){ if(tour.currentHighlight){ tour.currentHighlight.classList.remove('tour-highlight'); tour.currentHighlight=null; } }
+    function getTargetForStep(step){
+      if(!step?.selector) return null;
+      let el = document.querySelector(step.selector);
+      if (!el && step.selector === '#E_mag') el = document.getElementById('E_mag');
+      return el;
+    }
+    function ensureOverlay(){ if(!tour.overlayEl){ tour.overlayEl = document.createElement('div'); tour.overlayEl.className='tour-overlay'; document.body.appendChild(tour.overlayEl); } }
+    function ensureTooltip(){ if(!tour.tooltipEl){ const t = document.createElement('div'); t.className='tour-tooltip'; t.setAttribute('role','dialog'); t.innerHTML = '<h4></h4><p></p><div class=\"tour-actions\"><button class=\"tour-btn\" data-action=\"skip\">Skip</button><button class=\"tour-btn\" data-action=\"back\">Back</button><button class=\"tour-btn primary\" data-action=\"next\">Next</button></div>'; document.body.appendChild(t); tour.tooltipEl = t; tour.tooltipEl.addEventListener('click', (e)=>{ const a = e.target?.getAttribute?.('data-action'); if(!a) return; if(a==='skip'){ tourEnd(); } else if(a==='back'){ tourPrev(); } else if(a==='next'){ tourNext(); } }); } }
+    function positionTooltipNear(target){
+      const pad = 10;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const box = target?.getBoundingClientRect?.();
+      const t = tour.tooltipEl;
+      if(!t) return;
+      t.style.left = 'unset'; t.style.top='unset'; t.style.right='unset'; t.style.bottom='unset';
+      if(!box){
+        const tw = Math.min(380, vw - 20), th = t.offsetHeight || 160;
+        t.style.maxWidth = tw + 'px';
+        t.style.left = Math.round((vw - tw)/2) + 'px';
+        t.style.top = Math.round((vh - th)/2) + 'px';
+        return;
+      }
+      const th = t.offsetHeight || 180;
+      const tw = Math.min(380, t.offsetWidth || 340);
+      let left = Math.min(Math.max(10, box.left), vw - tw - 10);
+      let topBelow = box.bottom + pad;
+      let top;
+      if (topBelow + th <= vh - 10) {
+        top = topBelow;
+      } else {
+        let topAbove = box.top - th - pad;
+        if (topAbove >= 10) {
+          top = topAbove;
+        } else {
+          top = Math.max(10, Math.min(vh - th - 10, topBelow));
+        }
+      }
+      t.style.left = Math.round(left) + 'px';
+      t.style.top = Math.round(top) + 'px';
+    }
+    function highlightTarget(target){
+      removeHighlight();
+      if(!target) return;
+      target.classList.add('tour-highlight');
+      tour.currentHighlight = target;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }
+    function showStep(i){
+      tour.index = i;
+      const step = tour.steps[i];
+      ensureOverlay(); ensureTooltip();
+      const titleEl = tour.tooltipEl.querySelector('h4'); const textEl = tour.tooltipEl.querySelector('p');
+      if(titleEl) titleEl.textContent = step.title || '';
+      if(textEl) textEl.textContent = step.text || '';
+      const backBtn = tour.tooltipEl.querySelector('[data-action=\"back\"]');
+      const nextBtn = tour.tooltipEl.querySelector('[data-action=\"next\"]');
+      if(backBtn) backBtn.disabled = (i===0);
+      if(nextBtn) nextBtn.textContent = (i >= tour.steps.length-1) ? 'Done' : 'Next';
+      const target = getTargetForStep(step);
+      highlightTarget(target);
+      positionTooltipNear(target);
+    }
+    function tourNext(){ if(tour.index >= tour.steps.length-1){ tourEnd(); } else { showStep(tour.index+1); } }
+    function tourPrev(){ if(tour.index <= 0){ showStep(0); } else { showStep(tour.index-1); } }
+    function tourStart(fromStep=0){ showStep(fromStep); window.addEventListener('resize', tourReposition, { passive: true }); window.addEventListener('scroll', tourReposition, { passive: true, capture: true }); }
+    function tourReposition(){ const step = tour.steps[tour.index]; const target = getTargetForStep(step); positionTooltipNear(target); }
+    startTourBtn?.addEventListener('click', ()=>{ tourStart(0); });
+
+    // Consent banner (still used for cookies, but not gating Firestore writes)
+    const consentKey = 'e2_cookie_consent';
+    function adjustForBanner(on){
+      const wrap = document.querySelector('.wrap');
+      if (!wrap) return;
+      if (on) {
+        const h = consentBar?.offsetHeight || 0;
+        wrap.style.paddingBottom = (h + 8) + 'px';
+      } else {
+        wrap.style.paddingBottom = '';
+      }
+    }
+    function maybeShowConsent(){ if (!getCookie(consentKey)) { consentBar.style.display = 'block'; setTimeout(()=>adjustForBanner(true), 0); } }
+    consentAccept?.addEventListener('click', ()=>{ setCookie(consentKey,'yes',365); consentBar.style.display='none'; adjustForBanner(false); });
+    consentDecline?.addEventListener('click', ()=>{ setCookie(consentKey,'no',365); consentBar.style.display='none'; adjustForBanner(false); });
+    simulateBtn.addEventListener('click',()=>{ simRunning=!simRunning; simulateBtn.textContent = simRunning? 'Stop' : 'Simulate Flow'; if(simRunning){ if(electrons.length===0) seedElectrons(); } });
+    resetSimBtn.addEventListener('click',()=>{ simRunning=false; simulateBtn.textContent='Simulate Flow'; electrons.length=0; });
+
+    // -------- Firestore (shared defaults) --------
+    let fb = { app:null, db:null, auth:null, uid:null };
+
+    async function maybeInitFirebase(){
+      try {
+        const cfg = window.FIREBASE_CONFIG; // Provided via /firebase-config.js
+        if (!cfg) { if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: not configured'; return; }
+        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js');
+        const { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js');
+        fb.app = initializeApp(cfg);
+        fb.db = getFirestore(fb.app);
+        fb.auth = getAuth(fb.app);
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: configured';
+      } catch (e) {
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: init failed';
+      }
+    }
+
+    async function ensureSignedIn(){
+      if (!fb.auth) await maybeInitFirebase();
+      if (!fb.auth) throw new Error('Firebase not initialized');
+      const { signInAnonymously } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js');
+      if (fb.auth.currentUser) { fb.uid = fb.auth.currentUser.uid; return; }
+      const cred = await signInAnonymously(fb.auth);
+      fb.uid = (cred && cred.user && cred.user.uid) ? cred.user.uid : (fb.auth.currentUser ? fb.auth.currentUser.uid : null);
+    }
+
+    async function saveScene(){
+      const payload = currentPresetPayload();
+      try {
+        if (fb.db) {
+          await ensureSignedIn();
+          const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+          const ref = doc(fb.db, 'users', fb.uid, 'electro_sessions', 'manual');
+          await setDoc(ref, { ...payload, updatedAt: Date.now() }, { merge: true });
+          if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: saved ✔';
+          return;
+        }
+        throw new Error('no-db');
+      } catch (e) {
+        storage.set('e2_last_preset', payload);
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Saved locally';
+      }
+    }
+
+    async function loadScene(){
+      try {
+        if (fb.db) {
+          await ensureSignedIn();
+          const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+          const ref = doc(fb.db, 'users', fb.uid, 'electro_sessions', 'manual');
+          const snap = await getDoc(ref);
+          if (snap.exists()){
+            applyPresetPayload(snap.data());
+            if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: loaded ✔';
+            heatDirty = true;
+            return;
+          }
+          throw new Error('no-cloud-doc');
+        }
+        throw new Error('no-db');
+      } catch (e) {
+        const local = storage.get('e2_last_preset', null);
+        if (local) {
+          applyPresetPayload(local);
+          if (cloudStatusEl) cloudStatusEl.textContent = 'Loaded from local';
+          heatDirty = true;
+        } else {
+          if (cloudStatusEl) cloudStatusEl.textContent = 'Nothing to load';
+        }
+      }
+    }
+
+    function currentPresetPayload(){
+      return {
+        charges: charges.map(c=>({ x: Math.round(c.x), y: Math.round(c.y), qMicroC: c.qMicroC })),
+        display: {
+          showHeat: !!showHeatEl.checked,
+          showVectors: !!showVectorsEl.checked,
+          rangeV: parseFloat(displayRangeEl2.value),
+          autoScale: !!(autoScaleEl && autoScaleEl.checked)
+        }
+      };
+    }
+    function applyPresetPayload(p){
+      if (p?.charges) {
+        clearCharges();
+        for (const c of p.charges) addCharge(c.x, c.y, c.qMicroC);
+      }
+      if (p?.display) {
+        showHeatEl.checked = !!p.display.showHeat;
+        showVectorsEl.checked = !!p.display.showVectors;
+        displayRangeEl2.value = p.display.rangeV ?? displayRangeEl2.value;
+        if (typeof p.display.autoScale === 'boolean' && autoScaleEl) {
+          autoScaleEl.checked = p.display.autoScale;
+          displayRangeEl2.disabled = autoScaleEl.checked;
+          storage.set('e2_autoScale', autoScaleEl.checked);
+        }
+        storage.set('e2_showHeat', showHeatEl.checked);
+        storage.set('e2_showVectors', showVectorsEl.checked);
+        storage.set('e2_displayRangeV', Number(displayRangeEl2.value));
+        heatDirty = true;
+      }
+    }
+
+    // Shared defaults doc: app_config/electro_defaults
+    async function loadDefaultSettings(){
+      if (!fb.db) return;
+      try {
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, 'app_config', 'electro_defaults');
+        const snap = await getDoc(ref);
+        if (snap.exists()){
+          const d = snap.data();
+          if (typeof d.showHeat === 'boolean') showHeatEl.checked = d.showHeat;
+          if (typeof d.showVectors === 'boolean') showVectorsEl.checked = d.showVectors;
+          if (typeof d.rangeV === 'number') displayRangeEl2.value = d.rangeV;
+          if (typeof d.autoScale === 'boolean' && autoScaleEl) { autoScaleEl.checked = d.autoScale; displayRangeEl2.disabled = d.autoScale; }
+          storage.set('e2_showHeat', showHeatEl.checked);
+          storage.set('e2_showVectors', showVectorsEl.checked);
+          storage.set('e2_displayRangeV', Number(displayRangeEl2.value));
+          if (autoScaleEl) storage.set('e2_autoScale', autoScaleEl.checked);
+          heatDirty = true;
+        }
+      } catch {}
+    }
+
+    let saveDefaultsTimer = null;
+    function saveDefaultSettingsDebounced(){
+      if (!fb.db) return;
+      if (saveDefaultsTimer) clearTimeout(saveDefaultsTimer);
+      saveDefaultsTimer = setTimeout(()=>{ saveDefaultSettings().catch(()=>{}); }, 400);
+    }
+    async function saveDefaultSettings(){
+      if (!fb.db) return;
+      try {
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, 'app_config', 'electro_defaults');
+        await setDoc(ref, {
+          showHeat: !!showHeatEl.checked,
+          showVectors: !!showVectorsEl.checked,
+          rangeV: Number(displayRangeEl2.value),
+          autoScale: !!(autoScaleEl && autoScaleEl.checked),
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch {}
+    }
+
+    // --- Super basic collection write/read for vector pref ---
+    async function basicWriteVectorPref(show){
+      if (!fb.db) return;
+      try {
+        const { collection, addDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        await addDoc(collection(fb.db, 'vector_prefs'), { showVectors: !!show, ts: Date.now() });
+      } catch {}
+    }
+    async function basicLoadVectorPref(){
+      if (!fb.db) return;
+      try {
+        const { collection, getDocs, query, orderBy, limit } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const qs = await getDocs(query(collection(fb.db, 'vector_prefs'), orderBy('ts', 'desc'), limit(1)));
+        if (!qs.empty) {
+          const data = qs.docs[0].data();
+          if (typeof data.showVectors === 'boolean') {
+            showVectorsEl.checked = data.showVectors;
+            storage.set('e2_showVectors', data.showVectors);
+          }
+        }
+      } catch {}
+    }
+
+    // -------- Per-user display preferences (Firestore) --------
+    function prefsDocPath(){ return ['users', fb.uid, 'display_prefs', 'electro2']; }
+    async function saveUserDisplayPrefs(partial){
+      if (!fb.db) return;
+      try {
+        await ensureSignedIn();
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, ...prefsDocPath());
+        await setDoc(ref, { ...partial, updatedAt: Date.now() }, { merge: true });
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: prefs saved ✔';
+      } catch (e) {
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: prefs save failed';
+      }
+    }
+    async function loadUserDisplayPrefs(){
+      if (!fb.db) return;
+      try {
+        await ensureSignedIn();
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, ...prefsDocPath());
+        const snap = await getDoc(ref);
+        if (snap.exists()){
+          const d = snap.data() || {};
+          if (typeof d.showHeat === 'boolean') { showHeatEl.checked = d.showHeat; storage.set('e2_showHeat', d.showHeat); }
+          if (typeof d.showVectors === 'boolean') { showVectorsEl.checked = d.showVectors; storage.set('e2_showVectors', d.showVectors); }
+          if (typeof d.autoScale === 'boolean') { autoScaleEl.checked = d.autoScale; displayRangeEl2.disabled = d.autoScale; storage.set('e2_autoScale', d.autoScale); }
+          heatDirty = true; drawLegend();
+        }
+      } catch (e) {
+        if (cloudStatusEl) cloudStatusEl.textContent = 'Cloud: prefs load failed';
+      }
+    }
+
+    // -------- Auto-save current scene to a fixed doc --------
+    let autosaveTimer = null;
+    function scheduleAutoSave(){
+      if (autosaveTimer) cancelAnimationFrame(autosaveTimer);
+      autosaveTimer = requestAnimationFrame(()=>{ setTimeout(()=>{ cloudAutoSave().catch(()=>{}); }, 600); });
+    }
+
+    async function cloudAutoSave(){
+      if (!cloudGuard()) return;
+      try {
+        const payload = currentPresetPayload();
+        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
+        const ref = doc(fb.db, 'users', fb.uid, 'electro_sessions', 'auto');
+        await setDoc(ref, { ...payload, updatedAt: Date.now() }, { merge: true });
+        cloudStatusEl.textContent = 'Cloud: autosaved ✔';
+      } catch { /* ignore transient errors */ }
+    }
+
+    // Render
+    function render(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(showHeatEl.checked){ if(heatDirty) computeHeatmap(); ctx.drawImage(heatCache,0,0,canvas.width,canvas.height); }
+      if(simRunning){ drawFieldLines(); stepElectrons(); drawElectrons(); }
+      if(showVectorsEl.checked){ drawVectors(); }
+      drawCharges();
+      requestAnimationFrame(render);
+    }
+
+    // Restore preferences
+    (function restorePrefs(){
+      const savedRange = storage.get('e2_displayRangeV', 40);
+      const savedShowHeat = storage.get('e2_showHeat', true);
+      const savedShowVectors = storage.get('e2_showVectors', false);
+      const savedAutoScale = storage.get('e2_autoScale', true);
+      if (displayRangeEl2) displayRangeEl2.value = savedRange;
+      if (showHeatEl) showHeatEl.checked = !!savedShowHeat;
+      if (showVectorsEl) showVectorsEl.checked = !!savedShowVectors;
+      if (autoScaleEl) { autoScaleEl.checked = !!savedAutoScale; displayRangeEl2.disabled = !!savedAutoScale; }
+      if (selectedChargeMagEl) { selectedChargeMagEl.value = ''; selectedChargeMagEl.disabled = true; }
+      heatDirty = true;
+    })();
+
+    // Init
+    presetDipole();
+    render();
+    maybeShowConsent();
+    // Initialize Firebase, then load user-specific display prefs
+    (async function(){
+      try {
+        await maybeInitFirebase();
+        await loadUserDisplayPrefs();
+        // Ensure per-user docs exist even before any toggle changes
+        await saveUserDisplayPrefs({
+          showHeat: !!showHeatEl?.checked,
+          showVectors: !!showVectorsEl?.checked,
+          autoScale: !!autoScaleEl?.checked
+        }).catch(()=>{});
+      } catch {}
+    })();
+
+    // Manual save/load only on user action
+    saveCloudBtn?.addEventListener('click', ()=>{ saveScene().catch(()=>{ if (cloudStatusEl) cloudStatusEl.textContent = 'Save failed'; }); });
+    loadCloudBtn?.addEventListener('click', ()=>{ loadScene().catch(()=>{ if (cloudStatusEl) cloudStatusEl.textContent = 'Load failed'; }); });
+  </script>
+</body>
+</html>
+
