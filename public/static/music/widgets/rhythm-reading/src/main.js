@@ -1448,6 +1448,10 @@ import './styles.css';
         // Default y-range ±200ms; adjust later if needed
         let maxAbs = 200;
         const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#60a5fa';
+        
+        // Detect tablet size (641px to 1024px) and add extra space for y-axis labels
+        const isTablet = window.innerWidth >= 641 && window.innerWidth <= 1024;
+        const yAxisSpace = isTablet ? 60 : 40;
 
         try { if (livePlot) livePlot.destroy(); } catch { }
         livePlot = new uPlot({
@@ -1460,7 +1464,7 @@ import './styles.css';
             },
             axes: [
                 { grid: { show: true }, stroke: palette.axis, ticks: { show: false }, values: () => [] },
-                { grid: { show: true }, stroke: palette.axis, values: (u, vals) => vals.map(v => (v === 0 ? '0 ms' : `${v > 0 ? '+' : ''}${Math.round(v)} ms`)) }
+                { grid: { show: true }, stroke: palette.axis, space: yAxisSpace, values: (u, vals) => vals.map(v => (v === 0 ? '0 ms' : `${v > 0 ? '+' : ''}${Math.round(v)} ms`)) }
             ],
             cursor: { drag: { x: false, y: false } },
             legend: { show: false },

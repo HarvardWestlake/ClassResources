@@ -925,6 +925,22 @@ canvas {
     border: 1px solid rgba(96, 165, 250, 0.3);
 }
 
+/* Fix chart y-axis label cutoff on tablets */
+@media (min-width: 641px) and (max-width: 1024px) {
+    #liveTimingWrap {
+        padding-left: 0 !important;
+        overflow: visible !important;
+    }
+    
+    #liveTimingChart {
+        overflow: visible !important;
+    }
+    
+    .uplot {
+        overflow: visible !important;
+    }
+}
+
 /* Start overlay mobile robustness: ensure no overflow/cutoff */
 @media (max-width: 640px) {
     #startOverlay {
