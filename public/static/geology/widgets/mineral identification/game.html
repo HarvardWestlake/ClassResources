@@ -147,6 +147,10 @@
       align-items: start;
       gap: 8px;
     }
+    .log-item .delete-observation {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
     .log-item .delete-note {
       padding: 4px 8px;
       font-size: 12px;
@@ -155,6 +159,8 @@
     .log-item.magnetism { border-left: 3px solid var(--hw-black); }
     .log-item.acid { border-left: 3px solid var(--warn); }
     .log-item.note { border-left: 3px solid var(--hw-gray-600); }
+    .log-item.luster { border-left: 3px solid var(--hw-gray-600); }
+    .log-item.cleavage { border-left: 3px solid var(--hw-gray-600); }
     .log-time { color: var(--muted); font-size: 12px; margin-left: auto; }
 
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -357,6 +363,10 @@
 
     <div class="panel" id="observationsPanel">
       <h3 class="section-title">Observations</h3>
+      <div class="row" style="margin-bottom:6px">
+        <div class="grow"></div>
+        <button id="clearObservations">Clear</button>
+      </div>
       <div id="log" class="log" aria-live="polite" aria-atomic="false"></div>
 
       <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)">
@@ -470,6 +480,7 @@
       let roundActive = true;
       let lusterRevealed = false;
       let cleavageRevealed = false;
+      let guessedWrongIds = new Set();
 
       // DOM elements
       const scoreEl = document.getElementById("score");
@@ -533,8 +544,14 @@
         const time = document.createElement("div");
         time.className = "log-time";
         time.textContent = formatTime(new Date());
+        const del = document.createElement("button");
+        del.className = "delete-observation";
+        del.type = "button";
+        del.title = "Delete observation";
+        del.textContent = "Delete";
         item.appendChild(label);
         item.appendChild(time);
+        item.appendChild(del);
         logEl.appendChild(item);
         logEl.scrollTop = logEl.scrollHeight;
       }
@@ -600,6 +617,7 @@
           .slice()
           .sort((a, b) => a.name.localeCompare(b.name))
           .forEach(m => {
+            if (guessedWrongIds && guessedWrongIds.has(m.id)) return;
             const opt = document.createElement("option");
             opt.value = m.id;
             opt.textContent = m.name;
@@ -657,6 +675,7 @@
         roundActive = true;
         lusterRevealed = false;
         cleavageRevealed = false;
+        guessedWrongIds = new Set();
 
         clearLog();
         addLogItem("New mineral received. Begin your tests.", "note");
@@ -705,13 +724,13 @@
         if (!roundActive) return;
         lusterRevealed = true;
         specimenLusterEl.hidden = false;
-        addLogItem(`Luster: ${currentMineral.luster}.`, "note");
+        addTestLogItem(`Luster: ${currentMineral.luster}.`, "luster");
       }
       function inspectCleavage() {
         if (!roundActive) return;
         cleavageRevealed = true;
         specimenCleavageEl.hidden = false;
-        addLogItem(`Cleavage: ${currentMineral.cleavagePlanes} plane(s).`, "note");
+        addTestLogItem(`Cleavage: ${currentMineral.cleavagePlanes} plane(s).`, "cleavage");
       }
 
       function updateSpecimenView() {
@@ -1176,6 +1195,13 @@
           feedbackEl.textContent = "Select a mineral before submitting.";
           return;
         }
+        // Prevent re-guessing the same wrong mineral
+        if (guessedWrongIds && guessedWrongIds.has(choice)) {
+          const guessedAgain = MINERALS.find(m => m.id === choice);
+          feedbackEl.className = "feedback info";
+          feedbackEl.textContent = `You've already tried ${guessedAgain ? guessedAgain.name : "that mineral"}. Choose a different mineral.`;
+          return;
+        }
         if (choice === currentMineral.id) {
           const mineralName = MINERALS.find(m => m.id === choice).name;
           const attemptIndex = wrongGuessCount;
@@ -1190,6 +1216,14 @@
           feedbackEl.className = "feedback bad";
           feedbackEl.textContent = `Incorrect. Attempts left: ${attemptsLeft}. ${details}`;
           addLogItem(`Guess result: Incorrect — You guessed: ${guessed.name}. Attempts left: ${attemptsLeft}. ${details}`, "note");
+          // Mark this mineral as tried and remove from options
+          if (guessed && guessed.id) {
+            if (!guessedWrongIds) guessedWrongIds = new Set();
+            guessedWrongIds.add(guessed.id);
+            const opt = guessSelect.querySelector(`option[value="${guessed.id}"]`);
+            if (opt && opt.parentElement) opt.parentElement.removeChild(opt);
+            guessSelect.value = "";
+          }
           updateScoreboard();
           if (wrongGuessCount >= MAX_WRONG_GUESSES) {
             addLogItem("Out of guesses. Revealing the answer...", "note");
@@ -1215,6 +1249,7 @@
       submitGuessBtn.addEventListener("click", submitGuess);
       nextMineralBtn.addEventListener("click", nextRound);
       giveUpBtn.addEventListener("click", giveUp);
+      document.getElementById("clearObservations").addEventListener("click", clearLog);
       resetGameBtn.addEventListener("click", () => {
         totalScore = 0;
         localStorage.setItem("mineral_game_score", "0");
@@ -1238,6 +1273,13 @@
         }
       });
       clearNotesBtn.addEventListener("click", () => { notesLogEl.innerHTML = ""; });
+      // Delete single observations via event delegation
+      logEl.addEventListener("click", (e) => {
+        const btn = e.target && e.target.closest && e.target.closest(".delete-observation");
+        if (!btn) return;
+        const row = btn.closest(".log-item");
+        if (row && logEl.contains(row)) row.remove();
+      });
       // Delete single notes via event delegation
       notesLogEl.addEventListener("click", (e) => {
         const btn = e.target && e.target.closest && e.target.closest(".delete-note");
