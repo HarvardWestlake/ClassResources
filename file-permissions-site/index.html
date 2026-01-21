@@ -17,6 +17,28 @@
           "Liberation Mono", "Courier New", monospace;
         overflow: hidden; /* hide page scrollbar; use terminal's internal scroll */
       }
+      /* Keyword highlighting */
+      .kw-file {
+        color: #ffd54a; /* yellow */
+      }
+      .kw-directory {
+        color: #4da3ff; /* blue */
+      }
+      .kw-cd {
+        color: #ff5bd6; /* pink */
+      }
+      .kw-ls {
+        color: #4dff7a; /* green */
+      }
+      .kw-ch {
+        color: #ff9a3c; /* orange (chmod/chgrp/chown) */
+      }
+      .kw-sudo {
+        color: #ff4d4d; /* red */
+      }
+      .kw-owner-group {
+        color: #b36bff; /* purple */
+      }
       .term {
         display: flex;
         flex-direction: column;
@@ -30,7 +52,8 @@
         display: flex;
         align-items: stretch;
         gap: 8px;
-        height: 36px;
+        height: auto; /* allow wrapping on small screens */
+        min-height: 36px;
         background: #1a1a1a;
         border-bottom: 1px solid #2a2a2a;
         padding: 0 8px;
@@ -41,6 +64,7 @@
         gap: 6px;
         flex: 1;
         min-width: 0;
+        flex-wrap: wrap; /* keep tabs visible at any window size */
       }
       .term-tab {
         display: inline-flex;
@@ -53,7 +77,8 @@
         border-bottom: none;
         border-top-left-radius: 6px;
         border-top-right-radius: 6px;
-        max-width: 12.5%;
+        /* Don't cap tabs to a tiny %; allow them to size naturally and wrap */
+        max-width: min(320px, 80vw);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -62,16 +87,29 @@
         margin-bottom: 0;
         margin-top: 0;
       }
+      /* Push the Filesystem tab to the far right of the header */
+      .term-tab.fs-tab {
+        margin-left: auto;
+      }
       .term-tab.active {
         background: #0c0c0c;
         color: #ffffff;
         border-color: #4a4a4a;
+      }
+      /* Body can be a split-pane when the Filesystem tab is active */
+      .term-body {
+        display: flex;
+        flex: 1;
+        min-height: 0; /* allow child overflow scroll areas to work */
+        min-width: 0;
       }
       .term-screen {
         padding: 12px 14px;
         overflow-y: auto;
         white-space: pre-wrap;
         flex: 1;
+        min-width: 0;
+        min-height: 0;
         background: #0c0c0c;
       }
       .fs-pane {
@@ -80,7 +118,10 @@
         overflow-y: auto;
         white-space: normal;
         flex: 1;
+        min-width: 0;
+        min-height: 0;
         background: #0c0c0c;
+        border-left: 1px solid #2a2a2a;
       }
       .fs-breadcrumbs {
         color: #ddd;
@@ -207,22 +248,23 @@
           >
             Ubuntu — bash
           </div>
-          <div class="term-tab" id="term-tab-fs" title="Filesystem">
+          <div class="term-tab fs-tab" id="term-tab-fs" title="Filesystem">
             Filesystem
           </div>
         </div>
       </div>
-      <div class="term-screen" id="screen" aria-live="polite"></div>
-      <div class="fs-pane" id="fs-pane" aria-label="Filesystem view">
-        <div class="fs-breadcrumbs" id="fs-breadcrumbs"></div>
-        <svg
-          class="fs-map"
-          id="fs-view"
-          viewBox="0 0 1200 520"
-          role="img"
-          aria-label="Campus map"
-        ></svg>
-        <script id="fake-fs-embedded" type="text/plain">
+      <div class="term-body" id="term-body">
+        <div class="term-screen" id="screen" aria-live="polite"></div>
+        <div class="fs-pane" id="fs-pane" aria-label="Filesystem view">
+          <div class="fs-breadcrumbs" id="fs-breadcrumbs"></div>
+          <svg
+            class="fs-map"
+            id="fs-view"
+            viewBox="0 0 1200 520"
+            role="img"
+            aria-label="Campus map"
+          ></svg>
+          <script id="fake-fs-embedded" type="text/plain">
           Harvard-Westlake/
 
           ├── ChalmersHall/
@@ -396,6 +438,7 @@
           └── TedSlavinField/
               └── track_and_field_schedule.csv – (CSV schedule for track meets and field events)
         </script>
+      </div>
       </div>
     </div>
 
@@ -943,7 +986,8 @@
             tabTerm.classList.add("active");
             tabFs.classList.remove("active");
           } else {
-            screenEl.style.display = "none";
+            // Split view: keep the terminal visible on the left and show the filesystem on the right
+            screenEl.style.display = "block";
             fsEl.style.display = "block";
             tabTerm.classList.remove("active");
             tabFs.classList.add("active");
@@ -1944,7 +1988,12 @@
         }
         if (tabFsEl) {
           tabFsEl.addEventListener("click", function () {
-            setView("fs");
+            // Toggle split view on/off when clicking Filesystem repeatedly
+            if (activeView === "fs") {
+              setView("terminal");
+            } else {
+              setView("fs");
+            }
           });
         }
         // No additional FS controls; map is interactive via clicks & breadcrumbs
@@ -2023,6 +2072,154 @@
                 next(i + 1);
               });
           })(0);
+        })();
+
+        // ===== Keyword highlighting =====
+        (function setupKeywordHighlighting() {
+          var re =
+            /\b(directories|directory|files|file|chmod|chgrp|chown|sudo|owners|owner|groups|group|cd|ls)\b/gi;
+          var scheduled = false;
+          var isApplying = false;
+
+          function classForWord(wordLower) {
+            if (wordLower === "file" || wordLower === "files") return "kw-file";
+            if (wordLower === "directory" || wordLower === "directories")
+              return "kw-directory";
+            if (wordLower === "cd") return "kw-cd";
+            if (wordLower === "ls") return "kw-ls";
+            if (
+              wordLower === "chmod" ||
+              wordLower === "chgrp" ||
+              wordLower === "chown"
+            )
+              return "kw-ch";
+            if (wordLower === "sudo") return "kw-sudo";
+            if (
+              wordLower === "owner" ||
+              wordLower === "owners" ||
+              wordLower === "group" ||
+              wordLower === "groups"
+            )
+              return "kw-owner-group";
+            return "";
+          }
+
+          function shouldSkipTextNode(node) {
+            if (!node || !node.nodeValue) return true;
+            if (!re.test(node.nodeValue)) return true;
+            // Reset regex state since it's global
+            re.lastIndex = 0;
+
+            var p = node.parentNode;
+            if (!p || p.nodeType !== 1) return true;
+            var el = /** @type {Element} */ (p);
+
+            var tag = el.tagName;
+            if (
+              tag === "SCRIPT" ||
+              tag === "STYLE" ||
+              tag === "NOSCRIPT" ||
+              tag === "TEXTAREA" ||
+              tag === "INPUT"
+            ) {
+              return true;
+            }
+            if (el.isContentEditable || el.closest('[contenteditable="true"]')) {
+              return true;
+            }
+            if (
+              el.closest(
+                ".kw-file, .kw-directory, .kw-cd, .kw-ls, .kw-ch, .kw-sudo, .kw-owner-group"
+              )
+            ) {
+              return true; // avoid double-wrapping
+            }
+            return false;
+          }
+
+          function highlightInRoot(root) {
+            if (!root || isApplying) return;
+            isApplying = true;
+            try {
+              var walker = document.createTreeWalker(
+                root,
+                NodeFilter.SHOW_TEXT,
+                {
+                  acceptNode: function (node) {
+                    return shouldSkipTextNode(node)
+                      ? NodeFilter.FILTER_REJECT
+                      : NodeFilter.FILTER_ACCEPT;
+                  },
+                }
+              );
+
+              var nodes = [];
+              var n;
+              while ((n = walker.nextNode())) nodes.push(n);
+
+              for (var i = 0; i < nodes.length; i++) {
+                var textNode = nodes[i];
+                var text = textNode.nodeValue || "";
+                var m;
+                var last = 0;
+                var frag = document.createDocumentFragment();
+                re.lastIndex = 0;
+
+                while ((m = re.exec(text)) !== null) {
+                  var word = m[0];
+                  var start = m.index;
+                  if (start > last) {
+                    frag.appendChild(
+                      document.createTextNode(text.slice(last, start))
+                    );
+                  }
+                  var span = document.createElement("span");
+                  span.className = classForWord(word.toLowerCase());
+                  span.textContent = word;
+                  frag.appendChild(span);
+                  last = start + word.length;
+                }
+                if (last < text.length) {
+                  frag.appendChild(document.createTextNode(text.slice(last)));
+                }
+                if (textNode.parentNode) {
+                  textNode.parentNode.replaceChild(frag, textNode);
+                }
+              }
+            } finally {
+              isApplying = false;
+            }
+          }
+
+          function scheduleFullScan() {
+            if (scheduled) return;
+            scheduled = true;
+            requestAnimationFrame(function () {
+              scheduled = false;
+              highlightInRoot(document.body);
+            });
+          }
+
+          // Initial pass
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", scheduleFullScan);
+          } else {
+            scheduleFullScan();
+          }
+
+          // Re-apply for dynamic terminal output
+          var obs = new MutationObserver(function (mutations) {
+            if (isApplying) return;
+            for (var i = 0; i < mutations.length; i++) {
+              var mu = mutations[i];
+              if (mu.type !== "childList") continue;
+              if (mu.addedNodes && mu.addedNodes.length) {
+                scheduleFullScan();
+                break;
+              }
+            }
+          });
+          obs.observe(document.body, { childList: true, subtree: true });
         })();
       })();
     </script>
