@@ -1809,9 +1809,11 @@
             try { equationInput.blur(); } catch (_) {}
         });
 
-        // Mouse wheel zoom for cartesian
+        // Pinch zoom for cartesian (trackpad pinch typically comes through as wheel + ctrlKey/metaKey).
+        // Regular wheel scrolling should scroll the page and NOT zoom the graph.
         cartesianCanvas.addEventListener('wheel', (e) => {
             if (interactionMode !== 'perspective') return;
+            if (!(e.ctrlKey || e.metaKey)) return; // ignore normal wheel; allow page scroll
             e.preventDefault();
             const rect = cartesianCanvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
@@ -1843,7 +1845,7 @@
             cartesianCenterY = graphY + ((mouseY - padding) / plotHeight - 0.5) * 2 * newRange;
             
             plotGraph();
-        });
+        }, { passive: false });
 
         // Click and drag panning for cartesian
         cartesianCanvas.addEventListener('mousedown', (e) => {
@@ -2027,14 +2029,16 @@
             }
         }
 
-        // Mouse wheel zoom for polar
+        // Pinch zoom for polar (trackpad pinch typically comes through as wheel + ctrlKey/metaKey).
+        // Regular wheel scrolling should scroll the page and NOT zoom the graph.
         polarCanvas.addEventListener('wheel', (e) => {
             if (interactionMode !== 'perspective') return;
+            if (!(e.ctrlKey || e.metaKey)) return; // ignore normal wheel; allow page scroll
             e.preventDefault();
             const factor = e.deltaY > 0 ? 0.9 : 1.1;
             polarZoom *= factor;
             plotGraph();
-        });
+        }, { passive: false });
 
         function resetZoomPolar() {
             polarZoom = (defaultPolarZoom !== null) ? defaultPolarZoom : 1.0;
