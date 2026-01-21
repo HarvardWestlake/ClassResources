@@ -4174,8 +4174,8 @@
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, width, height);
 
-            // Draw concentric circles with adaptive increments
-            // Scale gradually: start with whole numbers, then 0.5, then smaller increments
+            // Draw polar grid with adaptive increments.
+            // IMPORTANT: When panning, draw circles that intersect the current VIEW window so we don't "pan into empty".
             ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 1;
 
@@ -4280,33 +4280,84 @@
             ctx.lineTo(centerX, centerY + radius);
             ctx.stroke();
 
-            // Draw axis labels
+            // Draw axis labels (values along ±x and ±y)
+            ctx.save();
             ctx.fillStyle = '#333';
             ctx.font = '12px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            const labelOffsetY = 6;
-            ctx.fillText('0', centerX, centerY - labelOffsetY);
-            
+
+            const labelOffsetY = 6;   // vertical offset above x-axis labels
+            const labelOffsetX = 8;   // horizontal offset left of y-axis labels
+
             // Always choose enough decimal precision to avoid repeated labels.
             // Compute decimals from the step size; cap to 2 for readability.
-            // Examples: step=0.5 -> 1 dec, 0.2 -> 1 dec, 0.05 -> 2 dec.
             const decimals = Math.min(2, Math.max(0, Math.ceil(-Math.log10(circleStep + 1e-12))));
-            
-            let lastLabel = null;
-            let lastLabelX = -Infinity;
             const minLabelSpacing = 18; // px minimum spacing to avoid condensed labels
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('0', centerX, centerY - labelOffsetY);
+
+            // Track overlap/duplicates independently per axis side.
+            let lastRightLabel = null, lastRightX = -Infinity;
+            let lastLeftLabel = null, lastLeftX = Infinity;
+            let lastUpLabel = null, lastUpY = Infinity;
+            let lastDownLabel = null, lastDownY = -Infinity;
+
+            function safeAxisAlignX(x) {
+                // Keep labels inside the canvas near the edges.
+                const edgePad = 16;
+                if (x <= edgePad) return 'left';
+                if (x >= width - edgePad) return 'right';
+                return 'center';
+            }
+
             for (let i = 1; i <= numCircles; i++) {
                 const r = i * circleStep;
-                const label = r.toFixed(decimals);
-                const xPos = centerX + (r / maxR) * radius;
-                // Skip drawing duplicate labels caused by rounding and avoid overlap
-                if (label !== lastLabel && (xPos - lastLabelX) >= minLabelSpacing) {
-                    ctx.fillText(label, xPos, centerY - labelOffsetY);
-                    lastLabel = label;
-                    lastLabelX = xPos;
+                const magLabel = r.toFixed(decimals);
+                const dx = (r / maxR) * radius;
+
+                // +X axis (right)
+                const xPosR = centerX + dx;
+                if (magLabel !== lastRightLabel && (xPosR - lastRightX) >= minLabelSpacing) {
+                    ctx.textAlign = safeAxisAlignX(xPosR);
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(magLabel, xPosR, centerY - labelOffsetY);
+                    lastRightLabel = magLabel;
+                    lastRightX = xPosR;
+                }
+
+                // -X axis (left)
+                const xPosL = centerX - dx;
+                const negLabel = `-${magLabel}`;
+                if (negLabel !== lastLeftLabel && (lastLeftX - xPosL) >= minLabelSpacing) {
+                    ctx.textAlign = safeAxisAlignX(xPosL);
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(negLabel, xPosL, centerY - labelOffsetY);
+                    lastLeftLabel = negLabel;
+                    lastLeftX = xPosL;
+                }
+
+                // +Y axis (up)
+                const yPosU = centerY - dx;
+                if (magLabel !== lastUpLabel && (lastUpY - yPosU) >= minLabelSpacing) {
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(magLabel, centerX - labelOffsetX, yPosU);
+                    lastUpLabel = magLabel;
+                    lastUpY = yPosU;
+                }
+
+                // -Y axis (down)
+                const yPosD = centerY + dx;
+                if (negLabel !== lastDownLabel && (yPosD - lastDownY) >= minLabelSpacing) {
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(negLabel, centerX - labelOffsetX, yPosD);
+                    lastDownLabel = negLabel;
+                    lastDownY = yPosD;
                 }
             }
+            ctx.restore();
             
             // Update zoom info
             // Optional polar zoom status can be surfaced in UI if desired
