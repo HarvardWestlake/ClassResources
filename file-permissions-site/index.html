@@ -660,19 +660,33 @@
           var names = Object.keys(kids).sort();
           for (var i = 0; i < names.length; i++) {
             var k = kids[names[i]];
-            out.push({ name: names[i], type: (k && k.type) || "file" });
+            var type = (k && k.type) || "file";
+            out.push({
+              name: names[i],
+              type: type,
+              mode:
+                (k && k.mode) ||
+                (type === "dir" ? "drwxr-xr-x" : "-rw-r--r--"),
+              owner: (k && k.owner) || "hw_admin",
+              group: (k && k.group) || "faculty",
+            });
           }
           return out;
         }
 
-        function fsShowLsPreview(pathArr) {
+        function fsShowLsPreview(pathArr, opts) {
           var p = (pathArr && pathArr.length ? pathArr.slice() : fsCurrentPath.slice());
           // Don't show the green preview for the root directory.
           if (p.length === 1 && p[0] === "Harvard-Westlake") {
             return;
           }
           var entries = fsGetDirEntries(p);
-          fsLsPreview = { pathKey: fsPathKey(p), pathArr: p, entries: entries };
+          fsLsPreview = {
+            pathKey: fsPathKey(p),
+            pathArr: p,
+            entries: entries,
+            long: !!(opts && opts.long),
+          };
           if (activeView === "fs" || activeView === "fs-full") renderFsPane();
         }
 
@@ -910,7 +924,7 @@
           label.addEventListener("click", goToParentDir);
         }
 
-        function drawLsPreviewOverlay(svg, anchorBox, entries) {
+        function drawLsPreviewOverlay(svg, anchorBox, entries, isLong) {
           if (!svg || !anchorBox || !entries) return;
           var shown = entries.slice(0, 10);
           if (!shown.length) return;
@@ -930,12 +944,14 @@
 
           // Green directory list INSIDE the red box representing the directory.
           // (No "inner" label; just the directory names.)
-          var innerDirs = (entries || []).filter(function (e) {
-            return e && e.type === "dir";
-          });
+          var innerDirs = isLong
+            ? (entries || []).slice()
+            : (entries || []).filter(function (e) {
+                return e && e.type === "dir";
+              });
           // Render directory names inside the box, clipped so it stays within.
           if (innerDirs.length) {
-            var list = innerDirs.slice(0, 12);
+            var list = innerDirs.slice(0, 20);
             // Estimate how many lines can fit inside the box.
             var innerPad = 8;
             // Start the list in the lower portion of the box so it stays underneath the emoji badges.
@@ -980,7 +996,18 @@
                   "font-family",
                   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
                 );
-                t.textContent = d.name;
+                if (isLong) {
+                  var meta =
+                    (d.mode || "") +
+                    " " +
+                    (d.owner || "") +
+                    " " +
+                    (d.group || "") +
+                    " ";
+                  t.textContent = (meta + (d.name || "")).trim();
+                } else {
+                  t.textContent = d.name;
+                }
                 tg.appendChild(t);
               }
 
@@ -1202,7 +1229,7 @@
               }
               // Fallback: if the child isn't found (unexpected), attach under the view root.
               if (!anchor) anchor = { x: parentX, y: parentY, w: parentW, h: parentH };
-              drawLsPreviewOverlay(svg, anchor, fsLsPreview.entries);
+              drawLsPreviewOverlay(svg, anchor, fsLsPreview.entries, !!fsLsPreview.long);
             }
           }
         }
@@ -1560,7 +1587,44 @@
             "<strong>cd</strong> changes your working directory, hence, c.hange d.irectory. Use <strong>cd filepath</strong> to move into a folder; <strong>cd ..</strong> goes up to the parent; <strong>cd ~</strong> jumps to your home (here, the campus root). After you change location, <strong>ls</strong> shows what’s inside the current directory.",
           ],
           [
-            "Every file and directory belongs to an <strong>owner</strong>, which is a single user account responsible for it; it also belongs to a <strong>group</strong>, which is a named team of user accounts, and everyone else on the system is treated as <strong>other</strong>. In the school picture, imagine the Harvard-Westlake school as one person, the owner is that one person who owns a given room, or hallway. The group could for example be the student body, who is also given certain privleges in the room, or hallway. Finally, other(s) are the general public, who may only be granted access to the room or hallway during a public Harvard-Westlake event. The system checks three basic actions for each of these audiences: <strong>read</strong>, <strong>write</strong>, and <strong>execute</strong>. On a file, read means you may view the contents, write means you may change the contents, and execute means you may run it as a program if it is runnable. On a directory, read means you may list the names inside, write means you may add, rename, or remove entries, and execute means you may enter it and move through it when you already know the name of something inside.",
+            "Every file and directory belongs to an <strong>owner</strong>, which is a single user account responsible for it; it also belongs to a <strong>group</strong>, which is a named team of user accounts, and everyone else on the system is treated as <strong>other</strong>. In the school picture, imagine the Harvard-Westlake school as one person, the owner is that one person who owns a given room, or hallway. The group could for example be the student body, who is also given certain privleges in the room, or hallway. Finally, other(s) are the general public, who may only be granted access to the room or hallway during a public Harvard-Westlake event. The system checks three basic actions for each of these audiences: <strong>read</strong>, <strong>write</strong>, and <strong>execute</strong>. On a file, read means you may view the contents, write means you may change the contents, and execute means you may run it as a program if it is runnable. On a directory, read means you may list the names inside, write means you may add, rename, or remove entries, and execute means you may enter it and move through it when you already know the name of something inside." +
+              "<div aria-label='Owner, group, and other icons' style='margin:12px 0 8px; display:flex; justify-content:center; align-items:flex-end; gap:32px; flex-wrap:wrap;'>" +
+              "<div style='display:flex; flex-direction:column; align-items:center; line-height:1;'>" +
+              "<div aria-hidden='true' style='font-size:44px;'>🤴</div>" +
+              "<div style='margin-top:6px; font-weight:700; font-size:14px;'>owner</div>" +
+              "</div>" +
+              "<div style='display:flex; flex-direction:column; align-items:center; line-height:1;'>" +
+              "<div aria-hidden='true' style='display:flex; align-items:center; padding-left:14px;'>" +
+              "<span style='font-size:40px; margin-left:0; filter:drop-shadow(0 1px 0 rgba(0,0,0,0.12));'>🧑‍🎓</span>" +
+              "<span style='font-size:40px; margin-left:-14px; filter:drop-shadow(0 1px 0 rgba(0,0,0,0.12));'>🧑‍🎓</span>" +
+              "<span style='font-size:40px; margin-left:-14px; filter:drop-shadow(0 1px 0 rgba(0,0,0,0.12));'>🧑‍🎓</span>" +
+              "<span style='font-size:40px; margin-left:-14px; filter:drop-shadow(0 1px 0 rgba(0,0,0,0.12));'>🧑‍🎓</span>" +
+              "<span style='font-size:40px; margin-left:-14px; filter:drop-shadow(0 1px 0 rgba(0,0,0,0.12));'>🧑‍🎓</span>" +
+              "</div>" +
+              "<div style='margin-top:6px; font-weight:700; font-size:14px;'>group</div>" +
+              "</div>" +
+              "<div style='display:flex; flex-direction:column; align-items:center; line-height:1;'>" +
+              "<div aria-hidden='true' style='font-size:44px;'>🕵️</div>" +
+              "<div style='margin-top:6px; font-weight:700; font-size:14px;'>other</div>" +
+              "</div>" +
+              "</div>" +
+              "<div aria-hidden='true' style='width:100%; display:flex; justify-content:center; margin:8px 0 10px;'>" +
+              "<div style='font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace; font-size:16px; opacity:0.7;'>--------------------</div>" +
+              "</div>" +
+              "<div aria-label='Read, write, execute icons' style='width:100%; display:flex; justify-content:center; align-items:flex-end; gap:36px; flex-wrap:wrap;'>" +
+              "<div style='display:flex; flex-direction:column; align-items:center; line-height:1;'>" +
+              "<div aria-hidden='true' style='font-size:40px;'>📖</div>" +
+              "<div style='margin-top:6px; font-weight:700; font-size:14px;'>read</div>" +
+              "</div>" +
+              "<div style='display:flex; flex-direction:column; align-items:center; line-height:1;'>" +
+              "<div aria-hidden='true' style='font-size:40px;'>✏️</div>" +
+              "<div style='margin-top:6px; font-weight:700; font-size:14px;'>write</div>" +
+              "</div>" +
+              "<div style='display:flex; flex-direction:column; align-items:center; line-height:1;'>" +
+              "<div aria-hidden='true' style='font-size:40px;'>🔴</div>" +
+              "<div style='margin-top:6px; font-weight:700; font-size:14px;'>execute</div>" +
+              "</div>" +
+              "</div>",
             "<strong>ls -l</strong> shows a “long listing” of the current directory: each item on its own line with its permissions, number of links, owner, group, size, last modified time, and name. This is like reading the hallway roster that lists each room with its posted rules and who is responsible.",
           ],
           [
@@ -1840,6 +1904,8 @@
                 ) + nameHtml
               );
             }
+            // Same preview as `ls`, but with `ls -l` metadata inside the red directory box.
+            fsShowLsPreview(fsCurrentPath, { long: true });
           }
           var step = 0;
           var free = false;
@@ -2017,6 +2083,8 @@
                   file.name
               )
             );
+            // Same preview as `ls`, but with `ls -l` metadata inside the red directory box.
+            fsShowLsPreview(fsCurrentPath, { long: true });
           }
           function applyChmod(spec) {
             var m = /^([ugoa]+)([+\-=])([rwx]+)$/.exec(spec);
@@ -2402,7 +2470,6 @@
         }
 
         function startNextDemoForSection(idx) {
-          stopHallwayCursorDot();
           if (idx === 0) {
             cd.start();
           } else if (idx === 1) {
@@ -2621,7 +2688,8 @@
           };
           var plannedPathPoints = [current];
           var pathIdx = 0;
-          var speedPxPerSec = 220;
+          // Faster travel so it feels responsive, but still constrained to the path.
+          var speedPxPerSec = 520;
           var raf = 0;
           var lastTs = 0;
 
@@ -2736,8 +2804,6 @@
             if (paragraphIndex < 0) {
               // advancing through preface lines; no output
             } else if (paragraphIndex < group.length) {
-              // Stop any prior interactive overlays when moving through text.
-              stopHallwayCursorDot();
               appendInstructionHtml(group[paragraphIndex]);
               // When we reach the cd/ls explanation (right before the demo), activate the cursor dot
               // on the hallway graphic from the previous paragraph.
