@@ -123,6 +123,10 @@
         background: #0c0c0c;
         border-left: 1px solid #2a2a2a;
       }
+      /* Fullscreen filesystem mode (terminal hidden) */
+      .term-body.fs-fullscreen .fs-pane {
+        border-left: none;
+      }
       .fs-breadcrumbs {
         color: #ddd;
         font-size: 12px;
@@ -482,7 +486,7 @@
             fsModel = cloneFsModel(snap);
             // Re-align current view and current working dir highlight
             fsSetCurrentPathFromPrompt();
-            if (activeView === "fs") renderFsPane();
+            if (activeView === "fs" || activeView === "fs-full") renderFsPane();
           }
         }
 
@@ -631,7 +635,7 @@
             acc.push(parts[i]);
             fsExpanded[fsPathKey(acc)] = true;
           }
-          if (activeView === "fs") renderFsPane();
+          if (activeView === "fs" || activeView === "fs-full") renderFsPane();
         }
         function renderNode(node, pathArr) {
           var key = fsPathKey(pathArr);
@@ -698,7 +702,8 @@
         }
         function layoutTreemap(nodes, x, y, w, h, horizontal) {
           var out = [];
-          var n = nodes.length || 1;
+          var n = nodes && nodes.length ? nodes.length : 0;
+          if (!n) return out;
           for (var i = 0; i < n; i++) {
             var nx, ny, nw, nh;
             if (horizontal) {
@@ -736,6 +741,17 @@
           var children = names.map(function (n) {
             return root.children[n];
           });
+          if (!children.length) {
+            // Avoid crashing before the filesystem model loads; show a lightweight placeholder.
+            var t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            t.setAttribute("x", "20");
+            t.setAttribute("y", "32");
+            t.setAttribute("fill", "#e0e0e0");
+            t.setAttribute("font-size", "16");
+            t.textContent = "Loading filesystem…";
+            svg.appendChild(t);
+            return;
+          }
           var slices = layoutTreemap(
             children,
             10,
@@ -978,15 +994,25 @@
           activeView = view;
           var screenEl = document.getElementById("screen");
           var fsEl = document.getElementById("fs-pane");
+          var bodyEl = document.getElementById("term-body");
           var tabTerm = document.getElementById("term-tab-label");
           var tabFs = document.getElementById("term-tab-fs");
           if (view === "terminal") {
+            if (bodyEl) bodyEl.classList.remove("fs-fullscreen");
             screenEl.style.display = "block";
             fsEl.style.display = "none";
             tabTerm.classList.add("active");
             tabFs.classList.remove("active");
+          } else if (view === "fs-full") {
+            if (bodyEl) bodyEl.classList.add("fs-fullscreen");
+            screenEl.style.display = "none";
+            fsEl.style.display = "block";
+            tabTerm.classList.remove("active");
+            tabFs.classList.add("active");
+            renderFsPane();
           } else {
             // Split view: keep the terminal visible on the left and show the filesystem on the right
+            if (bodyEl) bodyEl.classList.remove("fs-fullscreen");
             screenEl.style.display = "block";
             fsEl.style.display = "block";
             tabTerm.classList.remove("active");
@@ -1065,7 +1091,25 @@
         // ===== Lesson Content (HTML, bold preserved) =====
         var textSections = [
           [
-            "A <strong>file</strong> contains data that your operating system (Windows, Linux, macOS, etc.) stores. A <strong>directory</strong> is a special kind of record that stores a list of names and references to those files and/or other directories so the system can organize everything. Imagine in a school, a file is a single room that holds its materials. A directory is a hallway that leads to or contains rooms, as well as branches off into other hallways. This system of rooms and hallways is a <strong>tree</strong>. In a Harvard-Westlake school metaphor, the school campus is the root of the tree, which branches out into buildings (Chalmers, Seaver, etc.), and then further into rooms (Student Lounge) and hallways (Upper Chalmers), that contain their own rooms (Chalmers 305).",
+            "A <strong>file</strong> contains data that your operating system (Windows, Linux, macOS, etc.) stores. A <strong>directory</strong> is a special kind of record that stores a list of names and references to those files and/or other directories so the system can organize everything. Imagine in a school, a file is a single room that holds its materials. A directory is a hallway that leads to or contains rooms, as well as branches off into other hallways. This system of rooms and hallways is a <strong>tree</strong>. In a Harvard-Westlake school metaphor, the school campus is the root of the tree, which branches out into buildings (Chalmers, Seaver, etc.), and then further into rooms (Student Lounge) and hallways (Upper Chalmers), that contain their own rooms (Chalmers 305)." +
+              "<div role='img' aria-label='A hallway line connecting rooms (files) in a directory' style='margin:14px 0 6px; display:flex; justify-content:center;'>" +
+              "<svg width='560' height='180' viewBox='0 0 560 180' xmlns='http://www.w3.org/2000/svg'>" +
+              "<rect x='20' y='72' width='70' height='55' rx='10' fill='#FFEB3B' stroke='#C7A600' stroke-width='2'/>" +
+              "<text x='55' y='100' font-size='34' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<text x='55' y='138' font-size='14' text-anchor='middle' dominant-baseline='middle' fill='#333' font-family='system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'>room</text>" +
+              "<line x1='90' y1='100' x2='540' y2='100' stroke='#1E66F5' stroke-width='6' stroke-linecap='round'/>" +
+              "<line x1='250' y1='4' x2='250' y2='172' stroke='#1E66F5' stroke-width='6' stroke-linecap='round'/>" +
+              "<line x1='220' y1='55' x2='280' y2='55' stroke='#1E66F5' stroke-width='6' stroke-linecap='round'/>" +
+              "<line x1='410' y1='16' x2='410' y2='172' stroke='#1E66F5' stroke-width='6' stroke-linecap='round'/>" +
+              "<text x='250' y='8' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<text x='250' y='172' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<text x='220' y='55' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<text x='280' y='55' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<text x='410' y='16' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<text x='410' y='172' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<text x='550' y='100' font-size='30' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "</svg>" +
+              "</div>",
             "<strong>cd</strong> changes your working directory, hence, c.hange d.irectory. Use <strong>cd filepath</strong> to move into a folder; <strong>cd ..</strong> goes up to the parent; <strong>cd ~</strong> jumps to your home (here, the campus root). After you change location, <strong>ls</strong> shows what’s inside the current directory.",
           ],
           [
@@ -1977,6 +2021,8 @@
         updateTabLabel();
         fsSetCurrentPathFromPrompt();
         createInputLine();
+        // Auto-open the filesystem in split view by default
+        setView("fs");
 
         // Tabs behavior
         var tabTermEl = document.getElementById("term-tab-label");
@@ -1987,13 +2033,28 @@
           });
         }
         if (tabFsEl) {
+          // Click toggles filesystem visibility; double-click opens fullscreen filesystem.
+          // We delay the click handler slightly so a double-click can cancel it.
+          var fsClickTimer = null;
           tabFsEl.addEventListener("click", function () {
-            // Toggle split view on/off when clicking Filesystem repeatedly
-            if (activeView === "fs") {
-              setView("terminal");
-            } else {
-              setView("fs");
-            }
+            if (fsClickTimer) clearTimeout(fsClickTimer);
+            fsClickTimer = setTimeout(function () {
+              fsClickTimer = null;
+              if (activeView === "terminal") {
+                setView("fs");
+              } else {
+                // If we're in split or fullscreen filesystem, hide it and return to terminal
+                setView("terminal");
+              }
+            }, 250);
+          });
+          tabFsEl.addEventListener("dblclick", function (e) {
+            if (fsClickTimer) clearTimeout(fsClickTimer);
+            fsClickTimer = null;
+            // Double click: fullscreen filesystem (terminal hidden).
+            // Use the "Ubuntu — bash" tab to return to terminal.
+            setView("fs-full");
+            e.preventDefault();
           });
         }
         // No additional FS controls; map is interactive via clicks & breadcrumbs
@@ -2016,7 +2077,7 @@
           if (mode) f.mode = mode;
           if (owner) f.owner = owner;
           if (group) f.group = group;
-          if (activeView === "fs") renderFsPane();
+          if (activeView === "fs" || activeView === "fs-full") renderFsPane();
         }
         function fsUpdateRestrictedAreaPerms(oRead, oExec) {
           var dir = fsNodeByPath([
@@ -2030,7 +2091,7 @@
           var prefix = base.slice(0, 7);
           var last = (oRead ? "r" : "-") + "-" + (oExec ? "x" : "-");
           dir.mode = prefix + last;
-          if (activeView === "fs") renderFsPane();
+          if (activeView === "fs" || activeView === "fs-full") renderFsPane();
         }
 
         // Attempt to load external fakeFileSystem.md (ASCII tree as in the repo)
@@ -2042,7 +2103,7 @@
             // Trim trivial one-file trees directly under root, keeping one exemplar
             trimRootSingleFileDirs(1);
             fsSetCurrentPathFromPrompt();
-            if (activeView === "fs") renderFsPane();
+            if (activeView === "fs" || activeView === "fs-full") renderFsPane();
           }
           var paths = [
             "fakeFileSystem.md",
