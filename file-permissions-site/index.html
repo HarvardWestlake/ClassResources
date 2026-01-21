@@ -460,9 +460,15 @@
         var fsExpanded = {};
         var fsCurrentPath = ["Harvard-Westlake"];
         var fsViewPath = ["Harvard-Westlake"]; // current drill-down view
+        var fsLastClickedPath = null; // path array of last clicked item in filesystem view
+        var fsLastClickedIsFile = false;
         var fsBaselineByDemo = {}; // key -> snapshot of fsModel
         var activeDemoKey = null;
         var hintShown = {}; // one-time hints for visual map
+        // Temporary "ls" preview overlay (clears on the next Enter)
+        // This is drawn *under the directory you just listed* while staying on the current
+        // parent-directory view (so the outlined "current" item remains visible).
+        var fsLsPreview = null; // { pathKey: string, pathArr: Array<string>, entries: Array<{name,type}> }
 
         function cloneFsModel(model) {
           try {
@@ -516,6 +522,11 @@
         }
         function fsPathKey(arr) {
           return (arr || []).join("/");
+        }
+        function fsParentPath(pathArr) {
+          var a = (pathArr || []).slice();
+          if (a.length <= 1) return a;
+          return a.slice(0, -1);
         }
         function initFsModel() {
           if (fsModel) return fsModel;
@@ -630,11 +641,44 @@
           if (!parts.length || parts[0] !== "Harvard-Westlake")
             parts.unshift("Harvard-Westlake");
           fsCurrentPath = parts;
+          // Always show the parent directory in the filesystem graphic, so the current directory
+          // appears as a highlighted child among its siblings.
+          fsViewPath = fsParentPath(parts);
           var acc = [];
           for (var i = 0; i < parts.length; i++) {
             acc.push(parts[i]);
             fsExpanded[fsPathKey(acc)] = true;
           }
+          if (activeView === "fs" || activeView === "fs-full") renderFsPane();
+        }
+
+        function fsGetDirEntries(pathArr) {
+          var node = fsNodeByPath(pathArr);
+          var out = [];
+          if (!node || node.type !== "dir") return out;
+          var kids = node.children || {};
+          var names = Object.keys(kids).sort();
+          for (var i = 0; i < names.length; i++) {
+            var k = kids[names[i]];
+            out.push({ name: names[i], type: (k && k.type) || "file" });
+          }
+          return out;
+        }
+
+        function fsShowLsPreview(pathArr) {
+          var p = (pathArr && pathArr.length ? pathArr.slice() : fsCurrentPath.slice());
+          // Don't show the green preview for the root directory.
+          if (p.length === 1 && p[0] === "Harvard-Westlake") {
+            return;
+          }
+          var entries = fsGetDirEntries(p);
+          fsLsPreview = { pathKey: fsPathKey(p), pathArr: p, entries: entries };
+          if (activeView === "fs" || activeView === "fs-full") renderFsPane();
+        }
+
+        function fsClearLsPreview() {
+          if (!fsLsPreview) return;
+          fsLsPreview = null;
           if (activeView === "fs" || activeView === "fs-full") renderFsPane();
         }
         function renderNode(node, pathArr) {
@@ -696,8 +740,11 @@
             var t = e.target;
             if (!t.classList.contains("crumb")) return;
             var idx = parseInt(t.getAttribute("data-index") || "0", 10);
-            fsViewPath = fsViewPath.slice(0, idx + 1);
-            renderFsPane();
+            var nextPath = fsViewPath.slice(0, idx + 1);
+            fsLastClickedPath = nextPath.slice();
+            fsLastClickedIsFile = false;
+            currentPathText = "~/" + nextPath.join("/");
+            updatePrompt(currentUserhost, currentPathText);
           };
         }
         function layoutTreemap(nodes, x, y, w, h, horizontal) {
@@ -730,6 +777,335 @@
           }
           return sum;
         }
+        function svgEl(name) {
+          return document.createElementNS("http://www.w3.org/2000/svg", name);
+        }
+        function drawRootAndBranches(svg, labelText, parentBox, childAnchors, parentPathArr) {
+          // Draw connectors behind the child boxes.
+          if (!childAnchors || !childAnchors.length) return;
+          var g = svgEl("g");
+          g.setAttribute("opacity", "0.95");
+          svg.appendChild(g);
+
+          var stroke = "#1E66F5";
+          var strokeW = 6;
+
+          var px = parentBox.x + parentBox.w / 2;
+          var pyBottom = parentBox.y + parentBox.h;
+
+          // Place the "bus" line slightly above the children
+          var busY = Math.max(
+            pyBottom + 24,
+            Math.min.apply(
+              null,
+              childAnchors.map(function (c) {
+                return c.y;
+              })
+            ) - 18
+          );
+
+          // Trunk (parent -> bus)
+          var trunk = svgEl("line");
+          trunk.setAttribute("x1", px);
+          trunk.setAttribute("y1", pyBottom);
+          trunk.setAttribute("x2", px);
+          trunk.setAttribute("y2", busY);
+          trunk.setAttribute("stroke", stroke);
+          trunk.setAttribute("stroke-width", strokeW);
+          trunk.setAttribute("stroke-linecap", "round");
+          g.appendChild(trunk);
+
+          // Bus (across all children)
+          var minX = Math.min.apply(
+            null,
+            childAnchors.map(function (c) {
+              return c.x;
+            })
+          );
+          var maxX = Math.max.apply(
+            null,
+            childAnchors.map(function (c) {
+              return c.x;
+            })
+          );
+          var bus = svgEl("line");
+          bus.setAttribute("x1", minX);
+          bus.setAttribute("y1", busY);
+          bus.setAttribute("x2", maxX);
+          bus.setAttribute("y2", busY);
+          bus.setAttribute("stroke", stroke);
+          bus.setAttribute("stroke-width", strokeW);
+          bus.setAttribute("stroke-linecap", "round");
+          g.appendChild(bus);
+
+          // Branches (bus -> each child)
+          for (var i = 0; i < childAnchors.length; i++) {
+            var c = childAnchors[i];
+            var br = svgEl("line");
+            br.setAttribute("x1", c.x);
+            br.setAttribute("y1", busY);
+            br.setAttribute("x2", c.x);
+            br.setAttribute("y2", c.y);
+            br.setAttribute("stroke", stroke);
+            br.setAttribute("stroke-width", strokeW);
+            br.setAttribute("stroke-linecap", "round");
+            g.appendChild(br);
+          }
+
+          // Parent node box + roof (directory)
+          var pg = svgEl("g");
+          svg.appendChild(pg);
+          var base = svgEl("rect");
+          base.setAttribute("x", parentBox.x);
+          base.setAttribute("y", parentBox.y + 12);
+          base.setAttribute("width", parentBox.w);
+          base.setAttribute("height", parentBox.h - 12);
+          base.setAttribute("rx", 8);
+          base.setAttribute("ry", 8);
+          base.setAttribute("fill", "#2a2a2a");
+          base.setAttribute("stroke", "#555");
+          base.setAttribute("stroke-width", "1.2");
+          pg.appendChild(base);
+
+          var roof = svgEl("polygon");
+          var rx1 = parentBox.x,
+            ry1 = parentBox.y + 12;
+          var rx2 = parentBox.x + parentBox.w,
+            ry2 = parentBox.y + 12;
+          var rxm = parentBox.x + parentBox.w / 2,
+            rym = parentBox.y + 2;
+          roof.setAttribute(
+            "points",
+            rx1 + "," + ry1 + " " + rx2 + "," + ry2 + " " + rxm + "," + rym
+          );
+          roof.setAttribute("fill", "#3a3a3a");
+          roof.setAttribute("stroke", "#666");
+          roof.setAttribute("stroke-width", "1.2");
+          pg.appendChild(roof);
+
+          var label = svgEl("text");
+          label.setAttribute("x", parentBox.x + parentBox.w / 2);
+          label.setAttribute("y", parentBox.y + 32);
+          label.setAttribute("text-anchor", "middle");
+          label.setAttribute("dominant-baseline", "central");
+          label.setAttribute("fill", "#ffffff");
+          label.setAttribute("font-size", "16");
+          label.textContent = labelText;
+          pg.appendChild(label);
+
+          // Clicking the parent node navigates "up" one level (cd into this parent directory),
+          // so the next graphic shows the previous parent directory.
+          var goToParentDir = function () {
+            var next = (parentPathArr && parentPathArr.length ? parentPathArr.slice() : fsViewPath.slice());
+            fsLastClickedPath = next.slice();
+            fsLastClickedIsFile = false;
+            currentPathText = "~/" + next.join("/");
+            updatePrompt(currentUserhost, currentPathText);
+          };
+          base.style.cursor = "pointer";
+          roof.style.cursor = "pointer";
+          label.style.cursor = "pointer";
+          base.addEventListener("click", goToParentDir);
+          roof.addEventListener("click", goToParentDir);
+          label.addEventListener("click", goToParentDir);
+        }
+
+        function drawLsPreviewOverlay(svg, anchorBox, entries) {
+          if (!svg || !anchorBox || !entries) return;
+          var shown = entries.slice(0, 10);
+          if (!shown.length) return;
+
+          var g = svgEl("g");
+          g.setAttribute("id", "fs-ls-preview");
+          g.setAttribute("opacity", "0.95");
+          svg.appendChild(g);
+
+          var green = "#4dff7a";
+          var blue = "#4da3ff";
+          var yellow = "#ffd54a";
+
+          var lineH = 26;
+          var px = anchorBox.x + anchorBox.w / 2;
+          var pyBottom = anchorBox.y + anchorBox.h;
+
+          // Green directory list INSIDE the red box representing the directory.
+          // (No "inner" label; just the directory names.)
+          var innerDirs = (entries || []).filter(function (e) {
+            return e && e.type === "dir";
+          });
+          // Render directory names inside the box, clipped so it stays within.
+          if (innerDirs.length) {
+            var list = innerDirs.slice(0, 12);
+            // Estimate how many lines can fit inside the box.
+            var innerPad = 8;
+            // Start the list in the lower portion of the box so it stays underneath the emoji badges.
+            var listLineH = 16;
+            var listTopMin = anchorBox.y + Math.floor(anchorBox.h * 0.62);
+            var maxLines = Math.max(
+              0,
+              Math.floor((anchorBox.y + anchorBox.h - innerPad - listTopMin) / listLineH)
+            );
+            var shownLines = Math.min(list.length, Math.max(0, Math.min(8, maxLines)));
+            if (shownLines > 0) {
+              var clipId = "fs-ls-clip-" + Math.floor(Math.random() * 1e9);
+              var defs = svgEl("defs");
+              var clip = svgEl("clipPath");
+              clip.setAttribute("id", clipId);
+              var clipRect = svgEl("rect");
+              clipRect.setAttribute("x", anchorBox.x + innerPad);
+              clipRect.setAttribute("y", listTopMin);
+              clipRect.setAttribute("width", Math.max(0, anchorBox.w - innerPad * 2));
+              clipRect.setAttribute(
+                "height",
+                Math.max(0, anchorBox.y + anchorBox.h - innerPad - listTopMin)
+              );
+              clip.appendChild(clipRect);
+              defs.appendChild(clip);
+              g.appendChild(defs);
+
+              var tg = svgEl("g");
+              tg.setAttribute("clip-path", "url(#" + clipId + ")");
+              g.appendChild(tg);
+
+              for (var di = 0; di < shownLines; di++) {
+                var d = list[di];
+                var ty = listTopMin + di * listLineH;
+                var t = svgEl("text");
+                t.setAttribute("x", anchorBox.x + innerPad);
+                t.setAttribute("y", ty);
+                t.setAttribute("fill", green);
+                t.setAttribute("font-size", "12");
+                t.setAttribute("dominant-baseline", "hanging");
+                t.setAttribute(
+                  "font-family",
+                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+                );
+                t.textContent = d.name;
+                tg.appendChild(t);
+              }
+
+              if (innerDirs.length > shownLines) {
+                var more = svgEl("text");
+                more.setAttribute("x", anchorBox.x + innerPad);
+                more.setAttribute("y", listTopMin + shownLines * listLineH);
+                more.setAttribute("fill", green);
+                more.setAttribute("font-size", "12");
+                more.setAttribute("dominant-baseline", "hanging");
+                more.setAttribute(
+                  "font-family",
+                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+                );
+                more.textContent = "…+" + (innerDirs.length - shownLines);
+                tg.appendChild(more);
+              }
+            }
+          }
+
+          var busY = pyBottom + 22;
+          var startY = busY + 26;
+
+          // Trunk (from the listed directory down to the bus)
+          var trunk = svgEl("line");
+          trunk.setAttribute("x1", px);
+          trunk.setAttribute("y1", pyBottom);
+          trunk.setAttribute("x2", px);
+          trunk.setAttribute("y2", busY);
+          trunk.setAttribute("stroke", green);
+          trunk.setAttribute("stroke-width", "5");
+          trunk.setAttribute("stroke-linecap", "round");
+          g.appendChild(trunk);
+
+          // Child anchor points: spread slightly horizontally for a "tree" feel
+          var anchors = [];
+          if (shown.length === 1) {
+            anchors.push({ x: px, y: startY });
+          } else {
+            // Spread anchors equally with a minimum spacing so labels remain readable.
+            var minSpacing = 90;
+            var maxSpread = 520;
+            var spread = Math.min(
+              maxSpread,
+              Math.max(180, (shown.length - 1) * minSpacing)
+            );
+            for (var i = 0; i < shown.length; i++) {
+              var t = i / (shown.length - 1);
+              var x = px - spread / 2 + t * spread;
+              anchors.push({ x: x, y: startY + i * lineH });
+            }
+          }
+
+          // Bus (across anchors)
+          var minX = Math.min.apply(
+            null,
+            anchors.map(function (a) {
+              return a.x;
+            })
+          );
+          var maxX = Math.max.apply(
+            null,
+            anchors.map(function (a) {
+              return a.x;
+            })
+          );
+          var bus = svgEl("line");
+          bus.setAttribute("x1", minX);
+          bus.setAttribute("y1", busY);
+          bus.setAttribute("x2", maxX);
+          bus.setAttribute("y2", busY);
+          bus.setAttribute("stroke", green);
+          bus.setAttribute("stroke-width", "5");
+          bus.setAttribute("stroke-linecap", "round");
+          g.appendChild(bus);
+
+          // Branches + labels
+          for (var i = 0; i < anchors.length; i++) {
+            var a = anchors[i];
+            var br = svgEl("line");
+            br.setAttribute("x1", a.x);
+            br.setAttribute("y1", busY);
+            br.setAttribute("x2", a.x);
+            br.setAttribute("y2", a.y);
+            br.setAttribute("stroke", green);
+            br.setAttribute("stroke-width", "4");
+            br.setAttribute("stroke-linecap", "round");
+            g.appendChild(br);
+
+            var dot = svgEl("circle");
+            dot.setAttribute("cx", a.x);
+            dot.setAttribute("cy", a.y);
+            dot.setAttribute("r", "3");
+            dot.setAttribute("fill", green);
+            g.appendChild(dot);
+
+            var label = svgEl("text");
+            // Put the name at the end of the green branch (centered under the endpoint dot)
+            label.setAttribute("x", a.x);
+            label.setAttribute("y", a.y + 18);
+            label.setAttribute("font-size", "14");
+            label.setAttribute("text-anchor", "middle");
+            label.setAttribute("dominant-baseline", "hanging");
+            label.setAttribute(
+              "font-family",
+              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+            );
+            label.setAttribute("fill", shown[i].type === "dir" ? blue : yellow);
+            label.textContent = shown[i].name;
+            g.appendChild(label);
+          }
+
+          // Small tag so it's obvious this is a preview
+          var tag = svgEl("text");
+          tag.setAttribute("x", px + 8);
+          tag.setAttribute("y", pyBottom + 16);
+          tag.setAttribute("fill", green);
+          tag.setAttribute("font-size", "12");
+          tag.setAttribute(
+            "font-family",
+            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+          );
+          tag.textContent = "ls";
+          g.appendChild(tag);
+        }
         function renderFsView() {
           var svg = document.getElementById("fs-view");
           if (!svg) return;
@@ -752,13 +1128,46 @@
             svg.appendChild(t);
             return;
           }
+          // Add a parent directory node (current view) with connectors down to each child.
+          // This makes the directory-tree relationship explicit in every filesystem view.
+          var parentLabel =
+            (root && root.name) ||
+            (fsViewPath && fsViewPath.length ? fsViewPath[fsViewPath.length - 1] : "Harvard-Westlake");
+          if (!fsViewPath || !fsViewPath.length) parentLabel = "Harvard-Westlake";
+          // Keep the top-level root name consistent.
+          if (fsViewPath && fsViewPath.length === 1) parentLabel = "Harvard-Westlake";
+
+          var parentW = Math.min(520, Math.max(260, Math.floor(width * 0.36)));
+          var parentH = 68;
+          var parentX = Math.floor((width - parentW) / 2);
+          var parentY = 10;
+
+          // Shift children down to make space for the parent and connector lines.
+          var childTop = parentY + parentH + 56;
           var slices = layoutTreemap(
             children,
             10,
-            10,
+            childTop,
             width - 20,
-            height - 20,
+            Math.max(40, height - childTop - 10),
             true
+          );
+
+          var anchors = [];
+          for (var i = 0; i < slices.length; i++) {
+            var s = slices[i];
+            var cw = s.w - 6;
+            anchors.push({
+              x: s.x + Math.max(40, cw) / 2,
+              y: s.y + 8
+            });
+          }
+          drawRootAndBranches(
+            svg,
+            parentLabel,
+            { x: parentX, y: parentY, w: parentW, h: parentH },
+            anchors,
+            fsViewPath.slice()
           );
           for (var i = 0; i < slices.length; i++) {
             var s = slices[i];
@@ -773,6 +1182,28 @@
               0,
               1
             );
+          }
+
+          // If the user just ran `ls`, overlay a temporary preview (clears on the next Enter).
+          // We stay on the current parent-directory view and attach the branches under the listed item.
+          if (fsLsPreview && fsLsPreview.pathArr && fsLsPreview.entries) {
+            var p = fsLsPreview.pathArr.slice();
+            var parent = fsParentPath(p);
+            if (fsPathKey(parent) === fsPathKey(fsViewPath)) {
+              // The listed directory should be visible as a child box in this view.
+              var childName = p[p.length - 1];
+              var anchor = null;
+              for (var i = 0; i < slices.length; i++) {
+                var s = slices[i];
+                if (s && s.node && s.node.name === childName) {
+                  anchor = { x: s.x, y: s.y, w: s.w - 6, h: s.h - 6 };
+                  break;
+                }
+              }
+              // Fallback: if the child isn't found (unexpected), attach under the view root.
+              if (!anchor) anchor = { x: parentX, y: parentY, w: parentW, h: parentH };
+              drawLsPreviewOverlay(svg, anchor, fsLsPreview.entries);
+            }
           }
         }
         function drawPermBadges(g, mode, x, y, w, h) {
@@ -852,6 +1283,8 @@
           svg.appendChild(g);
           var isCurrent = fsPathKey(pathArr) === fsPathKey(fsCurrentPath);
           if (node.type === "dir") {
+            var bw = Math.max(40, w);
+            var bh = Math.max(28, h - 12);
             // Building base
             var base = document.createElementNS(
               "http://www.w3.org/2000/svg",
@@ -859,8 +1292,8 @@
             );
             base.setAttribute("x", x);
             base.setAttribute("y", y + 12);
-            base.setAttribute("width", Math.max(40, w));
-            base.setAttribute("height", Math.max(28, h - 12));
+            base.setAttribute("width", bw);
+            base.setAttribute("height", bh);
             base.setAttribute(
               "class",
               "fs-building" + (isCurrent ? " current" : "")
@@ -875,9 +1308,9 @@
             );
             var rx1 = x,
               ry1 = y + 12;
-            var rx2 = x + w,
+            var rx2 = x + bw,
               ry2 = y + 12;
-            var rxm = x + w / 2,
+            var rxm = x + bw / 2,
               rym = y + 2;
             roof.setAttribute(
               "points",
@@ -885,14 +1318,18 @@
             );
             roof.setAttribute("class", "fs-roof");
             g.appendChild(roof);
-            // Click to drill down
-            var drill = function () {
-              fsViewPath = pathArr.slice();
-              renderFsPane();
+            // Click to "cd" into this directory (the graphic continues to show the parent directory).
+            var cdIntoDir = function () {
+              fsLastClickedPath = pathArr.slice();
+              fsLastClickedIsFile = false;
+              currentPathText = "~/" + pathArr.join("/");
+              updatePrompt(currentUserhost, currentPathText);
             };
-            base.addEventListener("click", drill);
-            roof.addEventListener("click", drill);
+            base.addEventListener("click", cdIntoDir);
+            roof.addEventListener("click", cdIntoDir);
           } else {
+            var sw = Math.max(36, w);
+            var sh = Math.max(36, h - 6);
             // File sheet with folded corner
             var sheet = document.createElementNS(
               "http://www.w3.org/2000/svg",
@@ -900,8 +1337,8 @@
             );
             sheet.setAttribute("x", x);
             sheet.setAttribute("y", y + 6);
-            sheet.setAttribute("width", Math.max(36, w));
-            sheet.setAttribute("height", Math.max(36, h - 6));
+            sheet.setAttribute("width", sw);
+            sheet.setAttribute("height", sh);
             sheet.setAttribute(
               "class",
               "fs-file" + (isCurrent ? " current" : "")
@@ -911,7 +1348,7 @@
               "http://www.w3.org/2000/svg",
               "polygon"
             );
-            var fx = x + Math.max(24, Math.min(w - 8, 28));
+            var fx = x + Math.max(24, Math.min(sw - 8, 28));
             var fy = y + 6;
             fold.setAttribute(
               "points",
@@ -930,6 +1367,8 @@
             fold.setAttribute("class", "fs-file-fold");
             g.appendChild(fold);
             var setCwd = function () {
+              fsLastClickedPath = pathArr.slice();
+              fsLastClickedIsFile = true;
               var parent = pathArr.slice(0, -1);
               currentPathText = "~/" + parent.join("/");
               updatePrompt(currentUserhost, currentPathText);
@@ -948,7 +1387,14 @@
           label.textContent = node.name;
           g.appendChild(label);
           // Artistic permission badges (spread within the box)
-          drawPermBadges(g, node.mode, x, y + 6, w, Math.max(40, h - 6));
+          drawPermBadges(
+            g,
+            node.mode,
+            x,
+            y + 6,
+            node.type === "dir" ? Math.max(40, w) : Math.max(36, w),
+            Math.max(40, h - 6)
+          );
           if (
             node.type === "dir" &&
             (maxDepth === undefined || depth + 1 < maxDepth)
@@ -1093,7 +1539,7 @@
           [
             "A <strong>file</strong> contains data that your operating system (Windows, Linux, macOS, etc.) stores. A <strong>directory</strong> is a special kind of record that stores a list of names and references to those files and/or other directories so the system can organize everything. Imagine in a school, a file is a single room that holds its materials. A directory is a hallway that leads to or contains rooms, as well as branches off into other hallways. This system of rooms and hallways is a <strong>tree</strong>. In a Harvard-Westlake school metaphor, the school campus is the root of the tree, which branches out into buildings (Chalmers, Seaver, etc.), and then further into rooms (Student Lounge) and hallways (Upper Chalmers), that contain their own rooms (Chalmers 305)." +
               "<div role='img' aria-label='A hallway line connecting rooms (files) in a directory' style='margin:14px 0 6px; display:flex; justify-content:center;'>" +
-              "<svg width='560' height='180' viewBox='0 0 560 180' xmlns='http://www.w3.org/2000/svg'>" +
+              "<svg id='hallway-cursor-svg' width='560' height='180' viewBox='0 0 560 180' xmlns='http://www.w3.org/2000/svg'>" +
               "<rect x='20' y='72' width='70' height='55' rx='10' fill='#FFEB3B' stroke='#C7A600' stroke-width='2'/>" +
               "<text x='55' y='100' font-size='34' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
               "<text x='55' y='138' font-size='14' text-anchor='middle' dominant-baseline='middle' fill='#333' font-family='system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'>room</text>" +
@@ -1108,6 +1554,7 @@
               "<text x='410' y='16' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
               "<text x='410' y='172' font-size='22' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
               "<text x='550' y='100' font-size='30' text-anchor='middle' dominant-baseline='middle'>📄</text>" +
+              "<circle id='hallway-cursor-dot' cx='90' cy='100' r='6' fill='#ff4fa3' style='display:none' />" +
               "</svg>" +
               "</div>",
             "<strong>cd</strong> changes your working directory, hence, c.hange d.irectory. Use <strong>cd filepath</strong> to move into a folder; <strong>cd ..</strong> goes up to the parent; <strong>cd ~</strong> jumps to your home (here, the campus root). After you change location, <strong>ls</strong> shows what’s inside the current directory.",
@@ -1221,6 +1668,7 @@
                       '<span class="ls-dir">' + escapeHtml(n) + "</span>"
                     );
                   });
+                  fsShowLsPreview(fsCurrentPath);
                   step = 2;
                   showNext();
                 } else appendInstructionHtml("Try: ls");
@@ -1240,6 +1688,7 @@
                       '<span class="ls-dir">' + escapeHtml(n) + "</span>"
                     );
                   });
+                  fsShowLsPreview(fsCurrentPath);
                   step = 4;
                   showNext();
                 } else appendInstructionHtml("Try: ls");
@@ -1259,6 +1708,7 @@
                       '<span class="ls-dir">' + escapeHtml(n) + "</span>"
                     );
                   });
+                  fsShowLsPreview(fsCurrentPath);
                   step = 6;
                   showNext();
                 } else appendInstructionHtml("Try: ls");
@@ -1278,6 +1728,7 @@
                       '<span class="ls-dir">' + escapeHtml(n) + "</span>"
                     );
                   });
+                  fsShowLsPreview(fsCurrentPath);
                   step = 8;
                   showNext();
                 } else appendInstructionHtml("Try: ls");
@@ -1297,6 +1748,7 @@
                       '<span class="ls-dir">' + escapeHtml(n) + "</span>"
                     );
                   });
+                  fsShowLsPreview(fsCurrentPath);
                   step = 10;
                   showNext();
                 } else appendInstructionHtml("Try: ls");
@@ -1313,6 +1765,7 @@
                     '<span class="ls-dir">' + escapeHtml(n) + "</span>"
                   );
                 });
+                fsShowLsPreview(fsCurrentPath);
               } else if (cmd === "cd ..") {
                 if (path.length > 1) path.pop();
                 updatePrompt("hwwolverine@DESKTOP-WSL", promptPath());
@@ -1949,6 +2402,7 @@
         }
 
         function startNextDemoForSection(idx) {
+          stopHallwayCursorDot();
           if (idx === 0) {
             cd.start();
           } else if (idx === 1) {
@@ -1960,12 +2414,318 @@
           }
         }
 
+        // ===== Cursor dot (for the hallway graphic) =====
+        var hallwayCursorDotCleanup = null;
+        function stopHallwayCursorDot() {
+          if (typeof hallwayCursorDotCleanup === "function") {
+            hallwayCursorDotCleanup();
+          }
+          hallwayCursorDotCleanup = null;
+        }
+        function startHallwayCursorDot() {
+          stopHallwayCursorDot();
+          var svg = document.getElementById("hallway-cursor-svg");
+          var dot = document.getElementById("hallway-cursor-dot");
+          if (!svg || !dot) return;
+
+          dot.style.display = "block";
+
+          // Line segments in SVG coordinates.
+          // The dot must *travel along the connected graph* (no hopping between segments).
+          var segments = [
+            // main hallway
+            { x1: 90, y1: 100, x2: 540, y2: 100 },
+            // left vertical
+            { x1: 250, y1: 4, x2: 250, y2: 172 },
+            // mid tick (connected to left vertical)
+            { x1: 220, y1: 55, x2: 280, y2: 55 },
+            // right vertical (connected to main hallway)
+            { x1: 410, y1: 16, x2: 410, y2: 172 },
+          ];
+
+          function closestPointOnSegment(px, py, x1, y1, x2, y2) {
+            var dx = x2 - x1;
+            var dy = y2 - y1;
+            var len2 = dx * dx + dy * dy;
+            if (len2 === 0) return { x: x1, y: y1 };
+            var t = ((px - x1) * dx + (py - y1) * dy) / len2;
+            if (t < 0) t = 0;
+            if (t > 1) t = 1;
+            return { x: x1 + t * dx, y: y1 + t * dy };
+          }
+
+          function pickNearestOnNetwork(px, py) {
+            var best = { x: 90, y: 100 };
+            var bestSeg = 0;
+            var bestD2 = Infinity;
+            for (var i = 0; i < segments.length; i++) {
+              var s = segments[i];
+              var p = closestPointOnSegment(px, py, s.x1, s.y1, s.x2, s.y2);
+              var ddx = px - p.x;
+              var ddy = py - p.y;
+              var d2 = ddx * ddx + ddy * ddy;
+              if (d2 < bestD2) {
+                bestD2 = d2;
+                best = p;
+                bestSeg = i;
+              }
+            }
+            return { point: best, segIndex: bestSeg };
+          }
+
+          function keyForPoint(p) {
+            // keep it stable for dictionary keys
+            return Math.round(p.x * 1000) / 1000 + "," + Math.round(p.y * 1000) / 1000;
+          }
+
+          function dist(a, b) {
+            var dx = a.x - b.x;
+            var dy = a.y - b.y;
+            return Math.sqrt(dx * dx + dy * dy);
+          }
+
+          function buildGraph(extraPoints) {
+            // Base nodes (endpoints + intersections)
+            var nodes = [];
+            function addNode(p) {
+              var k = keyForPoint(p);
+              for (var i = 0; i < nodes.length; i++) {
+                if (keyForPoint(nodes[i]) === k) return;
+              }
+              nodes.push({ x: p.x, y: p.y });
+            }
+
+            // segment endpoints
+            for (var i = 0; i < segments.length; i++) {
+              addNode({ x: segments[i].x1, y: segments[i].y1 });
+              addNode({ x: segments[i].x2, y: segments[i].y2 });
+            }
+
+            // intersections for this known network
+            addNode({ x: 250, y: 100 }); // left vertical with main hallway
+            addNode({ x: 410, y: 100 }); // right vertical with main hallway
+            addNode({ x: 250, y: 55 }); // mid tick with left vertical
+
+            // extra points (current and target), already on some segment
+            for (var j = 0; j < extraPoints.length; j++) addNode(extraPoints[j]);
+
+            var adj = {};
+            function ensureAdj(k) {
+              if (!adj[k]) adj[k] = [];
+            }
+            function connect(a, b) {
+              var ka = keyForPoint(a);
+              var kb = keyForPoint(b);
+              ensureAdj(ka);
+              ensureAdj(kb);
+              var w = dist(a, b);
+              adj[ka].push({ to: kb, w: w });
+              adj[kb].push({ to: ka, w: w });
+            }
+
+            function isOnSegment(p, s) {
+              // axis-aligned only in this diagram
+              if (s.y1 === s.y2) {
+                if (Math.abs(p.y - s.y1) > 0.5) return false;
+                var minX = Math.min(s.x1, s.x2);
+                var maxX = Math.max(s.x1, s.x2);
+                return p.x >= minX - 0.5 && p.x <= maxX + 0.5;
+              }
+              if (s.x1 === s.x2) {
+                if (Math.abs(p.x - s.x1) > 0.5) return false;
+                var minY = Math.min(s.y1, s.y2);
+                var maxY = Math.max(s.y1, s.y2);
+                return p.y >= minY - 0.5 && p.y <= maxY + 0.5;
+              }
+              return false;
+            }
+
+            function sortAlongSegment(points, s) {
+              var pts = points.slice();
+              if (s.y1 === s.y2) {
+                pts.sort(function (a, b) {
+                  return a.x - b.x;
+                });
+              } else {
+                pts.sort(function (a, b) {
+                  return a.y - b.y;
+                });
+              }
+              return pts;
+            }
+
+            // For each segment, connect all points that lie on it in order.
+            for (var si = 0; si < segments.length; si++) {
+              var seg = segments[si];
+              var ptsOn = [];
+              for (var ni = 0; ni < nodes.length; ni++) {
+                if (isOnSegment(nodes[ni], seg)) ptsOn.push(nodes[ni]);
+              }
+              ptsOn = sortAlongSegment(ptsOn, seg);
+              for (var pi = 0; pi < ptsOn.length - 1; pi++) {
+                connect(ptsOn[pi], ptsOn[pi + 1]);
+              }
+            }
+
+            return { nodes: nodes, adj: adj };
+          }
+
+          function dijkstra(adj, startKey, goalKey) {
+            var distMap = {};
+            var prev = {};
+            var visited = {};
+            var keys = Object.keys(adj);
+            for (var i = 0; i < keys.length; i++) distMap[keys[i]] = Infinity;
+            distMap[startKey] = 0;
+
+            while (true) {
+              var u = null;
+              var best = Infinity;
+              for (var k in distMap) {
+                if (!visited[k] && distMap[k] < best) {
+                  best = distMap[k];
+                  u = k;
+                }
+              }
+              if (u === null) break;
+              if (u === goalKey) break;
+              visited[u] = true;
+              var edges = adj[u] || [];
+              for (var e = 0; e < edges.length; e++) {
+                var v = edges[e].to;
+                var alt = distMap[u] + edges[e].w;
+                if (alt < distMap[v]) {
+                  distMap[v] = alt;
+                  prev[v] = u;
+                }
+              }
+            }
+
+            // reconstruct
+            var path = [];
+            var cur = goalKey;
+            if (cur !== startKey && typeof prev[cur] === "undefined") return null;
+            while (cur) {
+              path.push(cur);
+              if (cur === startKey) break;
+              cur = prev[cur];
+            }
+            path.reverse();
+            return path;
+          }
+
+          var vb = svg.viewBox && svg.viewBox.baseVal;
+          var current = {
+            x: parseFloat(dot.getAttribute("cx")) || 90,
+            y: parseFloat(dot.getAttribute("cy")) || 100,
+          };
+          var plannedPathPoints = [current];
+          var pathIdx = 0;
+          var speedPxPerSec = 220;
+          var raf = 0;
+          var lastTs = 0;
+
+          function step(ts) {
+            if (!lastTs) lastTs = ts;
+            var dt = (ts - lastTs) / 1000;
+            lastTs = ts;
+
+            var remaining = speedPxPerSec * dt;
+            while (remaining > 0 && plannedPathPoints.length > 1) {
+              var a = plannedPathPoints[pathIdx];
+              var b = plannedPathPoints[pathIdx + 1];
+              if (!b) break;
+              var segLen = dist(a, b);
+              if (segLen < 0.001) {
+                pathIdx++;
+                if (pathIdx >= plannedPathPoints.length - 1) break;
+                continue;
+              }
+              // current position is always at `current` which lies between a and b;
+              // advance towards b
+              var toB = dist(current, b);
+              if (remaining >= toB) {
+                current = { x: b.x, y: b.y };
+                pathIdx++;
+                remaining -= toB;
+                if (pathIdx >= plannedPathPoints.length - 1) break;
+              } else {
+                var t = remaining / toB;
+                current = {
+                  x: current.x + (b.x - current.x) * t,
+                  y: current.y + (b.y - current.y) * t,
+                };
+                remaining = 0;
+              }
+            }
+
+            dot.setAttribute("cx", String(current.x));
+            dot.setAttribute("cy", String(current.y));
+            raf = requestAnimationFrame(step);
+          }
+
+          function onMove(e) {
+            var rect = svg.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+            var sx = x, sy = y;
+            if (vb && vb.width && vb.height) {
+              sx = vb.x + (x / rect.width) * vb.width;
+              sy = vb.y + (y / rect.height) * vb.height;
+            }
+
+            // compute a *destination point on the network* closest to the cursor,
+            // then plan a route along the network from the dot's current position
+            var curPick = pickNearestOnNetwork(current.x, current.y);
+            var dstPick = pickNearestOnNetwork(sx, sy);
+            var curP = curPick.point;
+            var dstP = dstPick.point;
+
+            var graph = buildGraph([curP, dstP]);
+            var startKey = keyForPoint(curP);
+            var goalKey = keyForPoint(dstP);
+            var pathKeys = dijkstra(graph.adj, startKey, goalKey);
+            if (!pathKeys) return;
+
+            // Convert keys back into points
+            var pointsByKey = {};
+            for (var i = 0; i < graph.nodes.length; i++) {
+              pointsByKey[keyForPoint(graph.nodes[i])] = graph.nodes[i];
+            }
+            var newPts = [];
+            for (var pi = 0; pi < pathKeys.length; pi++) {
+              var p = pointsByKey[pathKeys[pi]];
+              if (p) newPts.push({ x: p.x, y: p.y });
+            }
+            if (!newPts.length) return;
+
+            // Start from the *actual current* dot position to avoid any visible snapping.
+            newPts[0] = { x: current.x, y: current.y };
+            plannedPathPoints = newPts;
+            pathIdx = 0;
+          }
+
+          // Track the cursor even if it leaves the SVG; dot “tries” to keep up.
+          document.addEventListener("mousemove", onMove, { passive: true });
+          raf = requestAnimationFrame(step);
+
+          hallwayCursorDotCleanup = function () {
+            document.removeEventListener("mousemove", onMove);
+            if (raf) cancelAnimationFrame(raf);
+            dot.style.display = "none";
+          };
+        }
+
         // Handle input
         function onKeyDown(e) {
           if (e.key !== "Enter") return;
           e.preventDefault();
           var raw = (input.textContent || "").replace(/\r?\n/g, "");
           var cmd = raw.trim();
+
+          // Any new Enter clears the previous `ls` preview (the preview is only for the last `ls`).
+          fsClearLsPreview();
 
           // finalize the current input line to look like a real terminal
           finalizeCurrentInput(raw);
@@ -1976,7 +2736,14 @@
             if (paragraphIndex < 0) {
               // advancing through preface lines; no output
             } else if (paragraphIndex < group.length) {
+              // Stop any prior interactive overlays when moving through text.
+              stopHallwayCursorDot();
               appendInstructionHtml(group[paragraphIndex]);
+              // When we reach the cd/ls explanation (right before the demo), activate the cursor dot
+              // on the hallway graphic from the previous paragraph.
+              if (sectionIndex === 0 && paragraphIndex === 1) {
+                startHallwayCursorDot();
+              }
               if (sectionIndex === 0 && paragraphIndex === group.length - 1) {
                 appendInstructionHtml(
                   "Next: a guided <strong>cd</strong> demo will begin."
