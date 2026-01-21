@@ -632,6 +632,14 @@
             cursor: grabbing;
         }
 
+        #polarCanvas {
+            cursor: grab;
+        }
+
+        #polarCanvas.dragging {
+            cursor: grabbing;
+        }
+
         .error-message {
             background: rgba(255, 0, 0, 0.3);
             border: 2px solid rgba(255, 0, 0, 0.5);
@@ -1446,6 +1454,12 @@
         let lastMouseX = 0;
         let lastMouseY = 0;
         let polarZoom = 1.0;
+        // Polar pan state (world-units) – mirrors cartesian panning but for the polar x/y plane
+        let polarCenterX = 0;
+        let polarCenterY = 0;
+        let isPolarDragging = false;
+        let lastPolarMouseX = 0;
+        let lastPolarMouseY = 0;
         // Interaction modes
         let interactionMode = 'perspective'; // 'perspective' | 'view' | 'edit'
         let tooltipEl = null;
@@ -1878,6 +1892,15 @@
             }
         });
 
+        // Click and drag panning for polar (Move mode only)
+        polarCanvas.addEventListener('mousedown', (e) => {
+            if (interactionMode !== 'perspective') return;
+            isPolarDragging = true;
+            polarCanvas.classList.add('dragging');
+            lastPolarMouseX = e.clientX;
+            lastPolarMouseY = e.clientY;
+        });
+
         document.addEventListener('mousemove', (e) => {
             if (interactionMode === 'perspective' && isDragging) {
                 const rect = cartesianCanvas.getBoundingClientRect();
@@ -1902,6 +1925,28 @@
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
                 
+                plotGraph();
+            } else if (interactionMode === 'perspective' && isPolarDragging) {
+                // Mirror cartesian panning, but in the polar x/y world.
+                // Use the polar plot's current world-to-pixel scale (maxR / radiusPx).
+                const deltaX = e.clientX - lastPolarMouseX;
+                const deltaY = e.clientY - lastPolarMouseY;
+
+                const radiusPx = (lastPolarState && isFinite(lastPolarState.radiusPx) && lastPolarState.radiusPx > 0)
+                    ? lastPolarState.radiusPx
+                    : Math.max(1, (Math.min(polarCanvas.width, polarCanvas.height) / 2) - 10);
+                const maxR = (lastPolarState && isFinite(lastPolarState.maxR) && lastPolarState.maxR > 0)
+                    ? lastPolarState.maxR
+                    : 1;
+                const scale = maxR / radiusPx;
+
+                const dx = -(deltaX * scale);
+                const dy = (deltaY * scale);
+                polarCenterX += dx;
+                polarCenterY += dy;
+
+                lastPolarMouseX = e.clientX;
+                lastPolarMouseY = e.clientY;
                 plotGraph();
             } else if (interactionMode === 'edit') {
                 if (editAdjustMode === 'shift' && isEditTranslating && editStart) {
@@ -1949,6 +1994,10 @@
                 isDragging = false;
                 cartesianCanvas.classList.remove('dragging');
             }
+            if (isPolarDragging) {
+                isPolarDragging = false;
+                polarCanvas.classList.remove('dragging');
+            }
             if (isEditTranslating) {
                 isEditTranslating = false;
             }
@@ -1989,6 +2038,8 @@
 
         function resetZoomPolar() {
             polarZoom = (defaultPolarZoom !== null) ? defaultPolarZoom : 1.0;
+            polarCenterX = 0;
+            polarCenterY = 0;
             plotGraph();
         }
 
@@ -4117,6 +4168,8 @@
             if (!width || !height) return;
             const centerX = width / 2;
             const centerY = height / 2;
+            const viewCenterX = polarCenterX;
+            const viewCenterY = polarCenterY;
             const polarPadding = 10;
             const baseRadius = Math.min(width, height) / 2 - polarPadding;
 
@@ -4132,7 +4185,7 @@
                 actualMax = parseFloat(sliderElForDomain.dataset.actualMax || (2 * Math.PI).toString());
             }
             // Track last polar state for hover mapping
-            lastPolarState = { centerX, centerY, maxR: 1, radiusPx: baseRadius };
+            lastPolarState = { centerX, centerY, maxR: 1, radiusPx: baseRadius, viewCenterX, viewCenterY };
             
             // Sample to find max r from the function to ensure we show the full function
             const sampleStep = 0.01;
@@ -4169,13 +4222,21 @@
             const radius = baseRadius;
             lastPolarState.maxR = maxR;
             lastPolarState.radiusPx = radius;
+            lastPolarState.viewCenterX = viewCenterX;
+            lastPolarState.viewCenterY = viewCenterY;
+
+            // Helpers: map WORLD (x,y) to screen pixels inside the polar canvas.
+            // This mirrors cartesian's use of center + zoom, but for the polar x/y plane.
+            const toScreenX = (wx) => centerX + ((wx - viewCenterX) / maxR) * radius;
+            const toScreenY = (wy) => centerY - ((wy - viewCenterY) / maxR) * radius;
+            const originScreenX = toScreenX(0);
+            const originScreenY = toScreenY(0);
 
             // Clear canvas
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, width, height);
 
-            // Draw polar grid with adaptive increments.
-            // IMPORTANT: When panning, draw circles that intersect the current VIEW window so we don't "pan into empty".
+            // Draw polar grid with adaptive increments (concentric circles centered at WORLD origin).
             ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 1;
 
@@ -4234,9 +4295,15 @@
                 }
             }
             
-            // Draw concentric circles
-            for (let i = 1; i <= numCircles; i++) {
-                const r = i * circleStep;
+            // When panning, we must draw circles that intersect the current view circle.
+            // View circle is centered at (viewCenterX, viewCenterY) with radius maxR (world units).
+            const dToOrigin = Math.hypot(viewCenterX, viewCenterY);
+            const rMinIntersect = Math.max(0, dToOrigin - maxR);
+            const rMaxIntersect = dToOrigin + maxR;
+            const rStart = Math.max(circleStep, Math.floor(rMinIntersect / circleStep) * circleStep);
+            const rEnd = Math.max(circleStep, Math.ceil(rMaxIntersect / circleStep) * circleStep);
+
+            for (let r = rStart; r <= rEnd + 1e-9; r += circleStep) {
                 // Whole-number radii get darker lines than decimals
                 const isWholeNumber = Math.abs(r - Math.round(r)) < 1e-8;
                 
@@ -4250,7 +4317,7 @@
                 }
                 
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, (r / maxR) * radius, 0, 2 * Math.PI);
+                ctx.arc(originScreenX, originScreenY, (r / maxR) * radius, 0, 2 * Math.PI);
                 ctx.stroke();
             }
             
@@ -4258,29 +4325,39 @@
             ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 1;
 
-            // Draw radial lines (more angles: every 15°)
+            // Draw radial lines (every 15°) as WORLD lines through the origin.
+            const radialExtent = Math.max(rEnd, 1);
             for (let angle = 0; angle < 360; angle += 15) {
                 const rad = (angle * Math.PI) / 180;
+                const c = Math.cos(rad);
+                const s = Math.sin(rad);
+                const x1 = -radialExtent * c, y1 = -radialExtent * s;
+                const x2 = radialExtent * c, y2 = radialExtent * s;
                 ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
-                ctx.lineTo(
-                    centerX + radius * Math.cos(rad),
-                    centerY + radius * Math.sin(rad)
-                );
+                ctx.moveTo(toScreenX(x1), toScreenY(y1));
+                ctx.lineTo(toScreenX(x2), toScreenY(y2));
                 ctx.stroke();
             }
 
-            // Draw axes
+            // Draw WORLD x/y axes (only the visible chord inside the view circle)
             ctx.strokeStyle = '#333';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(centerX - radius, centerY);
-            ctx.lineTo(centerX + radius, centerY);
-            ctx.moveTo(centerX, centerY - radius);
-            ctx.lineTo(centerX, centerY + radius);
+            // y = 0 axis
+            if (Math.abs(viewCenterY) <= maxR + 1e-12) {
+                const dxMax = Math.sqrt(Math.max(0, maxR * maxR - viewCenterY * viewCenterY));
+                ctx.moveTo(toScreenX(viewCenterX - dxMax), toScreenY(0));
+                ctx.lineTo(toScreenX(viewCenterX + dxMax), toScreenY(0));
+            }
+            // x = 0 axis
+            if (Math.abs(viewCenterX) <= maxR + 1e-12) {
+                const dyMax = Math.sqrt(Math.max(0, maxR * maxR - viewCenterX * viewCenterX));
+                ctx.moveTo(toScreenX(0), toScreenY(viewCenterY - dyMax));
+                ctx.lineTo(toScreenX(0), toScreenY(viewCenterY + dyMax));
+            }
             ctx.stroke();
 
-            // Draw axis labels (values along ±x and ±y)
+            // Draw axis labels (x/y values) along the visible x/y axes
             ctx.save();
             ctx.fillStyle = '#333';
             ctx.font = '12px Arial';
@@ -4293,15 +4370,12 @@
             const decimals = Math.min(2, Math.max(0, Math.ceil(-Math.log10(circleStep + 1e-12))));
             const minLabelSpacing = 18; // px minimum spacing to avoid condensed labels
 
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText('0', centerX, centerY - labelOffsetY);
-
-            // Track overlap/duplicates independently per axis side.
-            let lastRightLabel = null, lastRightX = -Infinity;
-            let lastLeftLabel = null, lastLeftX = Infinity;
-            let lastUpLabel = null, lastUpY = Infinity;
-            let lastDownLabel = null, lastDownY = -Infinity;
+            const fmt = (v) => {
+                if (!isFinite(v)) return `${v}`;
+                const r = Number(v.toFixed(decimals));
+                if (Math.abs(r) < 1e-12) return '0';
+                return r.toFixed(decimals);
+            };
 
             function safeAxisAlignX(x) {
                 // Keep labels inside the canvas near the edges.
@@ -4311,50 +4385,48 @@
                 return 'center';
             }
 
-            for (let i = 1; i <= numCircles; i++) {
-                const r = i * circleStep;
-                const magLabel = r.toFixed(decimals);
-                const dx = (r / maxR) * radius;
+            // Origin label (only if origin is in view circle)
+            if (dToOrigin <= maxR + 1e-12) {
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText('0', originScreenX, originScreenY - labelOffsetY);
+            }
 
-                // +X axis (right)
-                const xPosR = centerX + dx;
-                if (magLabel !== lastRightLabel && (xPosR - lastRightX) >= minLabelSpacing) {
-                    ctx.textAlign = safeAxisAlignX(xPosR);
+            // X-axis (y=0) labels
+            if (Math.abs(viewCenterY) <= maxR + 1e-12) {
+                const dxMax = Math.sqrt(Math.max(0, maxR * maxR - viewCenterY * viewCenterY));
+                const xMinA = viewCenterX - dxMax;
+                const xMaxA = viewCenterX + dxMax;
+                const axisY = toScreenY(0);
+                let lastX = -Infinity;
+                const start = Math.ceil(xMinA / circleStep) * circleStep;
+                for (let xv = start; xv <= xMaxA + 1e-9; xv += circleStep) {
+                    if (Math.abs(xv) < 1e-12) continue;
+                    const sx = toScreenX(xv);
+                    if ((sx - lastX) < minLabelSpacing) continue;
+                    ctx.textAlign = safeAxisAlignX(sx);
                     ctx.textBaseline = 'bottom';
-                    ctx.fillText(magLabel, xPosR, centerY - labelOffsetY);
-                    lastRightLabel = magLabel;
-                    lastRightX = xPosR;
+                    ctx.fillText(fmt(xv), sx, axisY - labelOffsetY);
+                    lastX = sx;
                 }
+            }
 
-                // -X axis (left)
-                const xPosL = centerX - dx;
-                const negLabel = `-${magLabel}`;
-                if (negLabel !== lastLeftLabel && (lastLeftX - xPosL) >= minLabelSpacing) {
-                    ctx.textAlign = safeAxisAlignX(xPosL);
-                    ctx.textBaseline = 'bottom';
-                    ctx.fillText(negLabel, xPosL, centerY - labelOffsetY);
-                    lastLeftLabel = negLabel;
-                    lastLeftX = xPosL;
-                }
-
-                // +Y axis (up)
-                const yPosU = centerY - dx;
-                if (magLabel !== lastUpLabel && (lastUpY - yPosU) >= minLabelSpacing) {
+            // Y-axis (x=0) labels
+            if (Math.abs(viewCenterX) <= maxR + 1e-12) {
+                const dyMax = Math.sqrt(Math.max(0, maxR * maxR - viewCenterX * viewCenterX));
+                const yMinA = viewCenterY - dyMax;
+                const yMaxA = viewCenterY + dyMax;
+                const axisX = toScreenX(0);
+                let lastY = Infinity;
+                const start = Math.ceil(yMinA / circleStep) * circleStep;
+                for (let yv = start; yv <= yMaxA + 1e-9; yv += circleStep) {
+                    if (Math.abs(yv) < 1e-12) continue;
+                    const sy = toScreenY(yv);
+                    if ((lastY - sy) < minLabelSpacing) continue;
                     ctx.textAlign = 'right';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(magLabel, centerX - labelOffsetX, yPosU);
-                    lastUpLabel = magLabel;
-                    lastUpY = yPosU;
-                }
-
-                // -Y axis (down)
-                const yPosD = centerY + dx;
-                if (negLabel !== lastDownLabel && (yPosD - lastDownY) >= minLabelSpacing) {
-                    ctx.textAlign = 'right';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(negLabel, centerX - labelOffsetX, yPosD);
-                    lastDownLabel = negLabel;
-                    lastDownY = yPosD;
+                    ctx.fillText(fmt(yv), axisX - labelOffsetX, sy);
+                    lastY = sy;
                 }
             }
             ctx.restore();
@@ -4389,8 +4461,8 @@
                         if (isNaN(r) || !isFinite(r)) { firstPoint = true; continue; }
                         const x = r * Math.cos(theta);
                         const y = r * Math.sin(theta);
-                        const plotX = centerX + (x / maxR) * radius;
-                        const plotY = centerY - (y / maxR) * radius;
+                        const plotX = toScreenX(x);
+                        const plotY = toScreenY(y);
                         if (plotX >= 0 && plotX <= width && plotY >= 0 && plotY <= height) {
                             if (firstPoint) { ctx.moveTo(plotX, plotY); firstPoint = false; }
                             else { ctx.lineTo(plotX, plotY); }
@@ -4415,8 +4487,8 @@
                         if (isNaN(r) || !isFinite(r)) { if (drawing) { ctx.stroke(); drawing = false; } firstPoint = true; prevSign = null; continue; }
                         const x = r * Math.cos(theta);
                         const y = r * Math.sin(theta);
-                        const plotX = centerX + (x / maxR) * radius;
-                        const plotY = centerY - (y / maxR) * radius;
+                        const plotX = toScreenX(x);
+                        const plotY = toScreenY(y);
                         const sign = (r > 0) ? 1 : (r < 0 ? -1 : 0);
                         const color = (sign < 0) ? COLOR_NEG : COLOR_POS;
                         if (!drawing || prevSign !== sign) {
@@ -4457,8 +4529,8 @@
                         const y = r * Math.sin(sliderTheta);
 
                         // Scale to canvas coordinates
-                        const plotX = centerX + (x / maxR) * radius;
-                        const plotY = centerY - (y / maxR) * radius;
+                        const plotX = toScreenX(x);
+                        const plotY = toScreenY(y);
 
                         // Always draw the traveling point in red (even when radius is color-coded)
                         ctx.fillStyle = '#ff6b6b';
@@ -4489,16 +4561,16 @@
                 const step = Math.max(0.02, Math.min(0.1, Math.abs(sliderTheta) / 24));
                 ctx.beginPath();
                 for (let a = 0; a <= sliderTheta + 1e-9; a += step) {
-                    const px = centerX + arcR * Math.cos(a);
-                    const py = centerY - arcR * Math.sin(a);
+                    const px = originScreenX + arcR * Math.cos(a);
+                    const py = originScreenY - arcR * Math.sin(a);
                     if (a === 0) ctx.moveTo(px, py);
                     else ctx.lineTo(px, py);
                 }
                 ctx.stroke();
                 // Theta symbol near the middle of the arc
                 const mid = sliderTheta / 2;
-                const tx = centerX + (arcR + 12) * Math.cos(mid);
-                const ty = centerY - (arcR + 12) * Math.sin(mid);
+                const tx = originScreenX + (arcR + 12) * Math.cos(mid);
+                const ty = originScreenY - (arcR + 12) * Math.sin(mid);
                 ctx.fillStyle = '#9333ea';
                 ctx.font = '14px Arial';
                 ctx.textAlign = 'center';
@@ -4538,8 +4610,8 @@
                     const dir = shiftTheta >= 0 ? 1 : -1;
                     ctx.beginPath();
                     for (let a = 0; (dir > 0 ? a <= shiftTheta + 1e-9 : a >= shiftTheta - 1e-9); a += dir * step) {
-                        const px = centerX + shiftArcR * Math.cos(a);
-                        const py = centerY - shiftArcR * Math.sin(a);
+                        const px = originScreenX + shiftArcR * Math.cos(a);
+                        const py = originScreenY - shiftArcR * Math.sin(a);
                         if (a === 0) ctx.moveTo(px, py);
                         else ctx.lineTo(px, py);
                     }
@@ -4547,8 +4619,8 @@
 
                     // Label near the middle of the arc
                     const mid = shiftTheta / 2;
-                    const tx = centerX + (shiftArcR + 12) * Math.cos(mid);
-                    const ty = centerY - (shiftArcR + 12) * Math.sin(mid);
+                    const tx = originScreenX + (shiftArcR + 12) * Math.cos(mid);
+                    const ty = originScreenY - (shiftArcR + 12) * Math.sin(mid);
                     ctx.fillStyle = '#facc15';
                     ctx.font = '14px Arial';
                     ctx.textAlign = 'center';
@@ -4597,12 +4669,12 @@
                     // Polar to cartesian (handles negative r naturally)
                     const x = rSel * Math.cos(thetaSel);
                     const y = rSel * Math.sin(thetaSel);
-                    const plotX = centerX + (x / maxR) * radius;
-                    const plotY = centerY - (y / maxR) * radius;
+                    const plotX = toScreenX(x);
+                    const plotY = toScreenY(y);
 
                     // Compute screen-space direction for tick placement
-                    const lx = plotX - centerX;
-                    const ly = plotY - centerY;
+                    const lx = plotX - originScreenX;
+                    const ly = plotY - originScreenY;
                     const lineLen = Math.hypot(lx, ly);
                     const ux = lineLen > 1e-9 ? (lx / lineLen) : 0;
                     const uy = lineLen > 1e-9 ? (ly / lineLen) : 0;
@@ -4613,7 +4685,7 @@
                     ctx.lineWidth = 2;
                     ctx.lineCap = 'butt';
                     ctx.beginPath();
-                    ctx.moveTo(centerX, centerY);
+                    ctx.moveTo(originScreenX, originScreenY);
                     ctx.lineTo(plotX, plotY);
                     ctx.stroke();
                     ctx.restore();
@@ -4624,8 +4696,8 @@
                     let tickDist = 0;
                     if (isFinite(yShiftPx) && yShiftPx > 1e-9 && lineLen > 1e-9) {
                         tickDist = Math.max(0, Math.min(lineLen, yShiftPx));
-                        const tx = centerX + ux * tickDist;
-                        const ty = centerY + uy * tickDist;
+                        const tx = originScreenX + ux * tickDist;
+                        const ty = originScreenY + uy * tickDist;
                         // Perpendicular tick direction (flip for negative y-shift)
                         const sign = (yShiftRaw < 0) ? -1 : 1;
                         const px = -uy * sign;
@@ -4669,8 +4741,8 @@
                             ctx.lineCap = 'round';
                             for (let i = 1; i < ampN; i++) {
                                 const d = tickDist + (segLen * i) / ampN;
-                                const tx = centerX + ux * d;
-                                const ty = centerY + uy * d;
+                                const tx = originScreenX + ux * d;
+                                const ty = originScreenY + uy * d;
                                 const x0 = tx - px * tickHalf;
                                 const y0 = ty - py * tickHalf;
                                 const x1 = tx + px * tickHalf;
@@ -4696,14 +4768,14 @@
             // Theta toggle ON + Radius toggle OFF: draw a line from origin to the end of the theta arc
             // (forms a pie-slice sector with the arc)
             if (thetaToggle && thetaToggle.checked && (!radiusToggle || !radiusToggle.checked) && typeof thetaArcR === 'number' && isFinite(thetaArcR)) {
-                const plotX = centerX + thetaArcR * Math.cos(sliderTheta);
-                const plotY = centerY - thetaArcR * Math.sin(sliderTheta);
+                const plotX = originScreenX + thetaArcR * Math.cos(sliderTheta);
+                const plotY = originScreenY - thetaArcR * Math.sin(sliderTheta);
                 ctx.save();
                 ctx.setLineDash([6, 4]);
                 ctx.strokeStyle = '#9333ea'; // theta color (muted purple)
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
+                ctx.moveTo(originScreenX, originScreenY);
                 ctx.lineTo(plotX, plotY);
                 ctx.stroke();
                 ctx.restore();
@@ -4713,8 +4785,8 @@
             // - dashed yellow radial line shows the x-shift direction (to the end of the arc) when Radius is OFF
             // - solid yellow segment shows the y-shift magnitude along that same direction (always when Shifts is ON)
             if (shiftsToggle && shiftsToggle.checked && typeof shiftArcR === 'number' && isFinite(shiftArcR)) {
-                const endX = centerX + shiftArcR * Math.cos(shiftTheta);
-                const endY = centerY - shiftArcR * Math.sin(shiftTheta);
+                const endX = originScreenX + shiftArcR * Math.cos(shiftTheta);
+                const endY = originScreenY - shiftArcR * Math.sin(shiftTheta);
 
                 // Dashed: x-shift radial reference (kept visible beyond the y segment when y < arc)
                 if (!radiusToggle || !radiusToggle.checked) {
@@ -4723,7 +4795,7 @@
                     ctx.strokeStyle = '#facc15'; // yellow
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.moveTo(centerX, centerY);
+                    ctx.moveTo(originScreenX, originScreenY);
                     ctx.lineTo(endX, endY);
                     ctx.stroke();
                     ctx.restore();
@@ -4731,21 +4803,21 @@
 
                 // Solid: y-shift segment (drawn below the radius helper line since radius is drawn later)
                 if (isFinite(yShiftPx) && yShiftPx > 1e-9) {
-                    const yEndX = centerX + yShiftPx * Math.cos(shiftTheta);
-                    const yEndY = centerY - yShiftPx * Math.sin(shiftTheta);
+                    const yEndX = originScreenX + yShiftPx * Math.cos(shiftTheta);
+                    const yEndY = originScreenY - yShiftPx * Math.sin(shiftTheta);
                     ctx.save();
                     ctx.setLineDash([]); // SOLID
                     ctx.strokeStyle = '#facc15'; // yellow
                     ctx.lineWidth = 4;
                     ctx.beginPath();
-                    ctx.moveTo(centerX, centerY);
+                    ctx.moveTo(originScreenX, originScreenY);
                     ctx.lineTo(yEndX, yEndY);
                     ctx.stroke();
 
                     // Label 'y' near the end of the solid segment
                     const labelR = Math.min(radius - 4, yShiftPx + 14);
-                    const lx = centerX + labelR * Math.cos(shiftTheta);
-                    const ly = centerY - labelR * Math.sin(shiftTheta);
+                    const lx = originScreenX + labelR * Math.cos(shiftTheta);
+                    const ly = originScreenY - labelR * Math.sin(shiftTheta);
                     ctx.fillStyle = '#facc15';
                     ctx.font = '14px Arial';
                     ctx.textAlign = 'center';
@@ -4759,15 +4831,15 @@
             if (radiusToggle && radiusToggle.checked && isFinite(rAtTheta)) {
                 const x = rAtTheta * Math.cos(sliderTheta);
                 const y = rAtTheta * Math.sin(sliderTheta);
-                const plotX = centerX + (x / maxR) * radius;
-                const plotY = centerY - (y / maxR) * radius;
+                const plotX = toScreenX(x);
+                const plotY = toScreenY(y);
                 ctx.save();
                 // Keep dashed style for consistency with the radius helper line
                 ctx.setLineDash([6, 4]);
                 ctx.strokeStyle = '#dc2626'; // radius color (muted red)
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
+                ctx.moveTo(originScreenX, originScreenY);
                 ctx.lineTo(plotX, plotY);
                 ctx.stroke();
                 ctx.restore();
@@ -4779,14 +4851,14 @@
                 const mag = Math.abs(rAtTheta);
                 const refX = mag * Math.cos(sliderTheta);
                 const refY = mag * Math.sin(sliderTheta);
-                const refPlotX = centerX + (refX / maxR) * radius;
-                const refPlotY = centerY - (refY / maxR) * radius;
+                const refPlotX = toScreenX(refX);
+                const refPlotY = toScreenY(refY);
                 ctx.save();
                 ctx.setLineDash([10, 6]); // dashed
                 ctx.strokeStyle = '#e879f9'; // light magenta
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
+                ctx.moveTo(originScreenX, originScreenY);
                 ctx.lineTo(refPlotX, refPlotY);
                 ctx.stroke();
                 ctx.restore();
@@ -5959,7 +6031,13 @@
             // Only show coordinates inside the polar plot circle
             if (distPx > lastPolarState.radiusPx) return null;
 
-            let angle = Math.atan2(dy, dx);
+            // Convert to WORLD position (x,y) using the current view center
+            const viewCX = (lastPolarState && isFinite(lastPolarState.viewCenterX)) ? lastPolarState.viewCenterX : 0;
+            const viewCY = (lastPolarState && isFinite(lastPolarState.viewCenterY)) ? lastPolarState.viewCenterY : 0;
+            const worldX = viewCX + (dx / lastPolarState.radiusPx) * lastPolarState.maxR;
+            const worldY = viewCY + (dy / lastPolarState.radiusPx) * lastPolarState.maxR;
+
+            let angle = Math.atan2(worldY, worldX);
             if (angle < 0) angle += 2 * Math.PI;
 
             // Map the visible angle to the slider's theta domain (supports ranges like [-π, π], [0, 4π], etc.)
@@ -5971,7 +6049,7 @@
                 theta = mapAngleToThetaInDomain(angle, actualMin, actualMax, sliderTheta);
             }
 
-            const r = (distPx / lastPolarState.radiusPx) * lastPolarState.maxR;
+            const r = Math.hypot(worldX, worldY);
             return { theta, r };
         }
 
