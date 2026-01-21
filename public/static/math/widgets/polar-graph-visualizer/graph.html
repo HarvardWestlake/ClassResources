@@ -330,8 +330,8 @@
         #toggleRadius + span { color: #dc2626; font-weight: 600; }
         #toggleAmp { accent-color: #ea580c; }
         #toggleAmp + span { color: #ea580c; font-weight: 600; }
-        #toggleFreq { accent-color: #16a34a; }
-        #toggleFreq + span { color: #16a34a; font-weight: 600; }
+        #togglePeriod { accent-color: #16a34a; }
+        #togglePeriod + span { color: #16a34a; font-weight: 600; }
         #toggleShifts { accent-color: #ca8a04; }
         #toggleShifts + span { color: #ca8a04; font-weight: 600; }
         #toggleColorRadius { accent-color: #0ea5e9; }
@@ -343,8 +343,8 @@
         .equation-color-overlay .token-r { color: #dc2626; font-weight: 700; }
         .equation-pretty .token-amp,
         .equation-color-overlay .token-amp { color: #ea580c; font-weight: 700; }
-        .equation-pretty .token-freq,
-        .equation-color-overlay .token-freq { color: #16a34a; font-weight: 700; }
+        .equation-pretty .token-period,
+        .equation-color-overlay .token-period { color: #16a34a; font-weight: 700; }
         .equation-pretty .token-shift,
         .equation-color-overlay .token-shift { color: #facc15; font-weight: 700; }
 
@@ -1429,9 +1429,9 @@
                                 <input type="checkbox" id="toggleRadius">
                                 <span>Radius</span>
                             </label>
-                            <label class="toggle-item" for="toggleFreq">
-                                <input type="checkbox" id="toggleFreq">
-                                <span>Frequency</span>
+                            <label class="toggle-item" for="togglePeriod">
+                                <input type="checkbox" id="togglePeriod">
+                                <span>Period</span>
                             </label>
                             <label class="toggle-item" for="toggleColorRadius">
                                 <input type="checkbox" id="toggleColorRadius">
@@ -1837,8 +1837,10 @@
             const graphX = xMin + ((mouseX - padding) / plotWidth) * (xMax - xMin);
             const graphY = yMax - ((mouseY - padding) / plotHeight) * (yMax - yMin);
             
-            // Make scroll direction feel natural: scroll up -> zoom in, scroll down -> zoom out
-            const factor = e.deltaY > 0 ? 1.1 : 0.9;
+            // Match polar graph pinch behavior:
+            // - fingers apart (pinch-out) => zoom in
+            // - fingers together (pinch-in) => zoom out
+            const factor = e.deltaY > 0 ? 0.9 : 1.1;
             const oldZoom = cartesianZoom;
             cartesianZoom *= factor;
             
@@ -2915,7 +2917,7 @@
             const wantTheta = !!(opts && opts.theta);
             const wantR = !!(opts && opts.radius);
             const wantAmp = !!(opts && opts.amp);
-            const wantFreq = !!(opts && opts.freq);
+            const wantPeriod = !!(opts && opts.period);
             const wantShift = !!(opts && opts.shift);
             if (!text) return '';
 
@@ -3013,7 +3015,7 @@
                 i = close; // skip over call
             }
 
-            // Mark tokens with classes (priority: freq > amp > shift)
+            // Mark tokens with classes (priority: period > amp > shift)
             const mark = new Map(); // tokenIdx -> { cls, prio }
             function setMark(idx, cls, prio) {
                 if (idx < 0 || idx >= n) return;
@@ -3023,8 +3025,9 @@
                 if (!prev || prio > prev.prio) mark.set(idx, { cls, prio });
             }
 
-            // Frequency: coefficient on theta inside trig args
-            if (wantFreq && trigCalls.length) {
+            // Period: highlight the coefficient that determines the period (inside trig args).
+            // Example: sin(3θ) => highlight the "3" since period is 2π/3.
+            if (wantPeriod && trigCalls.length) {
                 for (const call of trigCalls) {
                     for (let j = call.openTok + 1; j < call.closeTok; j++) {
                         if (tokens[j].type !== 'THETA') continue;
@@ -3034,21 +3037,21 @@
                         const n2 = nextNonWs(n1 + 1);
                         // a * theta
                         if (p1 !== -1 && tokens[p1].type === 'OP' && tokens[p1].text === '*' && p2 !== -1) {
-                            setMark(p2, 'token-freq', 3);
+                            setMark(p2, 'token-period', 3);
                         }
                         // implicit a theta (e.g., 2theta, 2θ)
                         if (p1 !== -1 && (tokens[p1].type === 'NUM' || tokens[p1].type === 'PI')) {
                             if (tokens[p1].end === tokens[j].start) {
-                                setMark(p1, 'token-freq', 3);
+                                setMark(p1, 'token-period', 3);
                             }
                         }
                         // theta * a
                         if (n1 !== -1 && tokens[n1].type === 'OP' && tokens[n1].text === '*' && n2 !== -1) {
-                            setMark(n2, 'token-freq', 3);
+                            setMark(n2, 'token-period', 3);
                         }
                         // theta / a
                         if (n1 !== -1 && tokens[n1].type === 'OP' && tokens[n1].text === '/' && n2 !== -1) {
-                            setMark(n2, 'token-freq', 3);
+                            setMark(n2, 'token-period', 3);
                         }
                     }
                 }
@@ -3147,14 +3150,14 @@
             const radiusEl = document.getElementById('toggleRadius');
             const colorRadiusEl = document.getElementById('toggleColorRadius');
             const ampEl = document.getElementById('toggleAmp');
-            const freqEl = document.getElementById('toggleFreq');
+            const periodEl = document.getElementById('togglePeriod');
             const shiftsEl = document.getElementById('toggleShifts');
             const colorThetaOn = !!(thetaEl && thetaEl.checked);
             const colorROn = !!((radiusEl && radiusEl.checked) || (colorRadiusEl && colorRadiusEl.checked));
             const colorAmpOn = !!(ampEl && ampEl.checked);
-            const colorFreqOn = !!(freqEl && freqEl.checked);
+            const colorPeriodOn = !!(periodEl && periodEl.checked);
             const colorShiftOn = !!(shiftsEl && shiftsEl.checked);
-            const shouldShow = colorThetaOn || colorROn || colorAmpOn || colorFreqOn || colorShiftOn;
+            const shouldShow = colorThetaOn || colorROn || colorAmpOn || colorPeriodOn || colorShiftOn;
             if (!shouldShow) {
                 field.classList.remove('overlay-active');
                 overlay.style.display = 'none';
@@ -3166,7 +3169,7 @@
                 theta: colorThetaOn,
                 radius: colorROn,
                 amp: colorAmpOn,
-                freq: colorFreqOn,
+                period: colorPeriodOn,
                 shift: colorShiftOn
             });
             overlay.style.display = 'block';
@@ -3818,6 +3821,44 @@
                 ctx.setLineDash([6, 4]);
                 ctx.strokeStyle = '#9333ea'; // theta color (muted purple)
                 ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x0, xAxisY);
+                ctx.lineTo(x1, xAxisY);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Overlay: Period (x=0 to x=period)
+            const periodToggle = document.getElementById('togglePeriod');
+            if (periodToggle && periodToggle.checked) {
+                let period = null;
+                try {
+                    const eqTrim = (equation || '').trim();
+                    const p = eqTrim ? detectPeriodicity(preprocessEquation(eqTrim)) : null;
+                    if (p && isFinite(p.period)) {
+                        period = Math.abs(p.period);
+                    }
+                } catch (_) {
+                    period = null;
+                }
+                if (!isFinite(period) || period === null || period < 1e-9) {
+                    period = 2 * Math.PI; // safe default
+                }
+
+                // Draw horizontal base along y = 0 from x = 0 to x = period
+                const x0Val = 0;
+                const x1Val = period;
+                const x0 = padding + ((x0Val - xMin) / xRange) * plotWidth;
+                const x1 = padding + ((x1Val - xMin) / xRange) * plotWidth;
+
+                let xAxisY = padding + ((yMax - 0) / yRange) * plotHeight;
+                xAxisY = Math.max(padding, Math.min(height - padding, xAxisY));
+
+                ctx.save();
+                ctx.setLineDash([8, 6]);
+                ctx.strokeStyle = '#16a34a'; // muted green to match toggle
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'butt';
                 ctx.beginPath();
                 ctx.moveTo(x0, xAxisY);
                 ctx.lineTo(x1, xAxisY);
@@ -6677,7 +6718,7 @@
             btn.addEventListener('click', resetBothGraphs);
         }
         function setupToggles() {
-            const ids = ['toggleTheta','toggleRadius','toggleAmp','toggleFreq','toggleShifts','toggleColorRadius'];
+            const ids = ['toggleTheta','toggleRadius','toggleAmp','togglePeriod','toggleShifts','toggleColorRadius'];
             for (const id of ids) {
                 const el = document.getElementById(id);
                 if (!el) continue;
