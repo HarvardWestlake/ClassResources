@@ -1410,7 +1410,7 @@
                             <div>
                                 <div class="eyebrow-label">Toggles</div>
                             </div>
-                            <button type="button" class="secondary-btn" id="toggleResetBtn" disabled>Reset</button>
+                            <button type="button" class="secondary-btn" id="toggleResetBtn" disabled>Uncheck All</button>
                         </div>
                         <div class="toggle-grid">
                             <label class="toggle-item" for="toggleTheta">
@@ -6719,6 +6719,34 @@
         }
         function setupToggles() {
             const ids = ['toggleTheta','toggleRadius','toggleAmp','togglePeriod','toggleShifts','toggleColorRadius'];
+            const btn = document.getElementById('toggleResetBtn');
+
+            function anyChecked() {
+                for (const id of ids) {
+                    const el = document.getElementById(id);
+                    if (el && el.checked) return true;
+                }
+                return false;
+            }
+            function syncButtonState() {
+                if (!btn) return;
+                btn.disabled = !anyChecked();
+            }
+
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    // Uncheck all toggles and refresh once
+                    for (const id of ids) {
+                        const el = document.getElementById(id);
+                        if (el) el.checked = false;
+                    }
+                    syncButtonState();
+                    updateEquationPretty();
+                    updateEquationOverlay();
+                    plotGraph();
+                });
+            }
+
             for (const id of ids) {
                 const el = document.getElementById(id);
                 if (!el) continue;
@@ -6726,8 +6754,11 @@
                     updateEquationPretty();
                     updateEquationOverlay();
                     plotGraph();
+                    syncButtonState();
                 });
             }
+            // Initialize state on load
+            syncButtonState();
         }
 
         // Plot default equation on load
