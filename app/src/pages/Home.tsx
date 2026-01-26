@@ -48,6 +48,14 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
+          <a className="widget-card" href="/static/music/index.html">
+            <div className="title-row">
+              <h3>Music</h3>
+            </div>
+            <p>Music learning widgets and practice tools.</p>
+            <span className="button">Open</span>
+          </a>
+
           <Link className="widget-card" to="/history">
             <div className="title-row">
               <h3>History</h3>

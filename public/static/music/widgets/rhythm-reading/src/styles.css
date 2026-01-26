@@ -1,0 +1,1258 @@
+:root {
+    /* Harvard‑Westlake admin tokens */
+    --hw-black: #231f20;
+    --hw-red: #c8102e;
+    --hw-gold: #f0b323;
+    --hw-gray-900: #1f2937;
+    --hw-gray-800: #374151;
+    --hw-gray-700: #4b5563;
+    --hw-gray-600: #6b7280;
+    --hw-gray-500: #9ca3af;
+    --hw-gray-400: #cbd5e1;
+    --hw-gray-300: #e5e7eb;
+    --hw-gray-200: #edf0f3;
+    --hw-gray-100: #f4f6f8;
+    --hw-surface: #ffffff;
+    --hw-border: #e5e7eb;
+    --hw-radius: 8px;
+    --hw-radius-sm: 6px;
+    --hw-radius-xs: 4px;
+    --hw-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+    --hw-focus-ring: 0 0 0 3px rgba(200, 16, 46, .18);
+
+    /* Local semantic aliases used by the widget */
+    --bg: #f2f0ec;
+    /* page */
+    --panel: var(--hw-surface);
+    /* surfaces/cards */
+    --panel-border: var(--hw-border);
+    --text: #000;
+    --muted: var(--hw-gray-600);
+    --accent: var(--hw-red);
+    --good: #198754;
+    --bad: #b42318;
+    --warn: #f6c343;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    overflow: hidden;
+}
+
+.container {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    background:
+        url('/static/music/widgets/rhythm-reading/dist/assets/lion-olive.webp') right center / min(45vw, 700px) auto no-repeat,
+        var(--bg);
+}
+
+.container.no-sidebar {
+    grid-template-columns: 1fr;
+}
+
+.container.no-sidebar .sidebar {
+    display: none;
+}
+
+.sidebar {
+    display: none;
+}
+
+.main-content {
+    padding: 20px;
+    overflow: hidden;
+    width: 100%;
+    max-width: min(1200px, 100% - 2rem);
+    margin: 0 auto;
+}
+
+/* Responsive padding for different screen sizes */
+@media (max-width: 768px) {
+    .main-content {
+        max-width: min(100%, 100% - 1rem);
+    }
+}
+
+@media (max-width: 480px) {
+    .main-content {
+        padding: 12px 8px;
+    }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+    .main-content {
+        padding: 16px 12px;
+    }
+}
+
+.card {
+    background: var(--panel);
+    border: none;
+    border-radius: 0;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.main-content>.card {
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+}
+
+.subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+}
+
+.practice-hint {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.practice-hint button {
+    font-size: 12px;
+    padding: 6px 12px;
+    min-height: auto;
+    margin: 0;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.control-group {
+    margin-bottom: 12px;
+}
+
+.control-label {
+    display: block;
+    font-size: 11px;
+    color: var(--hw-gray-700);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+select,
+input[type="number"],
+input[type="text"],
+input[type="range"] {
+    width: 100%;
+    background: #fff;
+    border: 1px solid var(--hw-border);
+    border-radius: 0;
+    padding: 8px 10px;
+    color: #000;
+    font-size: 14px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+input[type="range"] {
+    height: 30px;
+    padding: 0;
+}
+
+select:focus,
+input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--hw-focus-ring);
+}
+
+.switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: middle;
+}
+
+.switch input[type="checkbox"] {
+    margin: 0;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 2px solid var(--hw-gray-400);
+    border-radius: 4px;
+    background: #fff;
+    position: relative;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+}
+
+.switch input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.switch input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 5px;
+    height: 10px;
+    margin-left: -4px;
+    margin-top: -7px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.switch input[type="checkbox"]:focus {
+    outline: none;
+    box-shadow: var(--hw-focus-ring);
+}
+
+.switch span {
+    vertical-align: middle;
+}
+
+button {
+    background: var(--accent);
+    border: none;
+    border-radius: 0;
+    padding: 8px 14px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: filter 0.12s ease, transform 0.05s ease, box-shadow 0.12s ease;
+    min-height: 44px;
+    /* touch target */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:hover {
+    filter: brightness(.96);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .1);
+}
+
+button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Pill selectors */
+.pill-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pill {
+    display: inline;
+    padding: 0;
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.12s ease;
+    user-select: none;
+}
+
+.pill+.pill::before {
+    content: " / ";
+    color: rgba(0, 0, 0, 0.18);
+    margin: 0 4px;
+}
+
+.pill:hover {
+    color: var(--text);
+}
+
+.pill.active {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+/* Range slider (BPM) */
+.range-wrap {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.range-value {
+    font-size: 14px;
+    color: var(--text);
+    min-width: 44px;
+    text-align: right;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--hw-gray-200);
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.stat {
+    background: var(--panel);
+    border: none;
+    border-radius: 0;
+    padding: 10px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.stat .label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat .value {
+    font-size: 18px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.legend .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+.meter {
+    height: 6px;
+    background: var(--hw-gray-200);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.meter .fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+.canvas-wrap {
+    position: relative;
+    border-radius: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: none;
+    background: #fff;
+    /* Performance: hint for smooth scrolling without breaking fixed positioning */
+    will-change: scroll-position;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.01));
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    /* Performance optimizations for old devices - using will-change only to avoid layout issues */
+    will-change: contents;
+}
+
+.start-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    background: transparent;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    backdrop-filter: blur(36px);
+    -webkit-backdrop-filter: blur(36px);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    align-content: start;
+    justify-items: center;
+    padding-top: 12px;
+}
+
+.start-content {
+    width: 100%;
+    text-align: center;
+}
+
+.big-start {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.3px;
+    padding: 12px 22px;
+    border-radius: 0;
+    cursor: pointer;
+    transition: transform 0.05s ease, box-shadow 0.15s ease;
+    box-shadow: none;
+}
+
+.big-start:hover {
+    transform: translateY(-1px);
+    box-shadow: none;
+}
+
+.hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.start-bar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 18px;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    /* Allow wrapping on mobile */
+}
+
+.sb-left,
+.sb-right {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    /* Allow wrapping on mobile */
+}
+
+/* Even internal spacing with symmetric padding and separators */
+.sb-left>div,
+.sb-right>div {
+    position: relative;
+    padding: 0 14px;
+}
+
+.sb-left>div:first-child,
+.sb-right>div:first-child {
+    padding-left: 0;
+}
+
+.sb-left>div:last-child,
+.sb-right>div:last-child {
+    padding-right: 0;
+}
+
+.sb-left>div+div::before,
+.sb-right>div+div::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 22px;
+    background: rgba(0, 0, 0, 0.10);
+}
+
+/* Center bar divider */
+.bar-sep {
+    width: 1px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.10);
+    margin: 0 14px;
+}
+
+.start-title {
+    display: none;
+}
+
+.start-hint {
+    font-size: 18px;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Absolute center hint overlay, independent of top bar */
+.start-hint-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    /* allow clicks on child only */
+}
+
+.start-hint-wrap .start-hint {
+    pointer-events: auto;
+}
+
+.pill-group {
+    white-space: nowrap;
+}
+
+.summary-overlay {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    backdrop-filter: blur(36px);
+    -webkit-backdrop-filter: blur(36px);
+    z-index: 20;
+    /* Ensure proper centering */
+    margin: 0;
+    padding: 0;
+}
+
+.summary-card {
+    background: var(--panel);
+    border: none;
+    border-radius: 0;
+    padding: 16px;
+    width: min(680px, 92%);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* Mobile-friendly layout tweaks removed: settings bar stays single-line */
+
+
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.summary-stat {
+    background: var(--panel);
+    border: none;
+    border-radius: 0;
+    padding: 10px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.summary-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+/* Tutorials overlay tweaks: make it scrollable and wider */
+#tutorialsOverlay {
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 20px);
+    box-sizing: border-box;
+    /* Ensure proper positioning */
+    margin: 0;
+}
+
+#tutorialsOverlay .summary-card {
+    width: 100%;
+    max-width: min(1200px, 100% - 2rem);
+    /* match main content width */
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    box-sizing: border-box;
+    margin: 0 auto;
+}
+
+#tutorialList.tutorial-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+}
+
+/* Multi-measure tutorials can span two columns on wider layouts */
+.tutorial-card.span2 {
+    grid-column: span 2;
+}
+
+@media (max-width: 740px) {
+    .tutorial-card.span2 {
+        grid-column: span 1;
+    }
+}
+
+.tutorial-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--panel);
+    border: none;
+    border-radius: 0;
+    padding: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.tutorial-card .title {
+    font-size: 14px;
+}
+
+.tutorial-card .subtitle {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.tutorial-preview-wrap {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    /* contain drawing within card */
+}
+
+.tutorial-preview {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.tutorial-beat-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.tutorial-green {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.tutorial-beat-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity .15s ease;
+    transform: translateX(0);
+}
+
+.tutorial-countin {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-family: ui-monospace, Menlo, Monaco, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-weight: 700;
+    font-size: 36px;
+    color: rgba(229, 231, 235, 0.95);
+    text-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+.countin-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 3;
+    /* ensure above main canvas */
+}
+
+.countin-number {
+    font-family: ui-monospace, Menlo, Monaco, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-weight: 700;
+    font-size: 56px;
+    color: rgba(229, 231, 235, 0.95);
+    text-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+
+
+.feedback {
+    margin-top: 8px;
+    font-size: 13px;
+    min-height: 18px;
+}
+
+.feedback .good {
+    color: var(--good);
+}
+
+.feedback .bad {
+    color: var(--bad);
+}
+
+.feedback .warn {
+    color: var(--warn);
+}
+
+@media (max-width: 900px) {
+    .container {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+    }
+
+    .sidebar {
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+}
+
+/* Performance: Reduce animations on low-end devices */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    button {
+        min-height: 48px;
+        /* Larger touch targets */
+        padding: 10px 16px;
+    }
+
+    .switch {
+        min-height: 44px;
+        padding: 4px 0;
+    }
+
+    input[type="range"] {
+        height: 44px;
+        /* Larger slider for touch */
+    }
+
+    .pill {
+        padding: 8px 12px;
+        min-height: 36px;
+    }
+}
+
+/* High DPI display optimizations */
+@media (-webkit-min-device-pixel-ratio: 2),
+(min-resolution: 192dpi) {
+    canvas {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+}
+
+/* Mobile adjustments removed for settings bar: it stays single-line */
+
+/* Extra small devices - very tight layout */
+@media (max-width: 360px) {
+    .card {
+        padding: 12px;
+    }
+
+    .title {
+        font-size: 16px;
+    }
+
+    .subtitle {
+        font-size: 12px;
+    }
+}
+
+/* Tablet portrait optimization */
+@media (min-width: 641px) and (max-width: 1024px) and (orientation: portrait) {
+    .main-content {
+        padding: 16px;
+    }
+}
+
+/* Tablet landscape and small laptops */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .main-content {
+        max-width: min(1200px, 100% - 1rem);
+    }
+}
+
+/* Ultra-wide and tall aspect ratios */
+@media (min-aspect-ratio: 21/9) {
+    .main-content {
+        max-width: min(1200px, 100% - 2rem);
+    }
+}
+
+@media (max-aspect-ratio: 3/4) {
+
+    /* Very tall/narrow screens */
+    .main-content {
+        padding: 12px;
+    }
+
+    .canvas-wrap {
+        max-height: 60vh;
+    }
+}
+
+/* uPlot dark theme adjustments */
+.uplot {
+    font-family: ui-monospace, Menlo, Monaco, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+.uplot .u-legend {
+    display: none;
+}
+
+.uplot .u-axis {
+    color: var(--muted);
+}
+
+.uplot .u-grid {
+    stroke: rgba(255, 255, 255, 0.08);
+}
+
+.uplot .u-select {
+    background: rgba(96, 165, 250, 0.08);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+/* Fix chart y-axis label cutoff on tablets */
+@media (min-width: 641px) and (max-width: 1024px) {
+    #liveTimingWrap {
+        padding-left: 0 !important;
+        overflow: visible !important;
+    }
+    
+    #liveTimingChart {
+        overflow: visible !important;
+    }
+    
+    .uplot {
+        overflow: visible !important;
+    }
+}
+
+/* Start overlay mobile robustness: ensure no overflow/cutoff */
+@media (max-width: 640px) {
+    #startOverlay {
+        overflow-y: auto;
+        padding: calc(env(safe-area-inset-top) + 10px) 8px calc(env(safe-area-inset-bottom) + 10px);
+        box-sizing: border-box;
+    }
+
+    .start-content {
+        width: 100%;
+    }
+
+    .start-bar,
+    .sb-left,
+    .sb-right,
+    .pill-group {
+        max-width: 100%;
+    }
+
+    /* Make switch rows resilient and prevent label overflow */
+    .switch {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        width: auto;
+    }
+
+    .switch span {
+        flex: 0 1 auto;
+        min-width: 0;
+        white-space: nowrap;
+        word-break: normal;
+        text-align: left;
+    }
+
+    /* Fix heading layout - prevent tutorial from being cut off */
+    .title {
+        font-size: 16px;
+        margin-bottom: 8px;
+    }
+
+    .subtitle {
+        font-size: 12px;
+        margin-bottom: 12px;
+    }
+}
+
+/* --- Single-line start bar with horizontal scroll (bar only) --- */
+/* Only the settings line scrolls horizontally, not the entire overlay */
+.start-content {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    width: 100%;
+}
+
+/* Ensure the bar grows to content width and stays on one line within scroller */
+.start-bar {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    width: max-content;
+    max-width: none;
+    overflow: visible;
+    white-space: nowrap;
+}
+
+/* Keep left/right clusters on one line too */
+.sb-left,
+.sb-right {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+/* Child blocks should not stretch full width in the horizontal scroller */
+.sb-left>div,
+.sb-right>div {
+    flex: 0 0 auto;
+}
+
+/* Avoid full-width controls inside the horizontal scroller */
+.start-bar .switch,
+.start-bar button,
+.start-bar select,
+.start-bar input[type="number"],
+.start-bar input[type="text"],
+.start-bar input[type="range"] {
+    width: auto;
+}
+
+/* Prevent long labels from forcing wrap; allow ellipsis if needed */
+.start-bar .control-label,
+.start-bar .range-value,
+.start-bar .switch span {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+/* Make pill groups stay on one line inside scroller */
+.start-bar .pill-group {
+    white-space: nowrap;
+}
+
+/* Final override: never wrap the settings bar; scroll horizontally instead */
+.start-content {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.start-bar {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    width: max-content;
+    white-space: nowrap;
+}
+
+.sb-left,
+.sb-right {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+}
+
+.sb-left>div,
+.sb-right>div,
+.bar-sep {
+    flex: 0 0 auto;
+}
+
+/* Inside the scroller, controls should size to content and not force wrapping */
+.start-bar select,
+.start-bar button,
+.start-bar input[type="number"],
+.start-bar input[type="text"],
+.start-bar input[type="range"] {
+    width: auto !important;
+    max-width: none;
+}
+
+.start-bar .switch span,
+.start-bar .control-label,
+.start-bar .range-value {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Keep BPM slider sizing constant and avoid responsive reflow */
+.start-bar .range-wrap {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    grid-template-columns: none !important;
+}
+
+.start-bar #bpm {
+    width: 180px !important;
+    min-width: 180px !important;
+}
+
+.start-bar .range-value {
+    width: 44px !important;
+    min-width: 44px !important;
+    text-align: right;
+}
+
+/* FINAL SPACING LOCKS: keep constant sizes; only horizontal scroll */
+#startOverlay .start-content .start-bar {
+    justify-content: flex-start !important;
+    gap: 16px !important;
+    padding: 12px 12px !important;
+    min-height: 56px !important;
+}
+
+#startOverlay .start-content .sb-left,
+#startOverlay .start-content .sb-right {
+    gap: 16px !important;
+}
+
+#startOverlay .start-content .sb-left>div,
+#startOverlay .start-content .sb-right>div {
+    padding: 0 !important;
+}
+
+#startOverlay .start-content .sb-left>div+div::before,
+#startOverlay .start-content .sb-right>div+div::before {
+    display: none !important;
+}
+
+#startOverlay .start-content .bar-sep {
+    display: inline-block !important;
+    width: 1px !important;
+    height: 24px !important;
+    background: rgba(0, 0, 0, 0.10) !important;
+    margin: 0 12px !important;
+}
+
+#startOverlay .start-content .pill-group {
+    gap: 8px !important;
+}
+
+/* Absolute lock: nothing inside the settings bar resizes or wraps; only scrolls */
+#startOverlay .start-content .start-bar,
+#startOverlay .start-content .start-bar * {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+}
+
+/* Ensure key controls never wrap or shrink */
+#startOverlay .start-content .start-bar button {
+    white-space: nowrap !important;
+}
+
+#startOverlay .start-content .start-bar .switch span {
+    display: inline-block !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+
+#startOverlay .start-content .start-bar .pill-group .pill {
+    white-space: nowrap !important;
+}
+
+/* BPM: hard-lock appearance and dimensions (no platform resizing) */
+#startOverlay .start-content #bpm {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+    height: 8px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: content-box !important;
+    background: transparent !important;
+    /* track handled below */
+}
+
+#startOverlay .start-content #bpm::-webkit-slider-runnable-track {
+    height: 8px !important;
+    background: var(--hw-gray-200) !important;
+    border-radius: 9999px !important;
+}
+
+#startOverlay .start-content #bpm::-moz-range-track {
+    height: 8px !important;
+    background: var(--hw-gray-200) !important;
+    border-radius: 9999px !important;
+}
+
+#startOverlay .start-content #bpm::-webkit-slider-thumb {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50% !important;
+    background: var(--accent) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    margin-top: -5px !important;
+    /* center on 8px track */
+}
+
+#startOverlay .start-content #bpm::-moz-range-thumb {
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50% !important;
+    background: var(--accent) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Lock the range slider width on all devices */
+#startOverlay .start-content .start-bar input[type="range"] {
+    -webkit-appearance: none !important;
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+    flex: 0 0 180px !important;
+    box-sizing: content-box !important;
+    touch-action: pan-y;
+}
+
+/* Prevent BPM slider from scrolling the page on touch devices */
+#startOverlay .start-content .start-bar input[type="range"] {
+    touch-action: pan-y;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    #startOverlay .start-content .start-bar input[type="range"] {
+        touch-action: pan-y;
+        -webkit-touch-callout: none;
+    }
+}
+
+/* Ensure no mobile media rule can flip the bar to column/wrap */
+@media (max-width: 10000px) {
+    #startOverlay .start-content .start-bar {
+        flex-wrap: nowrap !important;
+        flex-direction: row !important;
+    }
+
+    #startOverlay .start-content .sb-left,
+    #startOverlay .start-content .sb-right {
+        flex-wrap: nowrap !important;
+        flex-direction: row !important;
+    }
+}
