@@ -32,6 +32,14 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
+          <a className="widget-card" href="/static/physics/index.html">
+            <div className="title-row">
+              <h3>Physics</h3>
+            </div>
+            <p>AP Physics C interactive visualizations and simulations.</p>
+            <span className="button">Open</span>
+          </a>
+
           <a className="widget-card" href="/static/chem/index.html">
             <div className="title-row">
               <h3>Chemistry</h3>
