@@ -119,6 +119,31 @@
         "source": "/econ/**",
         "destination": "/index.html"
       }
+      ,
+      {
+        "source": "/math",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/math/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/code",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/code/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/stats",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/stats/**",
+        "destination": "/index.html"
+      }
     ]
   }
 }

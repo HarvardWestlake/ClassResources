@@ -8,21 +8,21 @@ export default function Home() {
 
         <h2>Subjects</h2>
         <div className="widgets-grid">
-          <a className="widget-card" href="/static/math/index.html">
+          <Link className="widget-card" to="/math">
             <div className="title-row">
               <h3>Math</h3>
             </div>
             <p>Interactive math learning widgets and explorations.</p>
             <span className="button">Open</span>
-          </a>
+          </Link>
 
-          <a className="widget-card" href="/static/code/index.html">
+          <Link className="widget-card" to="/code">
             <div className="title-row">
               <h3>Code</h3>
             </div>
             <p>Programming visualizations, data structures, and crypto demos.</p>
             <span className="button">Open</span>
-          </a>
+          </Link>
 
           <Link className="widget-card" to="/econ">
             <div className="title-row">
@@ -40,13 +40,13 @@ export default function Home() {
             <span className="button">Open</span>
           </Link>
 
-          <a className="widget-card" href="/static/stats/index.html">
+          <Link className="widget-card" to="/stats">
             <div className="title-row">
               <h3>Statistics</h3>
             </div>
             <p>Stats tools, visualizations, and calculators.</p>
             <span className="button">Open</span>
-          </a>
+          </Link>
 
           <Link className="widget-card" to="/history">
             <div className="title-row">
