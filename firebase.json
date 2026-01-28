@@ -8,12 +8,116 @@
       "**/node_modules/**"
     ],
     "redirects": [
+      { "source": "/static/crystallization/**", "destination": "/static/chem/crystallization/:splat", "type": 301 },
+      { "source": "/static/widgets/crystallization/**", "destination": "/static/chem/crystallization/:splat", "type": 301 },
+
+      { "source": "/static/array-list/**", "destination": "/static/code/widgets/array-list/:splat", "type": 301 },
+      { "source": "/static/widgets/array-list/**", "destination": "/static/code/widgets/array-list/:splat", "type": 301 },
+      { "source": "/static/blob-creation/**", "destination": "/static/code/widgets/blob-creation/:splat", "type": 301 },
+      { "source": "/static/widgets/blob-creation/**", "destination": "/static/code/widgets/blob-creation/:splat", "type": 301 },
+      { "source": "/static/index-tree/**", "destination": "/static/code/widgets/index-tree/:splat", "type": 301 },
+      { "source": "/static/widgets/index-tree/**", "destination": "/static/code/widgets/index-tree/:splat", "type": 301 },
+      { "source": "/static/objects-static/**", "destination": "/static/code/widgets/objects-static/:splat", "type": 301 },
+      { "source": "/static/widgets/objects-static/**", "destination": "/static/code/widgets/objects-static/:splat", "type": 301 },
+      { "source": "/static/shamir/**", "destination": "/static/code/widgets/shamir/:splat", "type": 301 },
+      { "source": "/static/widgets/shamir/**", "destination": "/static/code/widgets/shamir/:splat", "type": 301 },
+      { "source": "/static/singly-linked-list/**", "destination": "/static/code/widgets/singly-linked-list/:splat", "type": 301 },
+      { "source": "/static/widgets/singly-linked-list/**", "destination": "/static/code/widgets/singly-linked-list/:splat", "type": 301 },
+
+      { "source": "/static/rsa-encrpytion/**", "destination": "/static/code/widgets/rsa-encrpytion/:splat", "type": 301 },
+      { "source": "/static/widgets/rsa-encrpytion/**", "destination": "/static/code/widgets/rsa-encrpytion/:splat", "type": 301 },
+      { "source": "/static/rsa-encryption/**", "destination": "/static/code/widgets/rsa-encrpytion/:splat", "type": 301 },
+      { "source": "/static/widgets/rsa-encryption/**", "destination": "/static/code/widgets/rsa-encrpytion/:splat", "type": 301 },
+
+      { "source": "/static/imperfect-competitor/**", "destination": "/static/econ/widgets/imperfect-competitor/:splat", "type": 301 },
+      { "source": "/static/widgets/imperfect-competitor/**", "destination": "/static/econ/widgets/imperfect-competitor/:splat", "type": 301 },
+      { "source": "/static/production-cost/**", "destination": "/static/econ/widgets/production-cost/:splat", "type": 301 },
+      { "source": "/static/widgets/production-cost/**", "destination": "/static/econ/widgets/production-cost/:splat", "type": 301 },
+
+      { "source": "/static/chocolate-history/**", "destination": "/static/history/widgets/chocolate-history/:splat", "type": 301 },
+      { "source": "/static/widgets/chocolate-history/**", "destination": "/static/history/widgets/chocolate-history/:splat", "type": 301 },
+      { "source": "/static/history-map/**", "destination": "/static/history/widgets/history-map/:splat", "type": 301 },
+      { "source": "/static/widgets/history-map/**", "destination": "/static/history/widgets/history-map/:splat", "type": 301 },
+
+      { "source": "/static/cubic-sequences/**", "destination": "/static/math/widgets/cubic-sequences/:splat", "type": 301 },
+      { "source": "/static/widgets/cubic-sequences/**", "destination": "/static/math/widgets/cubic-sequences/:splat", "type": 301 },
+      { "source": "/static/exponential-explorer/**", "destination": "/static/math/widgets/exponential-explorer/:splat", "type": 301 },
+      { "source": "/static/widgets/exponential-explorer/**", "destination": "/static/math/widgets/exponential-explorer/:splat", "type": 301 },
+      { "source": "/static/exponential-sequences/**", "destination": "/static/math/widgets/exponential-sequences/:splat", "type": 301 },
+      { "source": "/static/widgets/exponential-sequences/**", "destination": "/static/math/widgets/exponential-sequences/:splat", "type": 301 },
+      { "source": "/static/exponential-transformations/**", "destination": "/static/math/widgets/exponential-explorer/:splat", "type": 301 },
+      { "source": "/static/widgets/exponential-transformations/**", "destination": "/static/math/widgets/exponential-explorer/:splat", "type": 301 },
+      { "source": "/static/game-of-life/**", "destination": "/static/math/widgets/game-of-life/:splat", "type": 301 },
+      { "source": "/static/widgets/game-of-life/**", "destination": "/static/math/widgets/game-of-life/:splat", "type": 301 },
+      { "source": "/static/hanoi-tower/**", "destination": "/static/math/widgets/hanoi-tower/:splat", "type": 301 },
+      { "source": "/static/widgets/hanoi-tower/**", "destination": "/static/math/widgets/hanoi-tower/:splat", "type": 301 },
+      { "source": "/static/hexagon-rotator/**", "destination": "/static/math/widgets/hexagon-rotator/:splat", "type": 301 },
+      { "source": "/static/widgets/hexagon-rotator/**", "destination": "/static/math/widgets/hexagon-rotator/:splat", "type": 301 },
+      { "source": "/static/linear-sequences/**", "destination": "/static/math/widgets/linear-sequences/:splat", "type": 301 },
+      { "source": "/static/widgets/linear-sequences/**", "destination": "/static/math/widgets/linear-sequences/:splat", "type": 301 },
+      { "source": "/static/logarithmic-explorer/**", "destination": "/static/math/widgets/logarithmic-explorer/:splat", "type": 301 },
+      { "source": "/static/widgets/logarithmic-explorer/**", "destination": "/static/math/widgets/logarithmic-explorer/:splat", "type": 301 },
+      { "source": "/static/nonogram/**", "destination": "/static/math/widgets/nonogram/:splat", "type": 301 },
+      { "source": "/static/widgets/nonogram/**", "destination": "/static/math/widgets/nonogram/:splat", "type": 301 },
+      { "source": "/static/polar-graph-visualizer/**", "destination": "/static/math/widgets/polar-graph-visualizer/:splat", "type": 301 },
+      { "source": "/static/widgets/polar-graph-visualizer/**", "destination": "/static/math/widgets/polar-graph-visualizer/:splat", "type": 301 },
+      { "source": "/static/quadratic-explorer/**", "destination": "/static/math/widgets/quadratic-explorer/:splat", "type": 301 },
+      { "source": "/static/widgets/quadratic-explorer/**", "destination": "/static/math/widgets/quadratic-explorer/:splat", "type": 301 },
+      { "source": "/static/quadratic-sequences/**", "destination": "/static/math/widgets/quadratic-sequences/:splat", "type": 301 },
+      { "source": "/static/widgets/quadratic-sequences/**", "destination": "/static/math/widgets/quadratic-sequences/:splat", "type": 301 },
+      { "source": "/static/rectangle-rotator/**", "destination": "/static/math/widgets/rectangle-rotator/:splat", "type": 301 },
+      { "source": "/static/widgets/rectangle-rotator/**", "destination": "/static/math/widgets/rectangle-rotator/:splat", "type": 301 },
+      { "source": "/static/square-completer/**", "destination": "/static/math/widgets/square-completer/:splat", "type": 301 },
+      { "source": "/static/widgets/square-completer/**", "destination": "/static/math/widgets/square-completer/:splat", "type": 301 },
+      { "source": "/static/template/**", "destination": "/static/math/widgets/template/:splat", "type": 301 },
+      { "source": "/static/widgets/template/**", "destination": "/static/math/widgets/template/:splat", "type": 301 },
+
+      { "source": "/static/t-test-for-means/**", "destination": "/static/stats/widgets/t-test-for-means/:splat", "type": 301 },
+      { "source": "/static/widgets/t-test-for-means/**", "destination": "/static/stats/widgets/t-test-for-means/:splat", "type": 301 },
+
       { "source": "/index.html", "destination": "/", "type": 301 }
     ],
     "rewrites": [
       {
-        "source": "**",
-        "destination": "/app/index.html"
+        "source": "/history",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/history/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/admin",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/admin/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/mobile",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/mobile/**",
+        "destination": "/index.html"
+      }
+      ,
+      {
+        "source": "/chem",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/chem/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/econ",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/econ/**",
+        "destination": "/index.html"
       }
     ]
   }

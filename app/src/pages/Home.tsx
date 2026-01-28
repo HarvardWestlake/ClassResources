@@ -24,21 +24,21 @@ export default function Home() {
             <span className="button">Open</span>
           </a>
 
-          <a className="widget-card" href="/static/econ/index.html">
+          <Link className="widget-card" to="/econ">
             <div className="title-row">
               <h3>Economics</h3>
             </div>
             <p>Micro and macro interactive widgets.</p>
             <span className="button">Open</span>
-          </a>
+          </Link>
 
-          <a className="widget-card" href="/static/chem/index.html">
+          <Link className="widget-card" to="/chem">
             <div className="title-row">
               <h3>Chemistry</h3>
             </div>
             <p>Hands-on chemistry demos and visualizations.</p>
             <span className="button">Open</span>
-          </a>
+          </Link>
 
           <a className="widget-card" href="/static/stats/index.html">
             <div className="title-row">

@@ -1,5 +1,8 @@
 import { Routes, Route, Link, NavLink } from 'react-router-dom'
 import Home from './pages/Home.tsx'
+import Chem from './pages/Chem.tsx'
+import Econ from './pages/Econ.tsx'
+import StaticEmbed from './pages/StaticEmbed.tsx'
 import History from './history/History.tsx'
 import WorldGlobe from './history/WorldGlobe.tsx'
 import LectureViewer from './history/LectureViewer.tsx'
@@ -28,6 +31,11 @@ export default function App() {
       <TopNav />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="chem" element={<Chem />} />
+        <Route path="chem/crystallization" element={<StaticEmbed title="Crystallization Explorer" src="/static/chem/crystallization/crystallization.html" backTo="/chem" backLabel="Chemistry" />} />
+        <Route path="econ" element={<Econ />} />
+        <Route path="econ/imperfect-competitor" element={<StaticEmbed title="Imperfect Competitor" src="/static/econ/widgets/imperfect-competitor/imperfect-competitor.html" backTo="/econ" backLabel="Economics" />} />
+        <Route path="econ/production-cost" element={<StaticEmbed title="Production Cost" src="/static/econ/widgets/production-cost/production-cost.html" backTo="/econ" backLabel="Economics" />} />
         <Route path="admin" element={<StyleGuide />} />
         <Route path="mobile" element={<MobileFullscreen />} />
         <Route path="history" element={<History />} />
